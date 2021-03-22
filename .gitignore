@@ -1,0 +1,36 @@
+/target/
+
+*.java.hsp
+*.sonarj
+*.sw*
+.DS_Store
+.settings
+.springBeans
+bin
+build.sh
+ivy-cache
+jxl.log
+jmx.log
+derby.log
+.gradle
+
+classes/
+/build
+
+# Eclipse artifacts, including WTP generated manifests
+.classpath
+.project
+*/src/main/java/META-INF/MANIFEST.MF
+.factorypath
+
+# IDEA artifacts and output dirs
+*.iml
+*.ipr
+*.iws
+.idea
+out
+test-output
+.gradletasknamecache
+
+/.apt_generated/
+/.apt_generated_tests/

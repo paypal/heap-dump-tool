@@ -1,0 +1,26 @@
+Heap Dump Tool
+Copyright 2020 PayPal Inc.
+
+This product includes software from Apache Commons Compress (Apache 2.0)
+https://github.com/apache/commons-compress
+
+This product includes software from Apache Commons IO (Apache 2.0)
+https://github.com/apache/commons-io
+
+This product includes software from Apache Commons Lang (Apache 2.0)
+https://github.com/apache/commons-lang
+
+This product includes software from Apache Commons Text (Apache 2.0)
+https://github.com/apache/commons-text
+
+This product includes software from Logback (LGPL)
+https://github.com/qos-ch/logback
+
+This product includes software from picocli (Apache 2.0)
+https://github.com/remkop/picocli
+
+This product includes software from slf4j project (MIT)
+https://github.com/qos-ch/slf4j
+
+This product includes software from spring-boot project (Apache 2.0)
+https://github.com/spring-projects/spring-boot

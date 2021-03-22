@@ -1,0 +1,13 @@
+12:rdma:/
+11:freezer:/
+10:memory:/
+9:pids:/
+8:perf_event:/
+7:cpuset:/
+6:cpu,cpuacct:/
+5:blkio:/
+4:devices:/
+3:hugetlb:/
+2:net_cls,net_prio:/
+1:name=systemd:/init.scope
+0::/init.scope

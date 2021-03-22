@@ -1,0 +1,2 @@
+CONTAINER ID        IMAGE                                                 COMMAND                  CREATED             STATUS              PORTS                    NAMES
+06e633da3494        docker-registry.example.com/apps/my-app:latest        "/docker-entrypoint.…"   2 days ago          Up 17 hours         0.0.0.0:1234->1234/tcp   my-app

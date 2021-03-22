@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+
+# If you see this comment while running the tool, you are likely running the tool incorrectly. It should be run like this:
+#    $ docker run --rm __IMAGE_NAME__ __ARGS__ | bash
+#
+# The container does not have privileges or pid namespace is not attached. Escalating privileges by running the container
+# again with privileges.
+
+FQ_IMAGE="${DOCKER_REGISTRY:-__DEFAULT_REGISTRY__}/__IMAGE_NAME__"
+
+if [ "$FQ_IMAGE" != "local/__IMAGE_NAME__" ]; then
+    docker pull $FQ_IMAGE
+fi
+
+# --privileged --pid=host -- let the tool run processes on host
+# --workdir `pwd` -v `pwd`:`pwd` -- mount host cwd as container cwd, where the heap dump will be saved
+# -e HOST_USER=`whoami` -- pass in host username so that the tool sets right owner on the output file
+docker run --rm \
+    --privileged --pid=host \
+    --workdir `pwd` -v `pwd`:`pwd` \
+    -e HOST_USER=`whoami` \
+    $FQ_IMAGE __ARGS__
