@@ -24,11 +24,11 @@ The tool can be run in several ways depending on tool's packaging and where the 
 Simplest way to capture sanitized heap dump of an app is to run:
 
 ```
-# capture plain heap dump
+# capture plain heap dump of Java process with given pid
 $ jcmd {pid} GC.heap_dump /path/to/plain-heap-dump.hprof
 
-# sanitize heap dump
-$ java -jar heap-dump-tool.jar sanitize /path/to/plain-heap-dump.hprof /path/to/sanitized-heap-dump.hprof
+# then sanitize the heap dump
+$ java -jar heap-dump-tool.jar sanitize /path/to/plain-dump.hprof /path/to/sanitized-dump.hprof
 ```
 
 <br/>
@@ -42,8 +42,8 @@ Then, to capture sanitized heap dump of a containerized app, run:
 ```
 # list docker containers
 $ docker ps
-CONTAINER ID        IMAGE                                COMMAND    CREATED        STATUS       PORTS                    NAMES
-06e633da3494        registry.example.com/my-app:latest   "java..."  2 hours ago    Up 2 hours   0.0.0.0:1234->1234/tcp   my-app
+CONTAINER ID        IMAGE                                [...]   NAMES
+06e633da3494        registry.example.com/my-app:latest   [...]   my-app
 
 # capture and sanitize
 $ java -jar heap-dump-tool.jar capture my-app
@@ -62,8 +62,8 @@ Then, to capture sanitized heap dump of another containerized app, run:
 ```
 # list docker containers
 $ docker ps
-CONTAINER ID        IMAGE                                COMMAND    CREATED        STATUS       PORTS                    NAMES
-06e633da3494        registry.example.com/my-app:latest   "java..."  2 hours ago    Up 2 hours   0.0.0.0:1234->1234/tcp   my-app
+CONTAINER ID        IMAGE                                [...]   NAMES
+06e633da3494        registry.example.com/my-app:latest   [...]   my-app
 
 # capture and sanitize
 $ docker run paypal/heap-dump-tool capture my-app | bash
