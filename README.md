@@ -9,14 +9,12 @@ numbers, etc) which should not be viewable when the heap dump is copied to a dev
 graphical program.
 
 ---
-<br/>
 
 ## TOC
   * [Examples](#examples)
   * [Usage](#usage)
+  * [License](#license)
 	
-<br/>
-
 ## Examples
 
 The tool can be run in several ways depending on tool's packaging and where the target to-be-captured app is running.
@@ -33,7 +31,9 @@ $ jcmd {pid} GC.heap_dump /path/to/plain-heap-dump.hprof
 $ java -jar heap-dump-tool.jar sanitize /path/to/plain-heap-dump.hprof /path/to/sanitized-heap-dump.hprof
 ```
 
-### [Jar] Capture sanitized heap dump of a containerized app
+<br/>
+
+#### [Jar] Capture sanitized heap dump of a containerized app
 
 Suppose the tool is a packaged jar on the host, and the target app is running as the only Java process within a container.
 
@@ -86,4 +86,10 @@ Commands:
   sanitize  Sanitize a heap dump by replacing byte and char array contents
   help      Displays help information about the specified command
 ```
+
+<a name="license"></a>
+
+## License
+
+Spring Boot is Open Source software released under the Apache 2.0 license.
 
