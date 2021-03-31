@@ -91,5 +91,5 @@ Commands:
 
 ## License
 
-Spring Boot is Open Source software released under the Apache 2.0 license.
+Heap Dump Tool is Open Source software released under the Apache 2.0 license.
 
