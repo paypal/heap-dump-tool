@@ -8,7 +8,11 @@ environment. For example, an app running in production environment may contain s
 numbers, etc) which should not be viewable when the heap dump is copied to a development environment for analysis with a
 graphical program.
 
+<img src="https://github.com/paypal/heap-dump-tool/raw/statics/heap-dump-file.png"/>
+
 ---
+
+<img src="https://github.com/paypal/heap-dump-tool/raw/statics/sanitized-heap-dump-file.png"/>
 
 ## TOC
   * [Examples](#examples)
