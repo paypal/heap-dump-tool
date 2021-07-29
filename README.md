@@ -1,5 +1,7 @@
 # Heap Dump Tool
 
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.paypal/heap-dump-tool/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.paypal/heap-dump-tool)
+
 Heap Dump Tool can capture and, more importantly, sanitize sensitive data from Java heap dumps. Sanitization is accomplished
 by replacing field values in the heap dump file with zero values. Heap dump can then be more freely shared freely and analyzed.
 
@@ -32,6 +34,7 @@ Simplest way to capture sanitized heap dump of an app is to run:
 $ jcmd {pid} GC.heap_dump /path/to/plain-heap-dump.hprof
 
 # then sanitize the heap dump
+$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.0.3/heap-dump-tool-1.0.3-all.jar
 $ java -jar heap-dump-tool.jar sanitize /path/to/plain-dump.hprof /path/to/sanitized-dump.hprof
 ```
 
@@ -50,6 +53,7 @@ CONTAINER ID        IMAGE                                [...]   NAMES
 06e633da3494        registry.example.com/my-app:latest   [...]   my-app
 
 # capture and sanitize
+$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.0.3/heap-dump-tool-1.0.3-all.jar
 $ java -jar heap-dump-tool.jar capture my-app
 ```
 
@@ -70,10 +74,22 @@ CONTAINER ID        IMAGE                                [...]   NAMES
 06e633da3494        registry.example.com/my-app:latest   [...]   my-app
 
 # capture and sanitize
-$ docker run paypal/heap-dump-tool capture my-app | bash
+$ docker run heapdumptool/heapdumptool capture my-app | bash
 ```
 
 <br/>
+
+### [Library] Embed within an app
+
+To use it as a library and embed it within another app, you can declare it as dependency in maven:
+
+```
+<dependency>
+  <groupId>com.paypal</groupId>
+  <artifactId>heap-dump-tool</artifactId>
+  <version>1.0.3</version>
+</dependency>
+```
 
 <a name="usage"></a>
 
