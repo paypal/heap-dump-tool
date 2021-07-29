@@ -4,7 +4,7 @@
 
     <groupId>com.paypal</groupId>
     <artifactId>heap-dump-tool</artifactId>
-    <version>1.0.3-SNAPSHOT</version>
+    <version>1.0.3</version>
 
     <name>Heap Dump Tool</name>
     <description>
@@ -65,7 +65,7 @@
         <connection>scm:git:git://github.com/paypal/heap-dump-tool.git</connection>
         <developerConnection>scm:git:https://github.com/paypal/heap-dump-tool.git</developerConnection>
         <url>http://github.com/paypal/heap-dump-tool/tree/main</url>
-        <tag>HEAD</tag>
+        <tag>heap-dump-tool-1.0.3</tag>
     </scm>
 
     <developers>
