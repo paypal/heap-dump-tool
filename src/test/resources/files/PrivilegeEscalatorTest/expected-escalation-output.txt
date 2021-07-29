@@ -2,14 +2,14 @@
 set -euo pipefail
 
 # If you see this comment while running the tool, you are likely running the tool incorrectly. It should be run like this:
-#    $ docker run --rm paypal/heap-dump-tool foo "b a r" | bash
+#    $ docker run --rm heapdumptool/heapdumptool foo "b a r" | bash
 #
 # The container does not have privileges or pid namespace is not attached. Escalating privileges by running the container
 # again with privileges.
 
-FQ_IMAGE="${DOCKER_REGISTRY:-index.docker.io}/paypal/heap-dump-tool"
+FQ_IMAGE="${DOCKER_REGISTRY:-index.docker.io}/heapdumptool/heapdumptool"
 
-if [ "$FQ_IMAGE" != "local/paypal/heap-dump-tool" ]; then
+if [ "$FQ_IMAGE" != "local/heapdumptool/heapdumptool" ]; then
     docker pull $FQ_IMAGE
 fi
 

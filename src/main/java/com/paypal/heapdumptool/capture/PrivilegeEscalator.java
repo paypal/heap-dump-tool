@@ -28,7 +28,7 @@ import static org.apache.commons.io.IOUtils.resourceToString;
 public class PrivilegeEscalator {
 
     public static final String DEFAULT_REGISTRY = "index.docker.io";
-    public static final String IMAGE_NAME = "paypal/heap-dump-tool";
+    public static final String IMAGE_NAME = "heapdumptool/heapdumptool";
     private static final String DOCKER = "docker";
 
     public static Escalation escalatePrivilegesIfNeeded(final String... args) throws Exception {
