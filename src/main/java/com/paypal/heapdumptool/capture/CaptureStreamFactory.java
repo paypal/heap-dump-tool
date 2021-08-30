@@ -34,7 +34,7 @@ public class CaptureStreamFactory extends SanitizeStreamFactory implements Close
     public OutputStream newOutputStream() throws IOException {
         final OutputStream stream = super.newOutputStream();
         outputStreamRef.compareAndSet(null, stream);
-        return new CloseShieldOutputStream(stream);
+        return CloseShieldOutputStream.wrap(stream);
     }
 
     public OutputStream getNativeOutputStream() {

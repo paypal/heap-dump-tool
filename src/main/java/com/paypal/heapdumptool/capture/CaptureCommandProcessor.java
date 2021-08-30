@@ -256,7 +256,6 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
         return elements;
     }
 
-    @SuppressWarnings("deprecation")
     private static void closeQuietly(final Closeable closeable) {
         IOUtils.closeQuietly(closeable);
     }
