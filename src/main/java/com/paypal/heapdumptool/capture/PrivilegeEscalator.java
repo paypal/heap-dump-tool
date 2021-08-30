@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 
@@ -27,8 +28,8 @@ import static org.apache.commons.io.IOUtils.resourceToString;
  */
 public class PrivilegeEscalator {
 
-    public static final String DEFAULT_REGISTRY = "index.docker.io";
-    public static final String IMAGE_NAME = "heapdumptool/heapdumptool";
+    public static final String DEFAULT_REGISTRY = System.getProperty("hdt.default-registry", "index.docker.io");
+    public static final String IMAGE_NAME = System.getProperty("hdt.image-name", "heapdumptool/heapdumptool");
     private static final String DOCKER = "docker";
 
     public static Escalation escalatePrivilegesIfNeeded(final String... args) throws Exception {
@@ -85,39 +86,48 @@ public class PrivilegeEscalator {
                                         .map(PrivilegeEscalator::quoteIfNeeded)
                                         .collect(joining(" "));
 
-        final String defaultRegistry = findDefaultRegistry(args);
+        final Optional<String> forcedDockerRegistry = findForcedDockerRegistry(args);
+        final String defaultRegistry = forcedDockerRegistry.orElse(DEFAULT_REGISTRY);
+
+        final String dockerRegistryEnvName = forcedDockerRegistry.isPresent()
+                ? "FORCED_DOCKER_REGISTRY"
+                : "DOCKER_REGISTRY";
 
         final Map<String, String> params = new HashMap<>();
         params.put("IMAGE_NAME", IMAGE_NAME);
         params.put("ARGS", quotedArgs);
         params.put("DEFAULT_REGISTRY", defaultRegistry);
+        params.put("DOCKER_REGISTRY_ENV_NAME", dockerRegistryEnvName);
 
         return params;
     }
 
-    private static String findDefaultRegistry(final String... args) {
+    private static Optional<String> findForcedDockerRegistry(final String... args) {
+        String forcedDockerRegistry = null;
         for (int i = 0; i < args.length; i++) {
             final String arg = args[i];
 
             if (arg.startsWith(DOCKER_REGISTRY_OPTION)) {
                 if (arg.contains("=")) {
-                    return StringUtils.substringAfterLast(arg, "=");
+                    forcedDockerRegistry = StringUtils.substringAfterLast(arg, "=");
+                    break;
                 }
 
                 if (i < args.length - 1) {
-                    return args[i + 1];
+                    forcedDockerRegistry = args[i + 1];
+                    break;
                 }
 
                 throw new IllegalArgumentException("Cannot find argument value for " + DOCKER_REGISTRY_OPTION);
             }
         }
-        return DEFAULT_REGISTRY;
+        return Optional.ofNullable(forcedDockerRegistry);
     }
 
     private static String quoteIfNeeded(final String str) {
         return str.contains(" ")
-               ? "\"" + str + "\""
-               : str;
+                ? "\"" + str + "\""
+                : str;
     }
 
     private PrivilegeEscalator() {

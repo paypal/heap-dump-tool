@@ -83,7 +83,7 @@ public class PrivilegeEscalatorTest {
         assertThat(escalatePrivilegesIfNeeded("--docker-registry=my-custom-registry.example.com"))
                 .isEqualTo(ESCALATED);
         assertThat(output.getOut())
-                .contains("FQ_IMAGE=\"${DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
+                .contains("FQ_IMAGE=\"${FORCED_DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
     }
 
     @Test
@@ -95,7 +95,7 @@ public class PrivilegeEscalatorTest {
         assertThat(escalatePrivilegesIfNeeded("--docker-registry", "my-custom-registry.example.com"))
                 .isEqualTo(ESCALATED);
         assertThat(output.getOut())
-                .contains("FQ_IMAGE=\"${DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
+                .contains("FQ_IMAGE=\"${FORCED_DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
     }
 
     @Test

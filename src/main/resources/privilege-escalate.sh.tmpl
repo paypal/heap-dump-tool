@@ -7,7 +7,7 @@ set -euo pipefail
 # The container does not have privileges or pid namespace is not attached. Escalating privileges by running the container
 # again with privileges.
 
-FQ_IMAGE="${DOCKER_REGISTRY:-__DEFAULT_REGISTRY__}/__IMAGE_NAME__"
+FQ_IMAGE="${__DOCKER_REGISTRY_ENV_NAME__:-__DEFAULT_REGISTRY__}/__IMAGE_NAME__"
 
 if [ "$FQ_IMAGE" != "local/__IMAGE_NAME__" ]; then
     docker pull $FQ_IMAGE

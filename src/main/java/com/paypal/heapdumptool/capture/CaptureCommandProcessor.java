@@ -119,7 +119,7 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
     private void updateFilePermissions(final Path destFilePath) throws Exception {
         Files.setPosixFilePermissions(destFilePath, globalReadWritePermissions());
 
-        final String hostUser = System.getProperty("HOST_USER", System.getenv("HOST_USER"));
+        final String hostUser = System.getProperty("hdt.HOST_USER", System.getenv("HOST_USER"));
         if (hostUser != null) {
             invokePrivilegedProcess("chown", hostUser + ":" + hostUser, destFilePath.toString());
         }
