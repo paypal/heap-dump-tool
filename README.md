@@ -87,7 +87,7 @@ To use it as a library and embed it within another app, you can declare it as de
 <dependency>
   <groupId>com.paypal</groupId>
   <artifactId>heap-dump-tool</artifactId>
-  <version>1.0.3</version>
+  <version>1.1.0</version>
 </dependency>
 ```
 
@@ -104,6 +104,7 @@ Tool for capturing or sanitizing heap dumps
 Commands:
   capture   Capture sanitized heap dump of a containerized app
   sanitize  Sanitize a heap dump by replacing byte and char array contents
+  sanitize-hserr  Sanitize fatal error log by censoring environment variable values
   help      Displays help information about the specified command
 ```
 

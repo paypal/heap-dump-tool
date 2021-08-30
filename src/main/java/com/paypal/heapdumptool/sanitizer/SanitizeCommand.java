@@ -16,8 +16,13 @@ import static picocli.CommandLine.Help.Visibility.ALWAYS;
 @Command(name = "sanitize", description = "Sanitize a heap dump by replacing byte and char array contents", abbreviateSynopsis = true)
 public class SanitizeCommand implements CliCommand {
 
+    static final String DOCKER_REGISTRY_OPTION = "--docker-registry";
+    
     // to allow field injection from picocli, these variables can't be final
 
+    @Option(names = { "-d", DOCKER_REGISTRY_OPTION }, description = "docker registry hostname for bootstrapping heap-dump-tool docker image")
+    private String dockerRegistry;
+    
     @Parameters(index = "0", description = "Input heap dump .hprof. File or stdin")
     private Path inputFile;
 

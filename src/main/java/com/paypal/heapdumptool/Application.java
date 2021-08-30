@@ -3,6 +3,7 @@ package com.paypal.heapdumptool;
 import com.paypal.heapdumptool.Application.VersionProvider;
 import com.paypal.heapdumptool.capture.CaptureCommand;
 import com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation;
+import com.paypal.heapdumptool.hserr.SanitizeHserrCommand;
 import com.paypal.heapdumptool.sanitizer.DataSize;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommand;
 import org.apache.commons.text.StringSubstitutor;
@@ -23,12 +24,13 @@ import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.ESCA
 import static org.apache.commons.io.IOUtils.resourceToByteArray;
 
 @Command(name = APP_ID,
-        description = "Tool for capturing or sanitizing heap dumps",
+        description = "Tool primarily for capturing or sanitizing heap dumps",
         mixinStandardHelpOptions = true,
         versionProvider = VersionProvider.class,
         subcommands = {
                 CaptureCommand.class,
                 SanitizeCommand.class,
+                SanitizeHserrCommand.class,
                 HelpCommand.class,
         }
 )
