@@ -123,6 +123,10 @@ Commands:
 
 <a name="license"></a>
 
+## Whitepaper
+
+See [whitepaper (pdf)](https://github.com/paypal/heap-dump-tool/blob/statics/whitepaper.pdf)
+
 ## License
 
 Heap Dump Tool is Open Source software released under the Apache 2.0 license.
