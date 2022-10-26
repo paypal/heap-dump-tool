@@ -41,6 +41,9 @@ public class SanitizeCommand implements CliCommand {
     @Option(names = {"-s", "--sanitize-byte-char-arrays-only"}, description = "Sanitize byte/char arrays only", defaultValue = "true", showDefaultValue = ALWAYS)
     private boolean sanitizeByteCharArraysOnly = true;
 
+    @Option(names = {"--sanitize-arrays-only"}, description = "Sanitize arrays only", defaultValue = "false", showDefaultValue = ALWAYS)
+    private boolean sanitizeArraysOnly;
+
     @Option(names = {"-b", "--buffer-size"}, description = "Buffer size for reading and writing", defaultValue = "100MB", showDefaultValue = ALWAYS)
     private DataSize bufferSize = ofMegabytes(100);
 
@@ -63,6 +66,14 @@ public class SanitizeCommand implements CliCommand {
 
     public void setSanitizeByteCharArraysOnly(final boolean sanitizeByteCharArraysOnly) {
         this.sanitizeByteCharArraysOnly = sanitizeByteCharArraysOnly;
+    }
+
+    public boolean isSanitizeArraysOnly() {
+        return sanitizeArraysOnly;
+    }
+
+    public void setSanitizeArraysOnly(boolean sanitizeArraysOnly) {
+        this.sanitizeArraysOnly = sanitizeArraysOnly;
     }
 
     public Path getInputFile() {

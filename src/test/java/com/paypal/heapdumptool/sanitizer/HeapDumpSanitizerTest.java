@@ -4,28 +4,24 @@ import com.paypal.heapdumptool.fixture.HeapDumper;
 import com.paypal.heapdumptool.fixture.ResourceTool;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyInstanceFields;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyStaticFields;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.MethodOrderer.Random;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInfo;
-import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.io.TempDir;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static com.paypal.heapdumptool.ApplicationTestSupport.runApplicationPrivileged;
-import static com.paypal.heapdumptool.fixture.ByteArrayTool.countOfSequence;
-import static com.paypal.heapdumptool.fixture.ByteArrayTool.lengthen;
-import static com.paypal.heapdumptool.fixture.ByteArrayTool.nCopiesLongToBytes;
+import static com.paypal.heapdumptool.fixture.ByteArrayTool.*;
+import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
@@ -50,6 +46,8 @@ public class HeapDumpSanitizerTest {
     private final String hisClassifiedValue = "ijt.dmbttjgjfe.wbmvf";
     private final String herClassifiedValue = "ifs.dmbttjgjfe.wbmvf";
     private final String itsClassifiedValue = "jut.dmbttjgjfe.wbmvf";
+
+    private final SecretArrays secretArrays = new SecretArrays();
 
     @BeforeEach
     public void beforeEach(final TestInfo info) {
@@ -88,7 +86,15 @@ public class HeapDumpSanitizerTest {
                 .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
                 .containsSequence(expectedHisSecretValueBytes)
                 .containsSequence(expectedHerSecretValueBytes)
-                .containsSequence(expectedItsSecretValueBytes);
+                .containsSequence(expectedItsSecretValueBytes)
+                .containsSequence(secretArrays.getByteArraySequence())
+                .containsSequence(secretArrays.getCharArraySequence())
+                .containsSequence(secretArrays.getShortArraySequence())
+                .containsSequence(secretArrays.getIntArraySequence())
+                .containsSequence(secretArrays.getLongArraySequence())
+                .containsSequence(secretArrays.getFloatArraySequence())
+                .containsSequence(secretArrays.getDoubleArraySequence())
+                .containsSequence(secretArrays.getBooleanArraySequence());
     }
 
     @Test
@@ -111,6 +117,19 @@ public class HeapDumpSanitizerTest {
         verifyDoesNotContainsSequence(heapDump, expectedHisClassifiedValueBytes);
         verifyDoesNotContainsSequence(heapDump, expectedHerClassifiedValueBytes);
         verifyDoesNotContainsSequence(heapDump, expectedItsClassifiedValueBytes);
+
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getByteArraySequence());
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getCharArraySequence());
+
+        // by default only byte and char arrays are sanitized
+        assertThat(heapDump)
+                .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
+                .containsSequence(secretArrays.getShortArraySequence())
+                .containsSequence(secretArrays.getIntArraySequence())
+                .containsSequence(secretArrays.getLongArraySequence())
+                .containsSequence(secretArrays.getFloatArraySequence())
+                .containsSequence(secretArrays.getDoubleArraySequence())
+                .containsSequence(secretArrays.getBooleanArraySequence());
     }
 
     @Test
@@ -129,13 +148,38 @@ public class HeapDumpSanitizerTest {
         sanitizedHeapDump = null;
         clearLoadedHeapDumpInfo();
 
-        final byte[] clearHeapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=true");
-        assertThat(clearHeapDump)
-                .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                .containsSequence(nCopiesLongToBytes(deadcow(), 500));
+        {
+            final byte[] clearHeapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=true");
+            assertThat(clearHeapDump)
+                    .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
+                    .containsSequence(nCopiesLongToBytes(deadcow(), 500));
 
-        assertThat(countOfSequence(clearHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
-                .isGreaterThan(500);
+            assertThat(countOfSequence(clearHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
+                    .isGreaterThan(500);
+        }
+
+        {
+            final byte[] clearHeapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=false", "--sanitize-arrays-only=true");
+            assertThat(clearHeapDump)
+                    .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
+                    .containsSequence(nCopiesLongToBytes(deadcow(), 500));
+
+            assertThat(countOfSequence(clearHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
+                    .isGreaterThan(500);
+        }
+    }
+
+    @Test
+    public void testSanitizeArraysOnly() throws Exception {
+        byte[] heapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=false", "--sanitize-arrays-only=true");
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getByteArraySequence());
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getCharArraySequence());
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getShortArraySequence());
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getIntArraySequence());
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getLongArraySequence());
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getFloatArraySequence());
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getDoubleArraySequence());
+        verifyDoesNotContainsSequence(heapDump, secretArrays.getBooleanArraySequence());
     }
 
     // 0xDEADBEEF
@@ -212,5 +256,99 @@ public class HeapDumpSanitizerTest {
         final Path path = Files.createTempFile(tempDir, getClass().getSimpleName(), ".hprof");
         Files.delete(path);
         return path;
+    }
+
+    private static class SecretArrays {
+        private static final int LENGTH = 512;
+
+        private final byte[] byteArray = new byte[LENGTH];
+        private final char[] charArray = new char[LENGTH];
+        private final short[] shortArray = new short[LENGTH];
+        private final int[] intArray = new int[LENGTH];
+        private final long[] longArray = new long[LENGTH];
+        private final float[] floatArray = new float[LENGTH];
+        private final double[] doubleArray = new double[LENGTH];
+        private final boolean[] booleanArray = new boolean[LENGTH];
+
+        {
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            for (int i = 0; i < LENGTH; i++) {
+                byteArray[i] = (byte) random.nextInt();
+                charArray[i] = (char) random.nextInt();
+                shortArray[i] = (short) random.nextInt();
+                intArray[i] = random.nextInt();
+                longArray[i] = random.nextLong();
+                floatArray[i] = random.nextFloat();
+                doubleArray[i] = random.nextDouble();
+                booleanArray[i] = random.nextBoolean();
+            }
+        }
+
+        public byte[] getByteArraySequence() {
+            return byteArray;
+        }
+
+        public byte[] getCharArraySequence() {
+            ByteBuffer buffer = ByteBuffer.allocate(Character.BYTES * LENGTH);
+            buffer.order(BIG_ENDIAN);
+            for (int i = 0; i < LENGTH; i++) {
+                buffer.putChar(i * Character.BYTES, charArray[i]);
+            }
+            return buffer.array();
+        }
+
+        public byte[] getShortArraySequence() {
+            ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES * LENGTH);
+            buffer.order(BIG_ENDIAN);
+            for (int i = 0; i < LENGTH; i++) {
+                buffer.putShort(i * Short.BYTES, shortArray[i]);
+            }
+            return buffer.array();
+        }
+
+        public byte[] getIntArraySequence() {
+            ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES * LENGTH);
+            buffer.order(BIG_ENDIAN);
+            for (int i = 0; i < LENGTH; i++) {
+                buffer.putInt(i * Integer.BYTES, intArray[i]);
+            }
+            return buffer.array();
+        }
+
+        public byte[] getLongArraySequence() {
+            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES * LENGTH);
+            buffer.order(BIG_ENDIAN);
+            for (int i = 0; i < LENGTH; i++) {
+                buffer.putLong(i * Long.BYTES, longArray[i]);
+            }
+            return buffer.array();
+        }
+
+        public byte[] getFloatArraySequence() {
+            ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * LENGTH);
+            buffer.order(BIG_ENDIAN);
+            for (int i = 0; i < LENGTH; i++) {
+                buffer.putFloat(i * Float.BYTES, floatArray[i]);
+            }
+            return buffer.array();
+        }
+
+        public byte[] getDoubleArraySequence() {
+            ByteBuffer buffer = ByteBuffer.allocate(Double.BYTES * LENGTH);
+            buffer.order(BIG_ENDIAN);
+            for (int i = 0; i < LENGTH; i++) {
+                buffer.putDouble(i * Double.BYTES, doubleArray[i]);
+            }
+            return buffer.array();
+        }
+
+        public byte[] getBooleanArraySequence() {
+            ByteBuffer buffer = ByteBuffer.allocate(LENGTH);
+            buffer.order(BIG_ENDIAN);
+            for (int i = 0; i < LENGTH; i++) {
+                buffer.put(i, booleanArray[i] ? (byte) 1 : (byte) 0);
+            }
+            return buffer.array();
+        }
     }
 }
