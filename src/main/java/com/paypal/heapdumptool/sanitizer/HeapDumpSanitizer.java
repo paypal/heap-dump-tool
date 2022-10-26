@@ -50,6 +50,7 @@ public class HeapDumpSanitizer {
     private OutputStream outputStream;
     private ProgressMonitor progressMonitor;
     private String sanitizationText;
+    private boolean sanitizeArraysOnly;
     private boolean sanitizeByteCharArraysOnly;
 
     public void setInputStream(final InputStream inputStream) {
@@ -68,8 +69,18 @@ public class HeapDumpSanitizer {
         this.sanitizationText = sanitizationText;
     }
 
-    public void setSanitizeByteCharArraysOnly(final boolean sanitizeArraysOnly) {
-        this.sanitizeByteCharArraysOnly = sanitizeArraysOnly;
+    public void setSanitizeArraysOnly(final boolean sanitizeArraysOnly) {
+        if (sanitizeArraysOnly && sanitizeByteCharArraysOnly) {
+            throw new IllegalArgumentException("sanitizeArraysOnly and sanitizeByteCharArraysOnly cannot be both set to true simultaneously");
+        }
+        this.sanitizeArraysOnly = sanitizeArraysOnly;
+    }
+
+    public void setSanitizeByteCharArraysOnly(final boolean sanitizeByteCharArraysOnly) {
+        if (sanitizeArraysOnly && sanitizeByteCharArraysOnly) {
+            throw new IllegalArgumentException("sanitizeArraysOnly and sanitizeByteCharArraysOnly cannot be both set to true simultaneously");
+        }
+        this.sanitizeByteCharArraysOnly = sanitizeByteCharArraysOnly;
     }
 
     public void sanitize() throws IOException {
@@ -216,7 +227,7 @@ public class HeapDumpSanitizer {
 
     private void pipeStaticField(final Pipe pipe, final int entryType) throws IOException {
         final int valueSize = BasicType.findValueSize(entryType, pipe.getIdSize());
-        if (enableSanitization && !sanitizeByteCharArraysOnly) {
+        if (enableSanitization && !sanitizeByteCharArraysOnly && !sanitizeArraysOnly) {
             applySanitization(pipe, valueSize);
         } else {
             pipe.pipe(valueSize);
@@ -242,7 +253,7 @@ public class HeapDumpSanitizer {
         pipe.pipeU4();
         pipe.pipeId();
         final long numBytes = pipe.pipeU4();
-        if (enableSanitization && !sanitizeByteCharArraysOnly) {
+        if (enableSanitization && !sanitizeByteCharArraysOnly && !sanitizeArraysOnly) {
             applySanitization(pipe, numBytes);
         } else {
             pipe.pipe(numBytes);

@@ -52,6 +52,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
             sanitizer.setProgressMonitor(numBytesProcessedMonitor(command.getBufferSize(), LOGGER));
             sanitizer.setSanitizationText(command.getSanitizationText());
             sanitizer.setSanitizeByteCharArraysOnly(command.isSanitizeByteCharArraysOnly());
+            sanitizer.setSanitizeArraysOnly(command.isSanitizeArraysOnly());
 
             sanitizer.sanitize();
         }
