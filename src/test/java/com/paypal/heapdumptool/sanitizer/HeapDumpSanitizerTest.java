@@ -171,7 +171,7 @@ public class HeapDumpSanitizerTest {
 
     @Test
     public void testSanitizeArraysOnly() throws Exception {
-        byte[] heapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=false", "--sanitize-arrays-only=true");
+        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=false", "--sanitize-arrays-only=true");
         verifyDoesNotContainsSequence(heapDump, secretArrays.getByteArraySequence());
         verifyDoesNotContainsSequence(heapDump, secretArrays.getCharArraySequence());
         verifyDoesNotContainsSequence(heapDump, secretArrays.getShortArraySequence());
@@ -271,7 +271,7 @@ public class HeapDumpSanitizerTest {
         private final boolean[] booleanArray = new boolean[LENGTH];
 
         {
-            ThreadLocalRandom random = ThreadLocalRandom.current();
+            final ThreadLocalRandom random = ThreadLocalRandom.current();
             for (int i = 0; i < LENGTH; i++) {
                 byteArray[i] = (byte) random.nextInt();
                 charArray[i] = (char) random.nextInt();
@@ -289,7 +289,7 @@ public class HeapDumpSanitizerTest {
         }
 
         public byte[] getCharArraySequence() {
-            ByteBuffer buffer = ByteBuffer.allocate(Character.BYTES * LENGTH);
+            final ByteBuffer buffer = ByteBuffer.allocate(Character.BYTES * LENGTH);
             buffer.order(BIG_ENDIAN);
             for (int i = 0; i < LENGTH; i++) {
                 buffer.putChar(i * Character.BYTES, charArray[i]);
@@ -298,7 +298,7 @@ public class HeapDumpSanitizerTest {
         }
 
         public byte[] getShortArraySequence() {
-            ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES * LENGTH);
+            final ByteBuffer buffer = ByteBuffer.allocate(Short.BYTES * LENGTH);
             buffer.order(BIG_ENDIAN);
             for (int i = 0; i < LENGTH; i++) {
                 buffer.putShort(i * Short.BYTES, shortArray[i]);
@@ -307,7 +307,7 @@ public class HeapDumpSanitizerTest {
         }
 
         public byte[] getIntArraySequence() {
-            ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES * LENGTH);
+            final ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES * LENGTH);
             buffer.order(BIG_ENDIAN);
             for (int i = 0; i < LENGTH; i++) {
                 buffer.putInt(i * Integer.BYTES, intArray[i]);
@@ -316,7 +316,7 @@ public class HeapDumpSanitizerTest {
         }
 
         public byte[] getLongArraySequence() {
-            ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES * LENGTH);
+            final ByteBuffer buffer = ByteBuffer.allocate(Long.BYTES * LENGTH);
             buffer.order(BIG_ENDIAN);
             for (int i = 0; i < LENGTH; i++) {
                 buffer.putLong(i * Long.BYTES, longArray[i]);
@@ -325,7 +325,7 @@ public class HeapDumpSanitizerTest {
         }
 
         public byte[] getFloatArraySequence() {
-            ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * LENGTH);
+            final ByteBuffer buffer = ByteBuffer.allocate(Float.BYTES * LENGTH);
             buffer.order(BIG_ENDIAN);
             for (int i = 0; i < LENGTH; i++) {
                 buffer.putFloat(i * Float.BYTES, floatArray[i]);
@@ -334,7 +334,7 @@ public class HeapDumpSanitizerTest {
         }
 
         public byte[] getDoubleArraySequence() {
-            ByteBuffer buffer = ByteBuffer.allocate(Double.BYTES * LENGTH);
+            final ByteBuffer buffer = ByteBuffer.allocate(Double.BYTES * LENGTH);
             buffer.order(BIG_ENDIAN);
             for (int i = 0; i < LENGTH; i++) {
                 buffer.putDouble(i * Double.BYTES, doubleArray[i]);
@@ -343,7 +343,7 @@ public class HeapDumpSanitizerTest {
         }
 
         public byte[] getBooleanArraySequence() {
-            ByteBuffer buffer = ByteBuffer.allocate(LENGTH);
+            final ByteBuffer buffer = ByteBuffer.allocate(LENGTH);
             buffer.order(BIG_ENDIAN);
             for (int i = 0; i < LENGTH; i++) {
                 buffer.put(i, booleanArray[i] ? (byte) 1 : (byte) 0);

@@ -72,7 +72,7 @@ public class SanitizeCommand implements CliCommand {
         return sanitizeArraysOnly;
     }
 
-    public void setSanitizeArraysOnly(boolean sanitizeArraysOnly) {
+    public void setSanitizeArraysOnly(final boolean sanitizeArraysOnly) {
         this.sanitizeArraysOnly = sanitizeArraysOnly;
     }
 
