@@ -77,6 +77,21 @@ CONTAINER ID        IMAGE                                [...]   NAMES
 $ docker run heapdumptool/heapdumptool capture my-app | bash
 ```
 
+If the container runs multiple Java processes, pid can be specified:
+```
+# list docker containers
+$ docker ps
+CONTAINER ID        IMAGE                                [...]   NAMES
+06e633da3494        registry.example.com/my-app:latest   [...]   my-app
+
+# find pid
+$ jps
+$ ps aux
+
+# capture and sanitize
+$ docker run heapdumptool/heapdumptool capture my-app -p {pid} | bash
+```
+
 <br/>
 
 #### Sanitize hs_err* Java fatal error logs
@@ -109,7 +124,7 @@ To use it as a library and embed it within another app, you can declare it as de
 ## Usage
 
 ```
-java -jar target/heap-dump-tool.jar  help
+java -jar heap-dump-tool.jar  help
 Usage: heap-dump-tool [-hV] [COMMAND]
 Tool for capturing or sanitizing heap dumps
   -h, --help      Show this help message and exit.
@@ -119,6 +134,30 @@ Commands:
   sanitize  Sanitize a heap dump by replacing byte and char array contents
   sanitize-hserr  Sanitize fatal error log by censoring environment variable values
   help      Displays help information about the specified command
+```
+
+Additional usage for sub-commands can be found by running `help {sub-command}`. For example:
+
+```
+$ java -jar heap-dump-tool.jar help capture
+Usage: heap-dump-tool capture [OPTIONS] <containerName>
+Capture sanitized heap dump of a containerized app
+Plain thread dump is also captured
+      <containerName>   Container name
+  -b, --buffer-size=<bufferSize>
+                        Buffer size for reading and writing
+                          Default: 100MB
+  -d, --docker-registry=<dockerRegistry>
+                        docker registry hostname for bootstrapping heap-dump-tool docker image
+  -p, --pid=<pid>       Pid within the container, if there are multiple Java processes
+  -s, --sanitize-byte-char-arrays-only
+                        Sanitize byte/char arrays only
+                          Default: true
+  -t, --text=<sanitizationText>
+                        Sanitization text to replace with
+                          Default: \0
+  -z, --zip-output      Write zipped output
+                          Default: true
 ```
 
 <a name="license"></a>
