@@ -40,7 +40,8 @@
         <!-- Specify all SonarQube code coverage reports - default does not pick up integration tests -->
         <sonar.coverage.jacoco.xmlReportPaths>target/site/jacoco/jacoco.xml,target/site/jacoco-it/jacoco.xml,target/site/jacoco-aggregate/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
 
-        <spring-boot.version>2.6.2</spring-boot.version>
+        <logback.version>1.2.13</logback.version>
+        <spring-boot.version>2.7.18</spring-boot.version>
         <versions-maven-plugin.version>2.7</versions-maven-plugin.version>
 
         <!-- Dependency versions -->
@@ -108,6 +109,19 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
+            <version>${logback.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>ch.qos.logback</groupId>
+                    <artifactId>logback-core</artifactId>
+                </exclusion>
+            </exclusions> 
+        </dependency>
+
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+            <version>${logback.version}</version>
         </dependency>
 
         <dependency>
@@ -126,7 +140,7 @@
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>32.0.0-jre</version>
+            <version>33.0.0-jre</version>
             <scope>test</scope>
         </dependency>
 
