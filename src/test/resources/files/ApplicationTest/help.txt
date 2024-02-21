@@ -6,4 +6,4 @@ Commands:
   capture         Capture sanitized heap dump of a containerized app
   sanitize        Sanitize a heap dump by replacing byte and char array contents
   sanitize-hserr  Sanitize fatal error log by censoring environment variable values
-  help            Displays help information about the specified command
+  help            Display help information about the specified command.

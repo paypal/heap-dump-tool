@@ -5,6 +5,7 @@ import com.paypal.heapdumptool.sanitizer.SanitizeCommandProcessor;
 import com.paypal.heapdumptool.utils.ProcessTool;
 import com.paypal.heapdumptool.utils.ProcessTool.ProcessResult;
 import org.apache.commons.io.input.NullInputStream;
+import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -20,7 +21,6 @@ import java.time.Instant;
 import java.util.stream.Stream;
 
 import static java.time.temporal.ChronoUnit.SECONDS;
-import static org.apache.commons.io.output.NullOutputStream.NULL_OUTPUT_STREAM;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.mockito.Answers.CALLS_REAL_METHODS;
@@ -153,7 +153,7 @@ public class CaptureCommandProcessorTest {
         doReturn(process).when(processBuilder).start();
         doReturn(nullInputStream).when(process).getInputStream();
         doReturn(nullInputStream).when(process).getErrorStream();
-        doReturn(NULL_OUTPUT_STREAM).when(process).getOutputStream();
+        doReturn(NullOutputStream.INSTANCE).when(process).getOutputStream();
 
         return processBuilder;
     }
