@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Objects.requireNonNull;
-import static org.apache.commons.compress.utils.IOUtils.closeQuietly;
+import static org.apache.commons.io.IOUtils.closeQuietly;
 
 public class CaptureStreamFactory extends SanitizeStreamFactory implements Closeable {
 

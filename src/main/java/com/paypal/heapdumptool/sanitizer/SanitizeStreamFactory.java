@@ -35,7 +35,7 @@ public class SanitizeStreamFactory {
 
         if (command.isTarInput()) {
             final TarArchiveInputStream tarStream = new TarArchiveInputStream(inputStream);
-            Validate.notNull(tarStream.getNextTarEntry(), "no tar entries");
+            Validate.notNull(tarStream.getNextEntry(), "no tar entries");
             return tarStream;
         }
         return inputStream;

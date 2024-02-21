@@ -1,7 +1,7 @@
 package com.paypal.heapdumptool.capture;
 
 import com.paypal.heapdumptool.sanitizer.SanitizeCommand;
-import org.apache.commons.compress.utils.IOUtils;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.CloseShieldOutputStream;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DynamicTest;
