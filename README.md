@@ -34,7 +34,7 @@ Simplest way to capture sanitized heap dump of an app is to run:
 $ jcmd {pid} GC.heap_dump /path/to/plain-heap-dump.hprof
 
 # then sanitize the heap dump
-$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.1.5/heap-dump-tool-1.1.5-all.jar
+$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.1.6/heap-dump-tool-1.1.6-all.jar
 $ java -jar heap-dump-tool.jar sanitize /path/to/plain-dump.hprof /path/to/sanitized-dump.hprof
 ```
 
@@ -53,7 +53,7 @@ CONTAINER ID        IMAGE                                [...]   NAMES
 06e633da3494        registry.example.com/my-app:latest   [...]   my-app
 
 # capture and sanitize
-$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.1.5/heap-dump-tool-1.1.5-all.jar
+$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.1.6/heap-dump-tool-1.1.6-all.jar
 $ java -jar heap-dump-tool.jar capture my-app
 ```
 
@@ -100,7 +100,7 @@ To sanitize environment variables in hs_err* files, you can run:
 
 ```
 # with java -jar
-$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.1.5/heap-dump-tool-1.1.5-all.jar
+$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.1.6/heap-dump-tool-1.1.6-all.jar
 $ java -jar heap-dump-tool.jar sanitize-hserr input-hs_err.log outout-hs_err.log
 
 # Or, with docker
@@ -115,7 +115,7 @@ To use it as a library and embed it within another app, you can declare it as de
 <dependency>
   <groupId>com.paypal</groupId>
   <artifactId>heap-dump-tool</artifactId>
-  <version>1.1.5</version>
+  <version>1.1.6</version>
 </dependency>
 ```
 
