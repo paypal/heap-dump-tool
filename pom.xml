@@ -23,7 +23,7 @@
         <copy-rename-maven-plugin.version>1.0.1</copy-rename-maven-plugin.version>
         <git-commit-id-plugin.version>4.0.5</git-commit-id-plugin.version>
         <gpg.skip>true</gpg.skip>
-        <jacoco-maven-plugin.version>0.8.7</jacoco-maven-plugin.version>
+        <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
         <jgitflow-maven-plugin.version>1.0-m5.1</jgitflow-maven-plugin.version>
         <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss z</maven.build.timestamp.format>
         <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
@@ -259,7 +259,7 @@
                 <configuration>
                     <workingDirectory>${project.build.directory}</workingDirectory>
                     <classesDirectory>${project.build.outputDirectory}</classesDirectory>
-                    <argLine>-Xmx1024m -Xms128m ${argLine}</argLine>
+                    <argLine>-Xmx1024m -Xms128m @{argLine}</argLine>
                     <runOrder>alphabetical</runOrder>
                 </configuration>
                 <executions>
@@ -279,7 +279,7 @@
                 <configuration>
                     <workingDirectory>${project.build.directory}</workingDirectory>
                     <classesDirectory>${project.build.outputDirectory}</classesDirectory>
-                    <argLine>-Xmx1024m -Xms128m ${argLine}</argLine>
+                    <argLine>-Xmx1024m -Xms128m @{argLine}</argLine>
                     <runOrder>alphabetical</runOrder>
                 </configuration>
             </plugin>

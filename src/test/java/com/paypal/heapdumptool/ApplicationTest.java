@@ -43,7 +43,7 @@ public class ApplicationTest {
             final int exitCode = runApplication("help");
             assertThat(exitCode).isEqualTo(0);
 
-            assertThat(output).isEmpty();
+            assertThat(output.getOut()).isEmpty();
         }
     }
 }
