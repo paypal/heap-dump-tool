@@ -48,7 +48,7 @@ public class CaptureCommand implements CliCommand {
 
     @Option(names = { "--heap-cmd" }, description = "Command to capture heap dump", defaultValue = "jcmd PID GC.heap_dump FILE_PATH", showDefaultValue = ALWAYS)
     // e.g. set --heap-cmd "jcmd PID GC.heap_dump -all FILE_PATH" to pass -all flag to jcmd heap dump
-    private List<String> heapCmd = new ArrayList<>();
+    private List<String> heapCmd = new ArrayList<>(Arrays.asList("jcmd PID GC.heap_dump FILE_PATH"));
 
     @Option(names = { "--heap-options" }, description = "Options to heap dump command", defaultValue = "", showDefaultValue = ALWAYS)
     // e.g. set --heap-options -all to pass -all flag to jcmd heap dump
@@ -56,7 +56,7 @@ public class CaptureCommand implements CliCommand {
 
     @Option(names = { "--thread-cmd" }, description = "Command to capture thread dump", defaultValue = "jcmd PID Thread.print -l", showDefaultValue = ALWAYS)
     // e.g. set --thread-cmd "jcmd 1 Thread.dump_to_file -format=json -" to thread dump in json format
-    private List<String> threadCmd = new ArrayList<>();
+    private List<String> threadCmd = new ArrayList<>(Arrays.asList("jcmd PID Thread.print -l"));
 
     @Option(names = { "--thread-option" }, description = "Options to thread dump command", defaultValue = "", showDefaultValue = ALWAYS)
     private List<String> threadOptions = new ArrayList<>();
