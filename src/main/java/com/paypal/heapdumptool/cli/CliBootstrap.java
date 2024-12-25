@@ -20,7 +20,7 @@ public class CliBootstrap {
             processor.process();
         } catch (final InvocationTargetException e) {
             if (e.getCause() != null) {
-                ExceptionUtils.rethrow(e.getCause());
+                ExceptionUtils.asRuntimeException(e.getCause());
             }
             throw e;
         }

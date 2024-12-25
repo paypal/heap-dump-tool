@@ -23,8 +23,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermission;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -76,7 +78,13 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
     }
 
     private String captureThreadDump(final long pid) throws Exception {
-        final ProcessResult result = execInAppContainer("jcmd", pid, "Thread.print", "-l");
+        // jcmd PID Thread.print
+        final List<Object> cmd = new ArrayList<>(command.getThreadCmd());
+        cmd.addAll(3, command.getThreadOptions());
+        final Object[] cmdArray = cmd.stream()
+                .map(arg -> "PID".equals(arg) ? pid : arg)
+                .toArray();
+        final ProcessResult result = execInAppContainer(cmdArray);
         return result.stdout;
     }
 
@@ -178,7 +186,14 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
     private Path createPlainHeapDumpInAppContainer(final long pid) throws Exception {
         final Path filePath = newHeapDumpFilePath();
 
-        final ProcessResult result = execInAppContainer("jcmd", pid, "GC.heap_dump", filePath);
+        // jcmd PID GC.heap_dump FILE_PATH
+        final List<Object> cmd = new ArrayList<>(command.getHeapCmd());
+        cmd.addAll(3, command.getHeapOptions());
+        final Object[] cmdArray = cmd.stream()
+                .map(arg -> "PID".equals(arg) ? pid : arg)
+                .map(arg -> "FILE_PATH".equals(arg) ? filePath : arg)
+                .toArray();
+        final ProcessResult result = execInAppContainer(cmdArray);
         Validate.validState(result.stdout.contains("Heap dump file created"),
                             "Cannot create heap dump. container=%s pid=%s"
                                     + "\nstdout=%s"
