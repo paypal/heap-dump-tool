@@ -3,7 +3,7 @@
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
             <!-- pattern to mesh well with a user directly reading console output -->
-            <pattern>%d{ISO8601} %-5level %logger{1.} - %msg%n</pattern>
+            <pattern>%d{ISO8601} %-5level %logger{1} - %msg%n</pattern>
         </encoder>
 
         <target>${CONSOLE_TARGET:-System.out}</target>

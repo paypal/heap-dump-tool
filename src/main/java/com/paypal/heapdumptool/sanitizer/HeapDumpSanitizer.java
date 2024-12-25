@@ -17,7 +17,7 @@ import static org.apache.commons.lang3.BooleanUtils.isFalse;
 /**
  * Heavily based on: <br>
  *
- * <a href="http://hg.openjdk.java.net/jdk6/jdk6/jdk/raw-file/tip/src/share/demo/jvmti/hprof/manual.html#mozTocId848088">
+ * <a href="https://html-preview.github.io/?url=https://github.com/JetBrains/jdk8u_jdk/blob/master/src/share/demo/jvmti/hprof/manual.html">
  * Heap Dump Binary Format Spec
  * </a> (highly recommended to make sense of the code in any meaningful way)
  * <br>
