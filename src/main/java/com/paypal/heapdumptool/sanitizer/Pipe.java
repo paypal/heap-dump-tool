@@ -35,6 +35,7 @@ public class Pipe {
     /**
      * Creates a copy of this pipe where only up to give count of bytes can read from input stream
      */
+    @SuppressWarnings("deprecation")
     public Pipe newInputBoundedPipe(final long inputCount) {
         final DataInputStream boundedInput = new DataInputStream(new BoundedInputStream(input, inputCount));
         return new Pipe(boundedInput, output, idSize);

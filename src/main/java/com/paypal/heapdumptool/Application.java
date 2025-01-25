@@ -6,9 +6,8 @@ import com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation;
 import com.paypal.heapdumptool.hserr.SanitizeHserrCommand;
 import com.paypal.heapdumptool.sanitizer.DataSize;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommand;
+import com.paypal.heapdumptool.utils.InternalLogger;
 import org.apache.commons.text.StringSubstitutor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import picocli.CommandLine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.HelpCommand;
@@ -19,8 +18,8 @@ import java.io.IOException;
 import java.util.Properties;
 
 import static com.paypal.heapdumptool.Application.APP_ID;
-import static com.paypal.heapdumptool.capture.PrivilegeEscalator.escalatePrivilegesIfNeeded;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.ESCALATED;
+import static com.paypal.heapdumptool.capture.PrivilegeEscalator.escalatePrivilegesIfNeeded;
 import static org.apache.commons.io.IOUtils.resourceToByteArray;
 
 @Command(name = APP_ID,
@@ -63,8 +62,7 @@ public class Application {
 
         public static void printVersion() throws IOException {
             final String[] versionInfo = new VersionProvider().getVersion();
-            final Logger logger = LoggerFactory.getLogger(Application.class); // lazy init
-            logger.info(versionInfo[0]);
+            InternalLogger.getLogger(Application.class).info(versionInfo[0]);
         }
 
         @Override
@@ -77,7 +75,7 @@ public class Application {
             final String versionInfo = StringSubstitutor.replace(
                     "${appId} (${git.build.version} ${git.commit.id.abbrev}, ${git.commit.time})",
                     gitProperties);
-            return new String[] {versionInfo};
+            return new String[]{versionInfo};
         }
 
     }
