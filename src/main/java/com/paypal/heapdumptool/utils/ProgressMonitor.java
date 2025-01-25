@@ -2,12 +2,14 @@ package com.paypal.heapdumptool.utils;
 
 import com.paypal.heapdumptool.sanitizer.DataSize;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.input.CountingInputStream;
+import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.io.output.CountingOutputStream;
 import org.apache.commons.lang3.mutable.MutableLong;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.util.function.Consumer;
 
 @FunctionalInterface
@@ -47,14 +49,19 @@ public interface ProgressMonitor extends Consumer<Long> {
     /**
      * Create a OutputStream monitored by this
      */
+    @SuppressWarnings("deprecation")
     default InputStream monitoredInputStream(final InputStream input) {
         final ProgressMonitor monitor = this;
-        return new CountingInputStream(input) {
+        return new BoundedInputStream(input) {
 
             @Override
-            protected void afterRead(final int n) {
-                super.afterRead(n);
-                monitor.accept(getByteCount());
+            public void afterRead(final int n) {
+                try {
+                    super.afterRead(n);
+                } catch (final IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                monitor.accept(getCount());
             }
         };
     }

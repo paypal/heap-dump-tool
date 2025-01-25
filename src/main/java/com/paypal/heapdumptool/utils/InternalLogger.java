@@ -23,7 +23,7 @@ public class InternalLogger {
 
     private static final DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss,SSS");
 
-    private static final PrintStream out = System.out;
+    private final PrintStream out = System.out;
 
     private final String clazz;
 
