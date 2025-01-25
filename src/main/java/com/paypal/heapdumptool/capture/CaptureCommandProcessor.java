@@ -3,6 +3,7 @@ package com.paypal.heapdumptool.capture;
 import com.paypal.heapdumptool.cli.CliCommandProcessor;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommand;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommandProcessor;
+import com.paypal.heapdumptool.utils.InternalLogger;
 import com.paypal.heapdumptool.utils.ProcessTool;
 import com.paypal.heapdumptool.utils.ProcessTool.ProcessResult;
 import org.apache.commons.io.IOUtils;
@@ -11,8 +12,6 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;
 import org.apache.commons.lang3.function.Failable;
 import org.apache.commons.text.StringSubstitutor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.io.FilterInputStream;
@@ -45,7 +44,7 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
 
     private static final String DOCKER = "docker";
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(CaptureCommandProcessor.class);
+    private static final InternalLogger LOGGER = InternalLogger.getLogger(CaptureCommandProcessor.class);
 
     private final CaptureCommand command;
 
@@ -254,9 +253,7 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
     }
 
     private void logProcessArgs(final String... cmd) {
-        if (LOGGER.isInfoEnabled()) {
-            LOGGER.info("Running: {}", String.join(" ", cmd));
-        }
+        LOGGER.info("Running: {}", String.join(" ", cmd));
     }
 
     private static <T> T[] concat(final T element, final T[] array) {

@@ -3,10 +3,9 @@ package com.paypal.heapdumptool.hserr;
 import com.paypal.heapdumptool.cli.CliCommandProcessor;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommand;
 import com.paypal.heapdumptool.sanitizer.SanitizeStreamFactory;
+import com.paypal.heapdumptool.utils.InternalLogger;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -19,7 +18,7 @@ import static com.paypal.heapdumptool.utils.DateTimeTool.getFriendlyDuration;
 
 public class SanitizeHserrCommandProcessor implements CliCommandProcessor {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SanitizeHserrCommandProcessor.class);
+    private static final InternalLogger LOGGER = InternalLogger.getLogger(SanitizeHserrCommandProcessor.class);
 
     private final SanitizeHserrCommand command;
 

@@ -1,9 +1,8 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.cli.CliCommandProcessor;
+import com.paypal.heapdumptool.utils.InternalLogger;
 import org.apache.commons.lang3.Validate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -14,7 +13,7 @@ import static com.paypal.heapdumptool.utils.ProgressMonitor.numBytesProcessedMon
 
 public class SanitizeCommandProcessor implements CliCommandProcessor {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(SanitizeCommandProcessor.class);
+    private static final InternalLogger LOGGER = InternalLogger.getLogger(SanitizeCommandProcessor.class);
 
     private final SanitizeCommand command;
 

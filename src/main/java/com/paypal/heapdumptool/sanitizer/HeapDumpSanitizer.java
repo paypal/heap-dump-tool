@@ -1,10 +1,9 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.utils.InternalLogger;
 import com.paypal.heapdumptool.utils.ProgressMonitor;
 import org.apache.commons.io.input.InfiniteCircularInputStream;
 import org.apache.commons.lang3.Validate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,7 +40,7 @@ public class HeapDumpSanitizer {
     private static final int TAG_HEAP_DUMP = 0x0C;
     private static final int TAG_HEAP_DUMP_SEGMENT = 0x1C;
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(HeapDumpSanitizer.class);
+    private static final InternalLogger LOGGER = InternalLogger.getLogger(HeapDumpSanitizer.class);
 
     // for debugging/testing
     private static final boolean enableSanitization = isFalse(Boolean.getBoolean("disable-sanitization"));

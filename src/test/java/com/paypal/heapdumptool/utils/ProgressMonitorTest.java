@@ -3,8 +3,6 @@ package com.paypal.heapdumptool.utils;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
@@ -17,15 +15,12 @@ import java.io.OutputStream;
 import static com.paypal.heapdumptool.sanitizer.DataSize.ofBytes;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.doCallRealMethod;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.*;
 
 @ExtendWith(OutputCaptureExtension.class)
 public class ProgressMonitorTest {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(ProgressMonitorTest.class);
+    private static final InternalLogger LOGGER = InternalLogger.getLogger(ProgressMonitorTest.class);
 
     @Test
     public void testNumBytesWrittenMonitor(final CapturedOutput output) {
