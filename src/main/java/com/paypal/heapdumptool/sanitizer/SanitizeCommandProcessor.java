@@ -37,6 +37,11 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
 
     @Override
     public void process() throws Exception {
+        if (command.isSanitizeArraysOnly() && command.isSanitizeByteCharArraysOnly()) {
+            throw new IllegalArgumentException("sanitizeArraysOnly and sanitizeByteCharArraysOnly cannot be both set to true simultaneously");
+        }
+        Validate.notEmpty(command.getSanitizationText());
+
         LOGGER.info("Starting heap dump sanitization");
         LOGGER.info("Input File: {}", command.getInputFile());
         LOGGER.info("Output File: {}", command.getOutputFile());
@@ -49,9 +54,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
             sanitizer.setInputStream(inputStream);
             sanitizer.setOutputStream(outputStream);
             sanitizer.setProgressMonitor(numBytesProcessedMonitor(command.getBufferSize(), LOGGER));
-            sanitizer.setSanitizationText(command.getSanitizationText());
-            sanitizer.setSanitizeByteCharArraysOnly(command.isSanitizeByteCharArraysOnly());
-            sanitizer.setSanitizeArraysOnly(command.isSanitizeArraysOnly());
+            sanitizer.setSanitizeCommand(command);
 
             sanitizer.sanitize();
         }
