@@ -38,6 +38,14 @@ public class SanitizeCommand implements CliCommand {
     @Option(names = {"-t", "--text"}, description = "Sanitization text to replace with", defaultValue = "\\0", showDefaultValue = ALWAYS)
     private String sanitizationText = "\\0";
 
+    @Option(names = {"-f", "--force-string-coder-match"},
+            description = "Force strings coder values to match sanitizationText.coder value",
+            defaultValue = "true", showDefaultValue = ALWAYS)
+    // Suppose sanitizationText=*. If the coder value is not forced to match, the heap dump analyze tools like Eclipse
+    // MAT might display escaped "\\u2A" (where 2A is ascii value) for Strings with coder==1. By forcing the coder value to
+    // match, all strings would be displayed as "*"
+    private boolean forceMatchStringCoder;
+
     @Option(names = {"-s", "--sanitize-byte-char-arrays-only"}, description = "Sanitize byte/char arrays only", defaultValue = "true", showDefaultValue = ALWAYS)
     private boolean sanitizeByteCharArraysOnly = true;
 
@@ -107,6 +115,14 @@ public class SanitizeCommand implements CliCommand {
     public void setSanitizationText(final String sanitizationText) {
         // e.g. unescape user-supplied \\0 string (2 chars) to \0 string (1 char)
         this.sanitizationText = StringEscapeUtils.unescapeJava(sanitizationText);
+    }
+
+    public boolean isForceMatchStringCoder() {
+        return forceMatchStringCoder;
+    }
+
+    public void setForceMatchStringCoder(final boolean forceMatchStringCoder) {
+        this.forceMatchStringCoder = forceMatchStringCoder;
     }
 
     public boolean isZipOutput() {

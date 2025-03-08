@@ -149,6 +149,9 @@ Plain thread dump is also captured
                           Default: 100MB
   -d, --docker-registry=<dockerRegistry>
                         docker registry hostname for bootstrapping heap-dump-tool docker image
+  -f, --force-string-coder-match
+                     Force strings coder values to match sanitizationText.coder value
+                       Default: true
   -p, --pid=<pid>       Pid within the container, if there are multiple Java processes
   -s, --sanitize-byte-char-arrays-only
                         Sanitize byte/char arrays only

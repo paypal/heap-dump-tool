@@ -5,11 +5,13 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.BoundedInputStream;
 import org.apache.commons.lang3.Validate;
 
+import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 /**
  * For piping or copying data from input to output streams.
@@ -118,5 +120,13 @@ public class Pipe {
             }
         }
         return sb.toString();
+    }
+
+    public String pipeString(final long numBytes) throws IOException {
+        final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        IOUtils.copyLarge(input, byteArrayOutputStream, 0, numBytes);
+        final byte[] bytes = byteArrayOutputStream.toByteArray();
+        IOUtils.write(bytes, output);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 }

@@ -16,7 +16,7 @@ jobs:
 
     strategy:
       matrix:
-        java: [ '8', '11', '17', '21' ]
+        java: [ '8', '11', '17', '21', '23' ]
 
     name: Java ${{ matrix.Java }}
 

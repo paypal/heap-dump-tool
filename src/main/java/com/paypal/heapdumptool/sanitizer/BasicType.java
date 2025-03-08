@@ -27,7 +27,7 @@ public enum BasicType {
                      .findFirst();
     }
 
-    private BasicType(final int u1Code) {
+    BasicType(final int u1Code) {
         this.u1Code = u1Code;
     }
 
@@ -35,7 +35,7 @@ public enum BasicType {
         return u1Code;
     }
 
-    private int getValueSize(final int idSize) {
+    public int getValueSize(final int idSize) {
         switch (this) {
             case OBJECT:
                 return idSize;
