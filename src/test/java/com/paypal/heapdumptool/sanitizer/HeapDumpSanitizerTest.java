@@ -4,9 +4,17 @@ import com.paypal.heapdumptool.fixture.HeapDumper;
 import com.paypal.heapdumptool.fixture.ResourceTool;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyInstanceFields;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyStaticFields;
-import org.junit.jupiter.api.*;
+import org.apache.commons.lang3.StringUtils;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.Random;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -14,55 +22,70 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static com.paypal.heapdumptool.ApplicationTestSupport.runApplicationPrivileged;
-import static com.paypal.heapdumptool.fixture.ByteArrayTool.*;
+import static com.paypal.heapdumptool.fixture.ByteArrayTool.countOfSequence;
+import static com.paypal.heapdumptool.fixture.ByteArrayTool.lengthen;
+import static com.paypal.heapdumptool.fixture.ByteArrayTool.nCopiesLongToBytes;
 import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
+import static org.apache.commons.lang3.ArrayUtils.EMPTY_BYTE_ARRAY;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
+import static org.apache.commons.lang3.JavaVersion.JAVA_9;
+import static org.apache.commons.lang3.JavaVersion.JAVA_RECENT;
+import static org.apache.commons.lang3.SystemUtils.isJavaVersionAtLeast;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 @TestMethodOrder(Random.class)
-public class HeapDumpSanitizerTest {
+class HeapDumpSanitizerTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(HeapDumpSanitizerTest.class);
 
     @TempDir
+    static Path tempDir2;
     static Path tempDir;
 
-    // "his-secret-value" with each letter incremented by 1
-    private final String hisSecretValue = "ijt.tfdsfu.wbmvf";
-    private final String herSecretValue = "ifs.tfdsfu.wbmvf";
-    private final String itsSecretValue = "jut.tfdsfu.wbmvf";
-
-    // "his-classified-value" with each letter incremented by 1
-    private final String hisClassifiedValue = "ijt.dmbttjgjfe.wbmvf";
-    private final String herClassifiedValue = "ifs.dmbttjgjfe.wbmvf";
-    private final String itsClassifiedValue = "jut.dmbttjgjfe.wbmvf";
+    static {
+        try {
+            tempDir = Files.createTempDirectory("");
+        } catch (final IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private final SecretArrays secretArrays = new SecretArrays();
 
     @BeforeEach
-    public void beforeEach(final TestInfo info) {
+    void beforeEach(final TestInfo info) {
         LOGGER.info("Test - {}:", info.getDisplayName());
     }
 
     @BeforeEach
     @AfterEach
-    public void clearLoadedHeapDumpInfo() {
+    void clearLoadedHeapDumpInfo() {
         System.gc();
+    }
+
+    private void unused(final Object... o) {
+        //no op
     }
 
     @Test
     @DisplayName("testSecretsAreInHeapDump. Verify that heap dump normally contains sensitive data")
-    public void testSecretsAreInHeapDump() throws Exception {
+    void testSecretsAreInHeapDump() throws Exception {
+        // "his-secret-value" with each letter incremented by 1
+        final String hisSecretValue = "ijt.tfdsfu.wbmvf";
+        final String herSecretValue = "ifs.tfdsfu.wbmvf";
+        final String itsSecretValue = "jut.tfdsfu.wbmvf";
 
         // keep as byte array in mem
         byte[] actualHisSecretValue = adjustLettersToByteArray(hisSecretValue);
@@ -75,6 +98,7 @@ public class HeapDumpSanitizerTest {
 
         actualHisSecretValue = lengthen(actualHisSecretValue, DataSize.ofMegabytes(1));
         actualHerSecretValue = lengthen(actualHerSecretValue, DataSize.ofMegabytes(1));
+        unused(actualHisSecretValue, actualHerSecretValue);
 
         final byte[] heapDump = loadHeapDump();
 
@@ -97,9 +121,14 @@ public class HeapDumpSanitizerTest {
                 .containsSequence(secretArrays.getBooleanArraySequence());
     }
 
-    @Test
+    @ParameterizedTest
+    @CsvSource(value = {"--force-string-coder-match=true", "--force-string-coder-match=false"})
     @DisplayName("testConfidentialsNotInHeapDump. Verify that sanitized heap dump does not contains sensitive data")
-    public void testConfidentialsNotInHeapDump() throws Exception {
+    void testConfidentialsNotInHeapDump(final String cliArg) throws Exception {
+        // "his-classified-value" with each letter incremented by 1
+        final String hisClassifiedValue = "ijt.dmbttjgjfe.wbmvf";
+        final String herClassifiedValue = "ifs.dmbttjgjfe.wbmvf";
+        final String itsClassifiedValue = "jut.dmbttjgjfe.wbmvf";
 
         byte[] actualHisConfidentialValue = ResourceTool.bytesOf(getClass(), "classifieds.txt");
         String actualHerConfidentialValue = new String(actualHisConfidentialValue, UTF_8).replace("his", "her");
@@ -107,8 +136,9 @@ public class HeapDumpSanitizerTest {
 
         actualHisConfidentialValue = lengthen(actualHisConfidentialValue, DataSize.ofMegabytes(1));
         actualHerConfidentialValue = lengthen(actualHerConfidentialValue, DataSize.ofMegabytes(1));
+        unused(actualHisConfidentialValue, actualHerConfidentialValue);
 
-        final byte[] heapDump = loadSanitizedHeapDump();
+        final byte[] heapDump = loadSanitizedHeapDump(cliArg);
 
         final byte[] expectedHisClassifiedValueBytes = adjustLettersToByteArray(hisClassifiedValue);
         final byte[] expectedHerClassifiedValueBytes = adjustLettersToByteArray(herClassifiedValue);
@@ -134,7 +164,7 @@ public class HeapDumpSanitizerTest {
 
     @Test
     @DisplayName("testSanitizeFieldsOfNonArrayPrimitiveType. Verify that fields of non-array primitive type can be sanitized")
-    public void testSanitizeFieldsOfNonArrayPrimitiveType() throws Exception {
+    void testSanitizeFieldsOfNonArrayPrimitiveType() throws Exception {
         final Object instance = new ClassWithManyInstanceFields();
         final Object staticFields = new ClassWithManyStaticFields();
         assertThat(instance).isNotNull();
@@ -145,7 +175,8 @@ public class HeapDumpSanitizerTest {
         assertThat(countOfSequence(sanitizedHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
                 .isLessThan(1000);
 
-        sanitizedHeapDump = null;
+        sanitizedHeapDump = EMPTY_BYTE_ARRAY;
+        unused(new Object[]{sanitizedHeapDump});
         clearLoadedHeapDumpInfo();
 
         {
@@ -170,7 +201,7 @@ public class HeapDumpSanitizerTest {
     }
 
     @Test
-    public void testSanitizeArraysOnly() throws Exception {
+    void testSanitizeArraysOnly() throws Exception {
         final byte[] heapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=false", "--sanitize-arrays-only=true");
         verifyDoesNotContainsSequence(heapDump, secretArrays.getByteArraySequence());
         verifyDoesNotContainsSequence(heapDump, secretArrays.getCharArraySequence());
@@ -180,6 +211,48 @@ public class HeapDumpSanitizerTest {
         verifyDoesNotContainsSequence(heapDump, secretArrays.getFloatArraySequence());
         verifyDoesNotContainsSequence(heapDump, secretArrays.getDoubleArraySequence());
         verifyDoesNotContainsSequence(heapDump, secretArrays.getBooleanArraySequence());
+    }
+
+    @Test
+    void testThreadNameExcludedFromSanitization() throws Exception {
+        // verify java 8 manually ...
+        assumeThat(isJavaVersionAtLeast(JAVA_9))
+                .withFailMessage(JAVA_RECENT + "")
+                .isTrue();
+
+        // "xN-classified-value" with each letter incremented by 1
+        final String x2ClassifiedValue = "y3.dmbttjgjfe.wbmvf";
+        final String x5ClassifiedValue = "y6.dmbttjgjfe.wbmvf";
+        final ThreadGroup threadGroup = new ThreadGroup(adjustLetters(x5ClassifiedValue));
+        final Thread thread = new Thread(threadGroup, (Runnable) null);
+        thread.setDaemon(true);
+        thread.setName(adjustLetters(x2ClassifiedValue));
+
+        final byte[] sanitizedHeapDump = loadSanitizedHeapDump();
+        assertThat(sanitizedHeapDump)
+                .withFailMessage("threadGroupName " + threadGroup.getName())
+                .containsSequence(butLast(threadGroup.getName()).getBytes(UTF_8))
+                .withFailMessage("threadName " + thread.getName())
+                .containsSequence(butLast(thread.getName()).getBytes(UTF_8));
+    }
+
+    private String butLast(final String input) {
+        return StringUtils.substring(input, 0, input.length() - 2);
+    }
+
+    @Test
+    void testThreadNameIncludedInSanitization() throws Exception {
+        // "xN-classified-value" with each letter incremented by 1
+        final String x7ClassifiedValue = "y8.dmbttjgjfe.wbmvf";
+        final String x11ClassifiedValue = "y12.dmbttjgjfe.wbmvf";
+        final ThreadGroup threadGroup = new ThreadGroup(adjustLetters(x7ClassifiedValue));
+        final Thread thread = new Thread(threadGroup, (Runnable) null);
+        thread.setDaemon(true);
+        thread.setName(adjustLetters(x11ClassifiedValue));
+
+        final byte[] sanitizedHeapDump = loadSanitizedHeapDump("--exclude-string-fields=none#none");
+        verifyDoesNotContainsSequence(sanitizedHeapDump, threadGroup.getName().getBytes(UTF_8));
+        verifyDoesNotContainsSequence(sanitizedHeapDump, thread.getName().getBytes(UTF_8));
     }
 
     // 0xDEADBEEF
@@ -198,25 +271,24 @@ public class HeapDumpSanitizerTest {
             assertThat(big)
                     .withFailMessage(corrId).containsSequence(small);
         }).withFailMessage("does in fact contains sequence")
-          .hasMessageContaining(corrId);
+                .hasMessageContaining(corrId);
     }
 
     private void lengthenAndInternItsValue(final byte[] value) {
         String itsValue = new String(value, UTF_8).replace("his", "its");
         itsValue = lengthen(itsValue, DataSize.ofMegabytes(1));
-        itsValue.intern();
+        unused(itsValue.intern());
     }
 
     private byte[] adjustLettersToByteArray(final String str) {
-        return adjustLetters(str, -1)
-                .getBytes(UTF_8);
+        return adjustLetters(str).getBytes(UTF_8);
     }
 
-    private String adjustLetters(final String str, final int adjustment) {
+    private String adjustLetters(final String str) {
         return str.chars()
-                  .map(chr -> chr + adjustment)
-                  .mapToObj(chr -> String.valueOf((char) chr))
-                  .collect(Collectors.joining(""));
+                .map(chr -> chr - 1)
+                .mapToObj(chr -> String.valueOf((char) chr))
+                .collect(Collectors.joining(""));
     }
 
     private Path triggerHeapDump() throws Exception {

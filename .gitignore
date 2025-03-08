@@ -36,3 +36,4 @@ test-output
 /.apt_generated_tests/
 
 *.jar
+*.zip

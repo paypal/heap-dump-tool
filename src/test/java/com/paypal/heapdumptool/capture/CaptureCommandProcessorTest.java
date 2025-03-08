@@ -4,6 +4,7 @@ import com.paypal.heapdumptool.fixture.ResourceTool;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommandProcessor;
 import com.paypal.heapdumptool.utils.ProcessTool;
 import com.paypal.heapdumptool.utils.ProcessTool.ProcessResult;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.input.NullInputStream;
 import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.lang3.ArrayUtils;
@@ -130,13 +131,17 @@ public class CaptureCommandProcessorTest {
         processToolMock.when(() -> ProcessTool.run(cmd.maybeWithNsenter1("docker", "exec", "my-app", "jcmd", "55", "GC.heap_dump", tmpFile)))
                        .thenReturn(resultWith("docker-exec-jcmd-gc-heap-dump.txt"));
 
+        final Path heapDumpFileOnHost = FileUtils.getTempDirectory()
+                .toPath()
+                .resolve(Paths.get(tmpFile).getFileName().toString());
+
         final ProcessBuilder processBuilder = dockerCpProcess();
-        processToolMock.when(() -> ProcessTool.processBuilder(cmd.maybeWithNsenter1("docker", "cp", "my-app:" + tmpFile, "-")))
+        processToolMock.when(() -> ProcessTool.processBuilder(cmd.maybeWithNsenter1("docker", "cp", "my-app:" + tmpFile, heapDumpFileOnHost.toString())))
                        .thenReturn(processBuilder);
     }
 
     @FunctionalInterface
-    private static interface CmdFunction {
+    private interface CmdFunction {
         String[] maybeWithNsenter1(String... args);
     }
 

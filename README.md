@@ -140,27 +140,33 @@ Additional usage for sub-commands can be found by running `help {sub-command}`. 
 
 ```
 $ java -jar heap-dump-tool.jar help capture
-Usage: heap-dump-tool capture [OPTIONS] <containerName>
-Capture sanitized heap dump of a containerized app
-Plain thread dump is also captured
-      <containerName>   Container name
+Usage: heap-dump-tool sanitize [OPTIONS] <inputFile> <outputFile>
+Sanitize a heap dump by replacing byte and char array contents
+      <inputFile>    Input heap dump .hprof. File or stdin
+      <outputFile>   Output heap dump .hprof. File, stdout, or stderr
+  -a, --tar-input    Treat input as tar archive
   -b, --buffer-size=<bufferSize>
-                        Buffer size for reading and writing
-                          Default: 100MB
+                     Buffer size for reading and writing
+                       Default: 100MB
   -d, --docker-registry=<dockerRegistry>
-                        docker registry hostname for bootstrapping heap-dump-tool docker image
-  -f, --force-string-coder-match
+                     docker registry hostname for bootstrapping heap-dump-tool docker image
+  -e, --exclude-string-fields=<excludeStringFields>
+                     String fields to exclude from sanitization. Value in com.example.MyClass#fieldName format
+                       Default: java.lang.Thread#name,java.lang.ThreadGroup#name
+  -f, --force-string-coder-match=<forceMatchStringCoder>
                      Force strings coder values to match sanitizationText.coder value
                        Default: true
-  -p, --pid=<pid>       Pid within the container, if there are multiple Java processes
   -s, --sanitize-byte-char-arrays-only
-                        Sanitize byte/char arrays only
-                          Default: true
+                     Sanitize byte/char arrays only
+                       Default: true
+  -S, --sanitize-arrays-only
+                     Sanitize arrays only
+                       Default: false
   -t, --text=<sanitizationText>
-                        Sanitization text to replace with
-                          Default: \0
-  -z, --zip-output      Write zipped output
-                          Default: true
+                     Sanitization text to replace with
+                       Default: \0
+  -z, --zip-output   Write zipped output
+                       Default: false
 ```
 
 <a name="license"></a>

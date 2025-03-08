@@ -1,28 +1,20 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
+import static org.apache.commons.lang3.builder.ToStringStyle.MULTI_LINE_STYLE;
+
 public class Field {
 
-    private final String fieldName;
-    private final BasicType fieldType;
+    public final String name;
+    public final BasicType type;
 
-    public Field(final String fieldName, final BasicType fieldType) {
-        this.fieldName = fieldName;
-        this.fieldType = fieldType;
-    }
-
-    public String getFieldName() {
-        return fieldName;
-    }
-
-    public BasicType getFieldType() {
-        return fieldType;
+    public Field(final String name, final BasicType type) {
+        this.name = name;
+        this.type = type;
     }
 
     @Override
     public String toString() {
-        return "Field{" +
-                "fieldName='" + fieldName + '\'' +
-                ", fieldType=" + fieldType +
-                '}';
+        return reflectionToString(this, MULTI_LINE_STYLE);
     }
 }

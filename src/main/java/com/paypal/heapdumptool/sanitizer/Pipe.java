@@ -56,8 +56,18 @@ public class Pipe {
         return input.read();
     }
 
+    public byte[] read(final long numBytes) throws IOException {
+        final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        IOUtils.copyLarge(input, byteArrayOutputStream, 0, numBytes);
+        return byteArrayOutputStream.toByteArray();
+    }
+
     public void writeU1(final int u1) throws IOException {
         output.write(u1);
+    }
+
+    public void write(final byte[] bytes) throws IOException {
+        IOUtils.write(bytes, output);
     }
 
     public void copyFrom(final InputStream inputStream, final long count) throws IOException {
@@ -123,10 +133,8 @@ public class Pipe {
     }
 
     public String pipeString(final long numBytes) throws IOException {
-        final ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        IOUtils.copyLarge(input, byteArrayOutputStream, 0, numBytes);
-        final byte[] bytes = byteArrayOutputStream.toByteArray();
-        IOUtils.write(bytes, output);
+        final byte[] bytes = read(numBytes);
+        write(bytes);
         return new String(bytes, StandardCharsets.UTF_8);
     }
 }
