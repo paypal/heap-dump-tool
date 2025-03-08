@@ -58,10 +58,14 @@ public class SanitizeStreamFactory {
     }
 
     protected InputStream newInputStream(final Path inputFile) throws IOException {
-        final String name = inputFile.getFileName().toString();
-        return StringUtils.equalsAny(name, "-", "stdin", "0")
+        return isStdinInput()
                ? System.in
                : Files.newInputStream(inputFile);
+    }
+
+    public boolean isStdinInput() {
+        final String name = command.getInputFile().getFileName().toString();
+        return StringUtils.equalsAny(name, "-", "stdin", "0");
     }
 
     private static SanitizeCommand validate(final SanitizeCommand command) {

@@ -12,6 +12,7 @@ public class SanitizeCommandTest {
     public void testBean() {
         BeanVerifier.forClass(SanitizeCommand.class)
                     .withSettings(settings -> settings.addOverridePropertyFactory(SanitizeCommand::getBufferSize, () -> ofMegabytes(5)))
+                    .withSettings(settings -> settings.addIgnoredPropertyName("excludeStringFields"))
                     .verifyGettersAndSetters();
     }
 

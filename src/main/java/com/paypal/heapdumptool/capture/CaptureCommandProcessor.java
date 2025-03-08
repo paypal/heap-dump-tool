@@ -6,6 +6,7 @@ import com.paypal.heapdumptool.sanitizer.SanitizeCommandProcessor;
 import com.paypal.heapdumptool.utils.InternalLogger;
 import com.paypal.heapdumptool.utils.ProcessTool;
 import com.paypal.heapdumptool.utils.ProcessTool.ProcessResult;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -14,9 +15,7 @@ import org.apache.commons.lang3.function.Failable;
 import org.apache.commons.text.StringSubstitutor;
 
 import java.io.Closeable;
-import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -64,13 +63,18 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
 
         final long pid = findPidInAppContainer();
 
-        final Path inputHeapDumpFile = createPlainHeapDumpInAppContainer(pid);
+        final Path heapDumpFileInContainer = createPlainHeapDumpInAppContainer(pid);
         final String threadDump = captureThreadDump(pid);
+        final Path heapDumpFileOnHost = FileUtils.getTempDirectory()
+                .toPath()
+                .resolve(heapDumpFileInContainer.getFileName().toString());
         final Path output;
-        try (final InputStream inputStream = createCopyStreamOutOfAppContainer(inputHeapDumpFile)) {
-            output = sanitizeHeapDump(inputHeapDumpFile, inputStream, threadDump);
+        try {
+            copyFileOutOfAppContainer(heapDumpFileInContainer, heapDumpFileOnHost);
+            output = sanitizeHeapDump(heapDumpFileOnHost, threadDump);
         } finally {
-            deletePlainHeapDumpInAppContainer(inputHeapDumpFile);
+            deletePlainHeapDumpInAppContainer(heapDumpFileOnHost);
+            Files.deleteIfExists(heapDumpFileOnHost);
         }
 
         LOGGER.info("Captured sanitized heap dump in {}. Output: {}", getFriendlyDuration(now), output);
@@ -79,7 +83,7 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
     private String captureThreadDump(final long pid) throws Exception {
         // jcmd PID Thread.print
         final List<Object> cmd = new ArrayList<>(command.getThreadCmd());
-        cmd.addAll(3, command.getThreadOptions());
+        addIfNotEmpty(command.getThreadOptions(), cmd);
         final Object[] cmdArray = cmd.stream()
                 .map(arg -> "PID".equals(arg) ? pid : arg)
                 .toArray();
@@ -87,24 +91,22 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
         return result.stdout;
     }
 
-    private Path sanitizeHeapDump(final Path filePath, final InputStream inputStream, final String threadDump) throws Exception {
-        final String destFile = filePath.getFileName().toAbsolutePath() // re-eval filename in current cwd
+    private Path sanitizeHeapDump(final Path inputFile, final String threadDump) throws Exception {
+        final String destFile = inputFile.getFileName().toAbsolutePath() // re-eval filename in current cwd
                 + ".zip";
         final Path destFilePath = Paths.get(destFile);
 
         final SanitizeCommand sanitizeCommand = new SanitizeCommand();
-        sanitizeCommand.setInputFile(filePath); // not used. for display only
+        sanitizeCommand.copyFrom(this.command);
+        sanitizeCommand.setInputFile(inputFile);
         sanitizeCommand.setOutputFile(destFilePath);
-        sanitizeCommand.setBufferSize(command.getBufferSize());
-        sanitizeCommand.setTarInput(true);
         sanitizeCommand.setZipOutput(true);
 
-        try (final CaptureStreamFactory captureStreamFactory = new CaptureStreamFactory(sanitizeCommand, inputStream)) {
-
+        try (final CaptureStreamFactory captureStreamFactory = new CaptureStreamFactory(sanitizeCommand)) {
             final SanitizeCommandProcessor processor = SanitizeCommandProcessor.newInstance(sanitizeCommand, captureStreamFactory);
             processor.process();
 
-            writeThreadDump(threadDump, filePath, captureStreamFactory);
+            writeThreadDump(threadDump, inputFile, captureStreamFactory);
         }
 
         updateFilePermissions(destFilePath);
@@ -115,8 +117,8 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
         final ZipOutputStream zipStream = (ZipOutputStream) captureStreamFactory.getNativeOutputStream();
 
         final String fileName = filePath.getFileName()
-                                        .toString()
-                                        .replace(".hprof", ".threads.txt");
+                .toString()
+                .replace(".hprof", ".threads.txt");
         Validate.validState(fileName.endsWith(".threads.txt"));
 
         zipStream.putNextEntry(new ZipEntry(fileName));
@@ -134,28 +136,23 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
 
     private Set<PosixFilePermission> globalReadWritePermissions() {
         return Stream.of(PosixFilePermission.values())
-                     .filter(permission -> !permission.name().contains("EXECUTE"))
-                     .collect(Collectors.toSet());
+                .filter(permission -> !permission.name().contains("EXECUTE"))
+                .collect(Collectors.toSet());
     }
 
-    private InputStream createCopyStreamOutOfAppContainer(final Path filePath) throws IOException {
-        final String src = command.getContainerName() + ":" + filePath;
-        final String[] args = array(DOCKER, "cp", src, "-");
+    private void copyFileOutOfAppContainer(
+            final Path heapDumpFileInContainer,
+            final Path heapDumpFileOnHost) throws IOException, InterruptedException {
+        final String src = command.getContainerName() + ":" + heapDumpFileInContainer;
+        final String[] args = array(DOCKER, "cp", src, heapDumpFileOnHost.toString());
         logProcessArgs(args);
 
         final String[] cmd = nsenterIfNeeded(args);
         final Process process = processBuilder(cmd).start();
         closeQuietly(process.getOutputStream());
         closeQuietly(process.getErrorStream());
-
-        return new FilterInputStream(process.getInputStream()) {
-
-            @Override
-            public void close() throws IOException {
-                super.close();
-                process.destroy();
-            }
-        };
+        final int exitCode = process.waitFor();
+        Validate.isTrue(exitCode == 0, "exitCode=" + exitCode);
     }
 
     private void deletePlainHeapDumpInAppContainer(final Path filePath) throws Exception {
@@ -169,16 +166,17 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
 
         final ProcessResult result = Failable.call(() -> execInAppContainer("jps"));
         final Stream<String> javaProcesses = result.stdoutLines()
-                                                   .stream()
-                                                   .map(String::trim)
-                                                   .filter(StringUtils::isNotEmpty)
-                                                   .filter(line -> !substringAfterLast(line, " ").equals("Jps"));
+                .stream()
+                .map(String::trim)
+                .filter(StringUtils::isNotEmpty)
+                .filter(line -> !substringAfterLast(line, " ").equals("Jps"));
 
         final long[] pids = javaProcesses.map(line -> substringBefore(line, " "))
-                                         .mapToLong(Long::parseLong)
-                                         .toArray();
+                .mapToLong(Long::parseLong)
+                .toArray();
 
-        Validate.validState(pids.length == 1, "Cannot find unique Java process. container=%s found=%s", command.getContainerName(), Arrays.toString(pids));
+        Validate.validState(pids.length == 1, "Cannot find unique Java process. Passing in --pid=PID." +
+                " container=%s found=%s", command.getContainerName(), Arrays.toString(pids));
         return pids[0];
     }
 
@@ -187,22 +185,28 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
 
         // jcmd PID GC.heap_dump FILE_PATH
         final List<Object> cmd = new ArrayList<>(command.getHeapCmd());
-        cmd.addAll(3, command.getHeapOptions());
+        addIfNotEmpty(command.getHeapOptions(), cmd);
         final Object[] cmdArray = cmd.stream()
                 .map(arg -> "PID".equals(arg) ? pid : arg)
                 .map(arg -> "FILE_PATH".equals(arg) ? filePath : arg)
                 .toArray();
         final ProcessResult result = execInAppContainer(cmdArray);
         Validate.validState(result.stdout.contains("Heap dump file created"),
-                            "Cannot create heap dump. container=%s pid=%s"
-                                    + "\nstdout=%s"
-                                    + "\nstderr=%s",
-                            command.getContainerName(),
-                            pid,
-                            result.stdout,
-                            result.stderr);
+                "Cannot create heap dump. container=%s pid=%s"
+                        + "\nstdout=%s"
+                        + "\nstderr=%s",
+                command.getContainerName(),
+                pid,
+                result.stdout,
+                result.stderr);
 
         return filePath;
+    }
+
+    private static void addIfNotEmpty(final List<String> src, final List<Object> dest) {
+        src.stream()
+                .filter(StringUtils::isNotEmpty)
+                .forEach(dest::add);
     }
 
     private Path newHeapDumpFilePath() {
@@ -217,25 +221,25 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
     private void validateContainerRunning() throws Exception {
         final ProcessResult result = invokePrivilegedProcess(DOCKER, "ps", "--filter", "name=" + command.getContainerName());
         result.stdoutLines()
-              .stream()
-              .skip(1)
-              .map(String::trim)
-              .filter(StringUtils::isNotEmpty)
-              .filter(line -> {
-                  final String actualContainerName = substringAfterLast(line, " ");
-                  return actualContainerName.equals(command.getContainerName());
-              })
-              .findFirst()
-              .orElseThrow(() -> new IllegalArgumentException("Cannot find container. name=" + command.getContainerName()));
+                .stream()
+                .skip(1)
+                .map(String::trim)
+                .filter(StringUtils::isNotEmpty)
+                .filter(line -> {
+                    final String actualContainerName = substringAfterLast(line, " ");
+                    return actualContainerName.equals(command.getContainerName());
+                })
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Cannot find container. name=" + command.getContainerName()));
     }
 
     private ProcessResult execInAppContainer(final Object... args) throws Exception {
         final String[] stringArgs = Stream.of(args)
-                                          .map(String::valueOf)
-                                          .toArray(String[]::new);
+                .map(String::valueOf)
+                .toArray(String[]::new);
 
         final String[] cmd = concat(array(DOCKER, "exec", command.getContainerName()),
-                                    stringArgs);
+                stringArgs);
         return invokePrivilegedProcess(cmd);
     }
 

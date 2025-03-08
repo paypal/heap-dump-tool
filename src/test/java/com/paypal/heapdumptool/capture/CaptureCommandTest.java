@@ -12,6 +12,7 @@ public class CaptureCommandTest {
     public void testBean() {
         BeanVerifier.forClass(CaptureCommand.class)
                     .withSettings(settings -> settings.addOverridePropertyFactory(CaptureCommand::getBufferSize, () -> DataSize.ofMegabytes(5)))
+                    .withSettings(settings -> settings.addIgnoredPropertyName("excludeStringFields"))
                     .verifyGettersAndSetters();
     }
 

@@ -2,6 +2,7 @@ package com.paypal.heapdumptool.sanitizer.example;
 
 public class ClassWithManyStaticFields {
 
+    public long unused = 1;
     public static long l0 = 0xCAFEBABE;
     public static long l1 = 0xCAFEBABE;
     public static long l2 = 0xCAFEBABE;
