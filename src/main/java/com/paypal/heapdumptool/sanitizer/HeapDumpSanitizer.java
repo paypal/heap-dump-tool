@@ -53,7 +53,6 @@ public class HeapDumpSanitizer {
     // for debugging/testing
     private static final boolean enableSanitization = isFalse(Boolean.getBoolean("disable-sanitization"));
 
-
     private InputStream inputStream;
     private OutputStream outputStream;
     private ProgressMonitor progressMonitor;
@@ -63,7 +62,6 @@ public class HeapDumpSanitizer {
     private Map<Long, Long> classObjectIdToStringIdMap = new HashMap<>();
     private final List<Field> stringInstanceFields = new ArrayList<>();
     private Long stringClassObjectId;
-    private Byte sanitizationTextCoder;
 
     public void setInputStream(final InputStream inputStream) {
         this.inputStream = inputStream;
