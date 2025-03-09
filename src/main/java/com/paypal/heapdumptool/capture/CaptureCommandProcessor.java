@@ -63,18 +63,18 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
 
         final long pid = findPidInAppContainer();
 
-        final Path heapDumpFileInContainer = createPlainHeapDumpInAppContainer(pid);
+        final Path heapDumpFileInAppContainer = createPlainHeapDumpInAppContainer(pid);
         final String threadDump = captureThreadDump(pid);
         final Path heapDumpFileOnHost = FileUtils.getTempDirectory()
                 .toPath()
-                .resolve(heapDumpFileInContainer.getFileName().toString());
+                .resolve(heapDumpFileInAppContainer.getFileName().toString());
         final Path output;
         try {
-            copyFileOutOfAppContainer(heapDumpFileInContainer, heapDumpFileOnHost);
+            copyFileOutOfAppContainer(heapDumpFileInAppContainer, heapDumpFileOnHost);
             output = sanitizeHeapDump(heapDumpFileOnHost, threadDump);
         } finally {
-            deletePlainHeapDumpInAppContainer(heapDumpFileOnHost);
             Files.deleteIfExists(heapDumpFileOnHost);
+            deletePlainHeapDumpInAppContainer(heapDumpFileOnHost);
         }
 
         LOGGER.info("Captured sanitized heap dump in {}. Output: {}", getFriendlyDuration(now), output);
