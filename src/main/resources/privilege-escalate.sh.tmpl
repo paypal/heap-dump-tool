@@ -1,5 +1,4 @@
 #!/bin/bash
-set -euo pipefail
 
 # If you see this comment while running the tool, you are likely running the tool incorrectly. It should be run like this:
 #    $ docker run --rm __IMAGE_NAME__ __ARGS__ | bash
@@ -7,17 +6,25 @@ set -euo pipefail
 # The container does not have privileges or pid namespace is not attached. Escalating privileges by running the container
 # again with privileges.
 
+set -euo pipefail
 FQ_IMAGE="${__DOCKER_REGISTRY_ENV_NAME__:-__DEFAULT_REGISTRY__}/__IMAGE_NAME__"
 
 if [ "$FQ_IMAGE" != "local/__IMAGE_NAME__" ]; then
     docker pull $FQ_IMAGE
 fi
 
+TMPDIR="${TMPDIR:-/tmp/}"
+JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=50.0 -XX:-OmitStackTraceInFastThrow}
+DOCKER_OPTIONS="${DOCKER_OPTIONS:-}"
+
 # --privileged --pid=host -- let the tool run processes on host
 # --workdir `pwd` -v `pwd`:`pwd` -- mount host cwd as container cwd, where the heap dump will be saved
 # -e HOST_USER=`whoami` -- pass in host username so that the tool sets right owner on the output file
 docker run --rm \
     --privileged --pid=host \
-    --workdir `pwd` -v `pwd`:`pwd` \
+    --workdir `pwd` -v `pwd`:`pwd` -v $TMPDIR:$TMPDIR \
+    -e JAVA_OPTS="$JAVA_TOOL_OPTIONS" \
+    -e TMPDIR=$TMPDIR \
     -e HOST_USER=`whoami` \
+    ${DOCKER_OPTIONS} \
     $FQ_IMAGE __ARGS__

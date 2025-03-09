@@ -14,9 +14,9 @@ COPY --from=nsenter1 /usr/bin/nsenter1 /usr/bin/nsenter1
 WORKDIR /tmp/
 
 ENV APP_ID heap-dump-tool
-ENV APP_JAR /tmp/$APP_ID.jar
+ENV APP_JAR /opt/heap-dump-tool/$APP_ID.jar
 COPY src/main/docker/docker-entrypoint.sh /
-COPY target/$APP_ID.jar /tmp/
+COPY target/$APP_ID.jar $APP_JAR
 
 RUN chmod ugo+x /docker-entrypoint.sh
 
