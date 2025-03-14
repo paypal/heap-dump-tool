@@ -20,9 +20,9 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -33,17 +33,16 @@ import static com.paypal.heapdumptool.fixture.ByteArrayTool.countOfSequence;
 import static com.paypal.heapdumptool.fixture.ByteArrayTool.lengthen;
 import static com.paypal.heapdumptool.fixture.ByteArrayTool.nCopiesLongToBytes;
 import static java.nio.ByteOrder.BIG_ENDIAN;
+import static java.nio.charset.StandardCharsets.UTF_16BE;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 import static org.apache.commons.io.FileUtils.byteCountToDisplaySize;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_BYTE_ARRAY;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
-import static org.apache.commons.lang3.JavaVersion.JAVA_9;
-import static org.apache.commons.lang3.JavaVersion.JAVA_RECENT;
-import static org.apache.commons.lang3.SystemUtils.isJavaVersionAtLeast;
+import static org.apache.commons.lang3.JavaVersion.JAVA_1_8;
+import static org.apache.commons.lang3.SystemUtils.isJavaVersionAtMost;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 @TestMethodOrder(Random.class)
 class HeapDumpSanitizerTest {
@@ -215,11 +214,6 @@ class HeapDumpSanitizerTest {
 
     @Test
     void testThreadNameExcludedFromSanitization() throws Exception {
-        // verify java 8 manually ...
-        assumeThat(isJavaVersionAtLeast(JAVA_9))
-                .withFailMessage(JAVA_RECENT + "")
-                .isTrue();
-
         // "xN-classified-value" with each letter incremented by 1
         final String x2ClassifiedValue = "y3.dmbttjgjfe.wbmvf";
         final String x5ClassifiedValue = "y6.dmbttjgjfe.wbmvf";
@@ -228,12 +222,13 @@ class HeapDumpSanitizerTest {
         thread.setDaemon(true);
         thread.setName(adjustLetters(x2ClassifiedValue));
 
+        final Charset charset = isJavaVersionAtMost(JAVA_1_8) ? UTF_16BE : UTF_8;
         final byte[] sanitizedHeapDump = loadSanitizedHeapDump();
         assertThat(sanitizedHeapDump)
                 .withFailMessage("threadGroupName " + threadGroup.getName())
-                .containsSequence(butLast(threadGroup.getName()).getBytes(UTF_8))
+                .containsSequence(butLast(threadGroup.getName()).getBytes(charset))
                 .withFailMessage("threadName " + thread.getName())
-                .containsSequence(butLast(thread.getName()).getBytes(UTF_8));
+                .containsSequence(butLast(thread.getName()).getBytes(charset));
     }
 
     private String butLast(final String input) {
@@ -257,12 +252,12 @@ class HeapDumpSanitizerTest {
 
     // 0xDEADBEEF
     private long deadcow() {
-        return 0xDEADBEEE + Long.parseLong("1");
+        return 0xDEADBEEE + Integer.parseInt("1");
     }
 
     // 0xCAFEBABE
     private long cafegirl() {
-        return 0XCAFEBABD + Long.parseLong("1");
+        return 0xCAFEBABD + Integer.parseInt("1");
     }
 
     private void verifyDoesNotContainsSequence(final byte[] big, final byte[] small) {
