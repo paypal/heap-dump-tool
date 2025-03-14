@@ -28,7 +28,7 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     @Option(names = {"-d", DOCKER_REGISTRY_OPTION}, description = "docker registry hostname for bootstrapping heap-dump-tool docker image")
     private String dockerRegistry;
 
-    @Option(names = {"-a", "--tar-input"}, description = "Treat input as tar archive")
+    @Option(names = {"-a", "--tar-input"}, description = "Treat input as tar archive", arity = "1")
     private boolean tarInput;
 
     @Option(names = {"-e", "--exclude-string-fields"},
@@ -47,14 +47,28 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     // match, all strings would be displayed as "*"
     private boolean forceMatchStringCoder;
 
-    @Option(names = {"-s", "--sanitize-byte-char-arrays-only"}, description = "Sanitize byte/char arrays only", defaultValue = "true", showDefaultValue = ALWAYS)
+    @Option(names = {"-s", "--sanitize-byte-char-arrays-only"},
+            description = "Sanitize byte/char arrays only",
+            defaultValue = "true",
+            arity = "1",
+            showDefaultValue = ALWAYS)
     private boolean sanitizeByteCharArraysOnly = true;
 
-    @Option(names = {"-S", "--sanitize-arrays-only"}, description = "Sanitize arrays only", defaultValue = "false", showDefaultValue = ALWAYS)
+    @Option(names = {"-S", "--sanitize-arrays-only"},
+            description = "Sanitize arrays only",
+            arity = "1",
+            defaultValue = "false",
+            showDefaultValue = ALWAYS)
     private boolean sanitizeArraysOnly;
 
     @Option(names = {"-t", "--text"}, description = "Sanitization text to replace with", defaultValue = "\\0", showDefaultValue = ALWAYS)
     private String sanitizationText = "\\0";
+
+    @Option(names = {"-T", "--text-charset"},
+            description = "Sanitization text charset",
+            defaultValue = "<auto-detect>",
+            showDefaultValue = ALWAYS)
+    private String sanitizationTextCharset = "<auto-detect>";
 
     private StringFieldMap excludeStringFieldMap;
 
@@ -111,6 +125,18 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     public void setSanitizationText(final String sanitizationText) {
         // e.g. unescape user-supplied \\0 string (2 chars) to \0 string (1 char)
         this.sanitizationText = StringEscapeUtils.unescapeJava(sanitizationText);
+    }
+
+    public boolean isSanitizationTextCharsetAutoDetect() {
+        return new SanitizeCommand().getSanitizationTextCharset().equals(getSanitizationTextCharset());
+    }
+
+    public String getSanitizationTextCharset() {
+        return sanitizationTextCharset;
+    }
+
+    public void setSanitizationTextCharset(final String sanitizationTextCharset) {
+        this.sanitizationTextCharset = sanitizationTextCharset;
     }
 
     public boolean isForceMatchStringCoder() {

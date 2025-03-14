@@ -9,6 +9,7 @@ import org.apache.commons.lang3.mutable.MutableLong;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
@@ -68,6 +69,7 @@ public class HeapDumpSanitizer {
     private final Map<String, ClassObject> classNameToClassObjectsMap = new HashMap<>();
     private final Set<Long> excludeStringObjectIds = new HashSet<>();
     private final Set<Long> excludeStringValueArrayObjectIds = new HashSet<>();
+    private boolean isLikelyJdk9Plus;
 
     public void setInputStream(final InputStream inputStream) {
         this.inputStream = inputStream;
@@ -260,6 +262,10 @@ public class HeapDumpSanitizer {
             final String fieldName = stringIdToStringMap.getOrDefault(fieldNameStringId, "");
             final BasicType basicType = BasicType.findByU1Code(fieldType).orElseThrow(IllegalStateException::new);
             classObject.fields.add(new Field(fieldName, basicType));
+
+            if (isStringClass(classObjectId) && STRING_CODER_FIELD.equals(fieldName)) {
+                isLikelyJdk9Plus = true;
+            }
         }
     }
 
@@ -457,11 +463,23 @@ public class HeapDumpSanitizer {
 
     private void applySanitization(final Pipe pipe, final long numBytes) throws IOException {
         pipe.skipInput(numBytes);
+        final byte[] replacementData = getSanitizationTextBytes();
 
-        final byte[] replacementData = sanitizeCommand.getSanitizationText().getBytes(StandardCharsets.UTF_8);
         try (final InputStream replacementDataStream = new InfiniteCircularInputStream(replacementData)) {
             pipe.copyFrom(replacementDataStream, numBytes);
         }
+    }
+
+    private byte[] getSanitizationTextBytes() throws UnsupportedEncodingException {
+        if (!sanitizeCommand.isSanitizationTextCharsetAutoDetect()) {
+            final String sanitizationTextCharset = sanitizeCommand.getSanitizationTextCharset();
+            return sanitizeCommand.getSanitizationText().getBytes(sanitizationTextCharset);
+        }
+
+        if (isLikelyJdk9Plus) {
+            return sanitizeCommand.getSanitizationText().getBytes(StandardCharsets.UTF_8);
+        }
+        return sanitizeCommand.getSanitizationText().getBytes(StandardCharsets.UTF_16BE);
     }
 
     private static boolean isLatin1(final String input) {
