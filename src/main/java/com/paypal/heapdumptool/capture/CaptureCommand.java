@@ -24,8 +24,12 @@ import static picocli.CommandLine.Help.Visibility.ALWAYS;
 public class CaptureCommand extends SanitizeOrCaptureCommandBase implements CliCommand {
 
     static final String DOCKER_REGISTRY_OPTION = "--docker-registry";
+    static final String SKIP_DOCKER_PULL = "--skip-docker-pull";
 
     // to allow field injection from picocli, these variables can't be final
+
+    @Option(names = {SKIP_DOCKER_PULL}, description = "skip pulling latest docker image")
+    private boolean skipDockerPull;
 
     @Parameters(index = "0", description = "Container name")
     private String containerName;

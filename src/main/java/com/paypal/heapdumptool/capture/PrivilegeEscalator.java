@@ -8,6 +8,7 @@ import org.apache.commons.text.StringSubstitutor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +16,7 @@ import java.util.concurrent.Callable;
 import java.util.stream.Stream;
 
 import static com.paypal.heapdumptool.capture.CaptureCommand.DOCKER_REGISTRY_OPTION;
+import static com.paypal.heapdumptool.capture.CaptureCommand.SKIP_DOCKER_PULL;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.ESCALATED;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.PRIVILEGED_ALREADY;
 import static com.paypal.heapdumptool.utils.CallableTool.callQuietlyWithDefault;
@@ -93,11 +95,14 @@ public class PrivilegeEscalator {
                 ? "FORCED_DOCKER_REGISTRY"
                 : "DOCKER_REGISTRY";
 
+        final boolean skipDockerPull = Arrays.asList(args).contains(SKIP_DOCKER_PULL);
+
         final Map<String, String> params = new HashMap<>();
         params.put("IMAGE_NAME", IMAGE_NAME);
         params.put("ARGS", quotedArgs);
         params.put("DEFAULT_REGISTRY", defaultRegistry);
         params.put("DOCKER_REGISTRY_ENV_NAME", dockerRegistryEnvName);
+        params.put("SKIP_DOCKER_PULL", Boolean.toString(skipDockerPull));
 
         return params;
     }

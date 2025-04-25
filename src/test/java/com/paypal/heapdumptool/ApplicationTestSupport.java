@@ -23,6 +23,9 @@ public class ApplicationTestSupport {
             applicationMock.when(() -> Application.main(args))
                            .thenCallRealMethod();
 
+            applicationMock.when(() -> Application.run(args, Application.VersionProvider.versionResource))
+                           .thenCallRealMethod();
+
             Application.main(args);
         }
 

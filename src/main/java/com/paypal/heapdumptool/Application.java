@@ -39,6 +39,11 @@ public class Application {
 
     // Stay with "String[] args". vararg "String... args" causes weird failure with mockito in Java 11
     public static void main(final String[] args) throws Exception {
+        run(args, VersionProvider.versionResource);
+    }
+
+    public static void run(final String[] args, final String versionResource) throws Exception {
+        VersionProvider.versionResource = versionResource;
         final Escalation escalation = escalatePrivilegesIfNeeded(args);
         if (escalation == ESCALATED) {
             return;
@@ -60,6 +65,8 @@ public class Application {
 
     public static class VersionProvider implements IVersionProvider {
 
+        static String versionResource = System.getProperty("heap-dump-tool.version-resource", "/git-heap-dump-tool.properties");
+
         public static void printVersion() throws IOException {
             final String[] versionInfo = new VersionProvider().getVersion();
             InternalLogger.getLogger(Application.class).info(versionInfo[0]);
@@ -67,7 +74,7 @@ public class Application {
 
         @Override
         public String[] getVersion() throws IOException {
-            final byte[] bytes = resourceToByteArray("/git-heap-dump-tool.properties");
+            final byte[] bytes = resourceToByteArray(versionResource);
             final Properties gitProperties = new Properties();
             gitProperties.load(new ByteArrayInputStream(bytes));
             gitProperties.put("appId", APP_ID);
