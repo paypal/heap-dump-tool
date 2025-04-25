@@ -31,7 +31,7 @@ public class ApplicationTest {
         assertThat(exitCode).isEqualTo(0);
 
         final String expectedOutput = contentOf(getClass(), "help.txt");
-        assertThat(output).isEqualTo(expectedOutput);
+        assertThat(output.getOut()).isEqualTo(expectedOutput);
     }
 
     @Test

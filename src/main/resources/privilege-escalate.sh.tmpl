@@ -9,8 +9,8 @@
 set -euo pipefail
 FQ_IMAGE="${__DOCKER_REGISTRY_ENV_NAME__:-__DEFAULT_REGISTRY__}/__IMAGE_NAME__"
 
-if [ "$FQ_IMAGE" != "local/__IMAGE_NAME__" ]; then
-    docker pull $FQ_IMAGE
+if [[ "${SKIP_DOCKER_PULL:-__SKIP_DOCKER_PULL__}" == "false" && "$FQ_IMAGE" != "local/__IMAGE_NAME__" ]]; then
+    docker pull "$FQ_IMAGE"
 fi
 
 TMPDIR="${TMPDIR:-/tmp/}"
