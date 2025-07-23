@@ -2,10 +2,10 @@ package com.paypal.heapdumptool.capture;
 
 import com.paypal.heapdumptool.utils.ProcessTool;
 import com.paypal.heapdumptool.utils.ProcessTool.ProcessResult;
+import org.apache.commons.lang3.RuntimeEnvironment;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -47,26 +47,13 @@ public class PrivilegeEscalator {
         return ESCALATED;
     }
 
-    public static enum Escalation {
+    public enum Escalation {
         ESCALATED,
         PRIVILEGED_ALREADY
     }
 
     public static boolean isInDockerContainer() {
-        final Path file = Paths.get("/proc/1/cgroup");
-        final Callable<Boolean> cgroupContainsDocker = () -> Files.readAllLines(file)
-                                                                  .stream()
-                                                                  .anyMatch(line -> line.contains(DOCKER));
-        final boolean isInContainer = callQuietlyWithDefault(false, cgroupContainsDocker);
-
-        if (!isInContainer) {
-            // If true, then definitely true.
-            // If false, then process might be running on the host, or be in a privileged container with pid namespace mounted.
-            // Just try running nsenter1 docker then
-            final int exitCode = callQuietlyWithDefault(1, () -> ProcessTool.run("nsenter1", DOCKER).exitCode);
-            return exitCode == 0;
-        }
-        return isInContainer;
+        return RuntimeEnvironment.inContainer();
     }
 
     // yes, print directly to stdout (bypassing SysOutOverSLF4J or other logger decorations)
