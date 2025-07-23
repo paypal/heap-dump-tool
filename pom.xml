@@ -46,7 +46,7 @@
 
         <!-- Dependency versions -->
         <commons-compress.version>1.27.1</commons-compress.version>
-        <commons-lang3.version>3.17.0</commons-lang3.version>
+        <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-text.version>1.13.0</commons-text.version>
         <junit-pioneer.version>1.9.1</junit-pioneer.version>
         <meanbean.version>3.0.0-M9</meanbean.version>
