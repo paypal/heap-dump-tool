@@ -3,6 +3,7 @@ package com.paypal.heapdumptool.capture;
 import com.google.common.io.Closer;
 import com.paypal.heapdumptool.fixture.ConstructorTester;
 import com.paypal.heapdumptool.fixture.ResourceTool;
+import org.apache.commons.lang3.RuntimeEnvironment;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,9 +42,7 @@ public class PrivilegeEscalatorTest {
 
     @Test
     public void testNotInDockerContainer() throws Exception {
-        final Path cgroupPath = Paths.get(copyCgroup("native-cgroup.txt"));
-        final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
-        expectCgroup(mocked, cgroupPath);
+        expectInDockerContainer(false);
 
         assertThat(escalatePrivilegesIfNeeded("foo", "b a r"))
                 .isEqualTo(PRIVILEGED_ALREADY);
@@ -51,6 +50,8 @@ public class PrivilegeEscalatorTest {
 
     @Test
     public void testInDockerContainerPrivilegedAlready() throws Exception {
+        expectInDockerContainer(true);
+
         final Path cgroupPath = Paths.get(copyCgroup("docker-cgroup.txt"));
         final Path replacementPath = Paths.get("/bin/echo");
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
@@ -63,6 +64,8 @@ public class PrivilegeEscalatorTest {
 
     @Test
     public void testInDockerContainerNotPrivilegedAlready(final CapturedOutput output) throws Exception {
+        expectInDockerContainer(true);
+
         final Path cgroupPath = Paths.get(copyCgroup("docker-cgroup.txt"));
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
@@ -75,6 +78,8 @@ public class PrivilegeEscalatorTest {
 
     @Test
     public void testCustomDockerRegistryOneArg(final CapturedOutput output) throws Exception {
+        expectInDockerContainer(true);
+
         final Path cgroupPath = Paths.get(copyCgroup("docker-cgroup.txt"));
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
@@ -87,6 +92,8 @@ public class PrivilegeEscalatorTest {
 
     @Test
     public void testCustomDockerRegistryTwoArg(final CapturedOutput output) throws Exception {
+        expectInDockerContainer(true);
+
         final Path cgroupPath = Paths.get(copyCgroup("docker-cgroup.txt"));
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
@@ -99,6 +106,9 @@ public class PrivilegeEscalatorTest {
 
     @Test
     public void testCustomDockerRegistryInvalidArg() throws Exception {
+        final boolean value = true;
+        expectInDockerContainer(value);
+
         final Path cgroupPath = Paths.get(copyCgroup("docker-cgroup.txt"));
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
@@ -111,6 +121,11 @@ public class PrivilegeEscalatorTest {
     @Test
     public void testConstructor() throws Exception {
         ConstructorTester.test(PrivilegeEscalator.class);
+    }
+
+    private void expectInDockerContainer(final boolean value) {
+        final MockedStatic<RuntimeEnvironment> env = createStaticMock(RuntimeEnvironment.class);
+        env.when(RuntimeEnvironment::inContainer).thenReturn(value);
     }
 
     private <T> MockedStatic<T> createStaticMock(final Class<T> clazz) {

@@ -6,6 +6,26 @@
 # The container does not have privileges or pid namespace is not attached. Escalating privileges by running the container
 # again with privileges.
 
+function runForAppleSilicon() {
+	CMD='docker run -d --rm --name heap-dump-tool --entrypoint sleep'
+	HDT_DIR=${HDT_DIR:-$TMPDIR/heap-dump-tool}
+	echo "Extracting heap-dump-tool to $HDT_DIR ..."
+  set +e
+	docker stop --time 0 heap-dump-tool > /dev/null 2>&1
+  set -e
+	eval $CMD $FQ_IMAGE 99 > /dev/null
+
+	sleep 1
+	rm -rf $HDT_DIR
+	docker cp -q heap-dump-tool:/opt/heap-dump-tool/heap-dump-tool.jar $TMPDIR/
+
+	docker stop --time 0 heap-dump-tool > /dev/null
+
+  echo "java -jar $TMPDIR/heap-dump-tool.jar __ARGS__"
+  echo
+	exec java -jar $TMPDIR/heap-dump-tool.jar __ARGS__
+}
+
 set -euo pipefail
 FQ_IMAGE="${__DOCKER_REGISTRY_ENV_NAME__:-__DEFAULT_REGISTRY__}/__IMAGE_NAME__"
 
@@ -16,6 +36,23 @@ fi
 TMPDIR="${TMPDIR:-/tmp/}"
 JAVA_TOOL_OPTIONS=${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=50.0 -XX:-OmitStackTraceInFastThrow}
 DOCKER_OPTIONS="${DOCKER_OPTIONS:-}"
+
+HDT_DETECT_CPU=${HDT_DETECT_CPU:-TRUE}
+HDT_OS=${HDT_OS:-`uname -s`}
+HDT_CPU_TYPE=${HDT_CPU_TYPE:-`uname -m`}
+if [ "$HDT_DETECT_CPU" = "TRUE" ] && [ "$HDT_CPU_TYPE" = "arm64" ] && [ "$HDT_OS" = "Darwin" ]; then
+	echo "Detected Apple Silicon"
+	echo "    \$HDT_DETECT_CPU=$HDT_DETECT_CPU"
+	echo "    \$HDT_OS=$HDT_OS"
+	echo "    \$HDT_CPU_TYPE=$HDT_CPU_TYPE"
+	echo ""
+	echo "Due to containerization limitations on Mac, heap-dump-tool running within a container cannot capture a sanitized"
+	echo "heap dump of a Java process running in another container."
+	echo ""
+	echo "Running heap-dump-tool directly on Mac instead ..."
+	runForAppleSilicon __ARGS__
+	exit 0
+fi
 
 # --privileged --pid=host -- let the tool run processes on host
 # --workdir `pwd` -v `pwd`:`pwd` -- mount host cwd as container cwd, where the heap dump will be saved
