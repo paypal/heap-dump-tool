@@ -1,8 +1,11 @@
 package com.paypal.heapdumptool.capture;
 
 import com.google.common.io.Closer;
+import com.paypal.heapdumptool.Application;
+import com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation;
 import com.paypal.heapdumptool.fixture.ConstructorTester;
 import com.paypal.heapdumptool.fixture.ResourceTool;
+import com.paypal.heapdumptool.sanitizer.DataSize;
 import org.apache.commons.lang3.RuntimeEnvironment;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -12,6 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.MockedStatic;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import picocli.CommandLine;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -19,7 +23,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.escalatePrivilegesIfNeeded;
-import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.ESCALATED;
+import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.REQUIRED_AND_PROMPTED;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.PRIVILEGED_ALREADY;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,7 +48,7 @@ public class PrivilegeEscalatorTest {
     public void testNotInDockerContainer() throws Exception {
         expectInDockerContainer(false);
 
-        assertThat(escalatePrivilegesIfNeeded("foo", "b a r"))
+        assertThat(escalate("capture", "b a r"))
                 .isEqualTo(PRIVILEGED_ALREADY);
     }
 
@@ -58,7 +62,7 @@ public class PrivilegeEscalatorTest {
         expectCgroup(mocked, cgroupPath);
         expectNsenter1(mocked, replacementPath);
 
-        assertThat(escalatePrivilegesIfNeeded("foo", "b a r"))
+        assertThat(escalate("capture", "b a r"))
                 .isEqualTo(PRIVILEGED_ALREADY);
     }
 
@@ -70,8 +74,8 @@ public class PrivilegeEscalatorTest {
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
 
-        assertThat(escalatePrivilegesIfNeeded("foo", "b a r"))
-                .isEqualTo(ESCALATED);
+        assertThat(escalate("capture", "b a r"))
+                .isEqualTo(REQUIRED_AND_PROMPTED);
 
         assertThat(output).contains("If you see this comment while running the tool");
     }
@@ -84,8 +88,8 @@ public class PrivilegeEscalatorTest {
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
 
-        assertThat(escalatePrivilegesIfNeeded("--docker-registry=my-custom-registry.example.com"))
-                .isEqualTo(ESCALATED);
+        assertThat(escalate("--docker-registry=my-custom-registry.example.com"))
+                .isEqualTo(REQUIRED_AND_PROMPTED);
         assertThat(output.getOut())
                 .contains("FQ_IMAGE=\"${FORCED_DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
     }
@@ -98,8 +102,8 @@ public class PrivilegeEscalatorTest {
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
 
-        assertThat(escalatePrivilegesIfNeeded("--docker-registry", "my-custom-registry.example.com"))
-                .isEqualTo(ESCALATED);
+        assertThat(escalate("--docker-registry", "my-custom-registry.example.com", "capture", "b a r"))
+                .isEqualTo(REQUIRED_AND_PROMPTED);
         assertThat(output.getOut())
                 .contains("FQ_IMAGE=\"${FORCED_DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
     }
@@ -114,13 +118,26 @@ public class PrivilegeEscalatorTest {
         expectCgroup(mocked, cgroupPath);
 
         assertThatExceptionOfType(IllegalArgumentException.class)
-                .isThrownBy(() -> escalatePrivilegesIfNeeded("--docker-registry"))
+                .isThrownBy(() -> escalate("--docker-registry"))
                 .withMessage("Cannot find argument value for --docker-registry");
     }
 
     @Test
     public void testConstructor() throws Exception {
         ConstructorTester.test(PrivilegeEscalator.class);
+    }
+
+    private static Escalation escalate(final String... args) throws Exception {
+        final CommandLine commandLine = newCommandLine();
+        return escalatePrivilegesIfNeeded(commandLine, args);
+    }
+
+    static CommandLine newCommandLine() {
+        final CommandLine commandLine = new CommandLine(new Application());
+        commandLine.setUsageHelpWidth(120);
+        commandLine.registerConverter(DataSize.class, DataSize::parse);
+        commandLine.setAbbreviatedOptionsAllowed(true);
+        return commandLine;
     }
 
     private void expectInDockerContainer(final boolean value) {

@@ -1,6 +1,6 @@
 package com.paypal.heapdumptool.cli;
 
-import com.paypal.heapdumptool.Application.VersionProvider;
+import com.paypal.heapdumptool.Application;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 
 import java.lang.reflect.InvocationTargetException;
@@ -11,7 +11,7 @@ public class CliBootstrap {
 
     public static <T extends CliCommand> boolean runCommand(final T command) throws Exception {
 
-        VersionProvider.printVersion();
+        Application.printVersion();
 
         final Class<? extends CliCommandProcessor> clazz = command.getProcessorClass();
         try {

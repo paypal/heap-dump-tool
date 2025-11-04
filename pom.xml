@@ -23,7 +23,7 @@
         <copy-rename-maven-plugin.version>1.0.1</copy-rename-maven-plugin.version>
         <git-commit-id-plugin.version>4.0.5</git-commit-id-plugin.version>
         <gpg.skip>true</gpg.skip>
-        <jacoco-maven-plugin.version>0.8.12</jacoco-maven-plugin.version>
+        <jacoco-maven-plugin.version>0.8.14</jacoco-maven-plugin.version>
         <jgitflow-maven-plugin.version>1.0-m5.1</jgitflow-maven-plugin.version>
         <maven.build.timestamp.format>yyyy-MM-dd HH:mm:ss z</maven.build.timestamp.format>
         <maven-compiler-plugin.version>3.13.0</maven-compiler-plugin.version>
@@ -45,7 +45,7 @@
         <versions-maven-plugin.version>2.7</versions-maven-plugin.version>
 
         <!-- Dependency versions -->
-        <commons-compress.version>1.27.1</commons-compress.version>
+        <commons-compress.version>1.28.0</commons-compress.version>
         <commons-lang3.version>3.18.0</commons-lang3.version>
         <commons-text.version>1.13.0</commons-text.version>
         <junit-pioneer.version>1.9.1</junit-pioneer.version>
@@ -80,14 +80,14 @@
             <dependency>
                 <groupId>net.bytebuddy</groupId>
                 <artifactId>byte-buddy</artifactId>
-                <version>1.15.11</version>
+                <version>1.17.8</version>
                 <scope>test</scope>
             </dependency>
 
             <dependency>
                 <groupId>net.bytebuddy</groupId>
                 <artifactId>byte-buddy-agent</artifactId>
-                <version>1.15.11</version>
+                <version>1.17.8</version>
                 <scope>test</scope>
             </dependency>
 
@@ -259,7 +259,7 @@
                 <configuration>
                     <workingDirectory>${project.build.directory}</workingDirectory>
                     <classesDirectory>${project.build.outputDirectory}</classesDirectory>
-                    <argLine>-Xmx1024m -Xms128m @{argLine}</argLine>
+                    <argLine>-Xmx2048m -Xms128m @{argLine}</argLine>
                     <runOrder>alphabetical</runOrder>
                 </configuration>
                 <executions>
@@ -279,7 +279,7 @@
                 <configuration>
                     <workingDirectory>${project.build.directory}</workingDirectory>
                     <classesDirectory>${project.build.outputDirectory}</classesDirectory>
-                    <argLine>-Xmx1024m -Xms128m @{argLine}</argLine>
+                    <argLine>-Xmx2048m -Xms128m @{argLine}</argLine>
                     <runOrder>alphabetical</runOrder>
                 </configuration>
             </plugin>

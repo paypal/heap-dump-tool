@@ -5,11 +5,15 @@ import com.paypal.heapdumptool.utils.ProcessTool.ProcessResult;
 import org.apache.commons.lang3.RuntimeEnvironment;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringSubstitutor;
+import picocli.CommandLine;
+import picocli.CommandLine.ParseResult;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Callable;
@@ -17,7 +21,8 @@ import java.util.stream.Stream;
 
 import static com.paypal.heapdumptool.capture.CaptureCommand.DOCKER_REGISTRY_OPTION;
 import static com.paypal.heapdumptool.capture.CaptureCommand.SKIP_DOCKER_PULL;
-import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.ESCALATED;
+import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.REQUIRED_AND_PROMPTED;
+import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.NOT_REQUIRED;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.PRIVILEGED_ALREADY;
 import static com.paypal.heapdumptool.utils.CallableTool.callQuietlyWithDefault;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -34,7 +39,16 @@ public class PrivilegeEscalator {
     public static final String IMAGE_NAME = System.getProperty("hdt.image-name", "heapdumptool/heapdumptool");
     private static final String DOCKER = "docker";
 
-    public static Escalation escalatePrivilegesIfNeeded(final String... args) throws Exception {
+    public static Escalation escalatePrivilegesIfNeeded(final CommandLine commandLine, final String... args) throws Exception {
+        final ParseResult parseResult = parse(commandLine, args);
+        final ParseResult subcommand = parseResult.subcommand();
+        if (subcommand != null && subcommand.commandSpec() != null) {
+            final Object userObject = subcommand.commandSpec().userObject();
+            if (!(userObject instanceof CaptureCommand)) {
+                return NOT_REQUIRED;
+            }
+        }
+
         if (!isInDockerContainer() || isLikelyPrivileged()) {
             return PRIVILEGED_ALREADY;
         }
@@ -44,11 +58,12 @@ public class PrivilegeEscalator {
 
         final String shellCode = StringSubstitutor.replace(shellTemplate, templateParams, "__", "__");
         println(shellCode);
-        return ESCALATED;
+        return REQUIRED_AND_PROMPTED;
     }
 
     public enum Escalation {
-        ESCALATED,
+        REQUIRED_AND_PROMPTED,
+        NOT_REQUIRED,
         PRIVILEGED_ALREADY
     }
 
@@ -68,6 +83,17 @@ public class PrivilegeEscalator {
             return result.exitCode == 0;
         };
         return callQuietlyWithDefault(false, canRunDockerInsideDocker);
+    }
+
+    private static ParseResult parse(final CommandLine commandLine, final String... args) {
+        final Optional<String> forcedDockerRegistry = findForcedDockerRegistry(args);
+        final List<String> argsList = new ArrayList<>(Arrays.asList(args));
+        if (forcedDockerRegistry.isPresent()) {
+            argsList.remove(DOCKER_REGISTRY_OPTION + "=" + forcedDockerRegistry.get());
+            argsList.remove(DOCKER_REGISTRY_OPTION);
+            argsList.remove(forcedDockerRegistry.get());
+        }
+        return commandLine.parseArgs(argsList.toArray(new String[0]));
     }
 
     private static Map<String, String> buildTemplateParams(final String... args) {
