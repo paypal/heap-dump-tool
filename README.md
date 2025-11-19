@@ -205,7 +205,7 @@ Sanitize a heap dump by replacing byte and char array contents
 ### FAQ
 
 **Q: How can I sanitize non-array primitive fields?**
-Set `--sanitize-byte-char-arrays-only=false` and `--sanitize-arrays-only=false`.
+Set `--sanitize-byte-char-arrays-only=false`.
 
 <a name="license"></a>
 
