@@ -169,6 +169,43 @@ Sanitize a heap dump by replacing byte and char array contents
                        Default: false
 ```
 
+### Explanation of options
+
+* `-a, --tar-input    Treat input as tar archive`
+  * Meant for use with `-` or `stdin` as inputFile when piping heap dump from k8s `kubectl cp` command which produces tar archive.
+
+* `-b, --buffer-size=<bufferSize>`
+  * Higher buffer size should improve performance when reading and writing large heap dump files at the cost of higher memory usage.
+
+* `-d, --docker-registry=<dockerRegistry>`
+  * Meant for use with private docker-registry setups.
+
+* `-e, --exclude-string-fields=<excludeStringFields>`
+  * CSV list of string fields to exclude from sanitization.
+
+* `-f, --force-string-coder-match=<forceMatchStringCoder>`
+  * Newer Java versions (Java 9+) may encode string instances differently. This settings forces sanitized value in heap dump
+    to match the coder of the sanitization text provided via `-t` flag.
+
+* `-s, --sanitize-byte-char-arrays-only`
+  * When set to true, only byte[] and char[] arrays are sanitized. When false, all primitive arrays are sanitized.
+
+* `-S, --sanitize-arrays-only`
+  * When set to true, only arrays are sanitized. When false _and_ when `--sanitize-byte-char-arrays-only` is also false,
+  all fields are sanitized. e.g. int, long, boolean fields. Be warned that some tools like VisualVM may not be able to open such
+  sanitized heap dumps; Eclipse Memory Analyzer (MAT) is known to work.
+
+* `-t, --text=<sanitizationText>`
+  * Sanitization text to replace with. Default is null character `\0`.
+
+* `-z, --zip-output   Write zipped output`
+  * When set, output heap dump is compressed in .hprof.zip format.
+
+### FAQ
+
+**Q: How can I sanitize non-array primitive fields?**
+Set `--sanitize-byte-char-arrays-only=false` and `--sanitize-arrays-only=false`.
+
 <a name="license"></a>
 
 ## Whitepaper
