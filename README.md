@@ -184,16 +184,17 @@ Sanitize a heap dump by replacing byte and char array contents
   * CSV list of string fields to exclude from sanitization.
 
 * `-f, --force-string-coder-match=<forceMatchStringCoder>`
-  * Newer Java versions (Java 9+) may encode string instances differently. This settings forces sanitized value in heap dump
-    to match the coder of the sanitization text provided via `-t` flag.
+  * Newer Java versions (Java 9+) may encode string instances differently. This setting forces sanitized value in heap dump
+    to match the coder of the sanitization text provided via `-t` flag. If unset, some sanitized string fields may not be
+    displayed correctly in analysis tools due to coder mismatch.
 
 * `-s, --sanitize-byte-char-arrays-only`
-  * When set to true, only byte[] and char[] arrays are sanitized. When false, all primitive arrays are sanitized.
+  * When set to true, only byte[] and char[] arrays are sanitized. When false, all fields are sanitized (primitive, 
+  non-primitive, array, non-array). Be warned that some tools like VisualVM may not be able to open such
+  sanitized heap dumps; Eclipse Memory Analyzer (MAT) is known to work.
 
 * `-S, --sanitize-arrays-only`
-  * When set to true, only arrays are sanitized. When false _and_ when `--sanitize-byte-char-arrays-only` is also false,
-  all fields are sanitized. e.g. int, long, boolean fields. Be warned that some tools like VisualVM may not be able to open such
-  sanitized heap dumps; Eclipse Memory Analyzer (MAT) is known to work.
+  * Deprecated. Use `--sanitize-byte-char-arrays-only` instead.
 
 * `-t, --text=<sanitizationText>`
   * Sanitization text to replace with. Default is null character `\0`.
