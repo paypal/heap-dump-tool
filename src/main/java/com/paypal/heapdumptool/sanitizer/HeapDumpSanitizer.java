@@ -246,7 +246,7 @@ public class HeapDumpSanitizer {
 
         final int numStaticFields = pipe.pipeU2();
         for (int i = 0; i < numStaticFields; i++) {
-            pipe.pipeId();
+            pipe.pipeId(); // field name id
             final int entryType = pipe.pipeU1();
             pipeStaticField(pipe, entryType);
         }
@@ -270,7 +270,7 @@ public class HeapDumpSanitizer {
     }
 
     private boolean shouldTrackClassMetadata() {
-        return !sanitizeCommand.getExcludeStringFields().isEmpty();
+        return !sanitizeCommand.getExcludeStringFields().isEmpty() || !sanitizeCommand.isSanitizeByteCharArraysOnly();
     }
 
     private boolean isAssignableClassWithExcludeStringField(final long classObjectId) {
@@ -281,7 +281,7 @@ public class HeapDumpSanitizer {
 
     private void pipeStaticField(final Pipe pipe, final int entryType) throws IOException {
         final int valueSize = BasicType.findValueSize(entryType, pipe.getIdSize());
-        if (isSanitizeAll()) {
+        if (shouldSanitizeField(entryType)) {
             applySanitization(pipe, valueSize);
         } else {
             pipe.pipe(valueSize);
@@ -313,12 +313,13 @@ public class HeapDumpSanitizer {
             copyStringsInstanceFields(pipe, objectId, numBytes);
 
         } else if (isAssignableClassWithExcludeStringField(classObjectId)) {
-            copyInstanceWithExcludeStringField(pipe, className, numBytes);
+            copyInstanceAndSanitizeSomeFields(pipe, className, numBytes);
 
         } else {
-            if (isSanitizeAll()) {
-                applySanitization(pipe, numBytes);
+            if (!sanitizeCommand.isSanitizeByteCharArraysOnly()) {
+                copyInstanceAndSanitizeSomeFields(pipe, className, numBytes);
             } else {
+                // no need to sanitize instance dump. sanitize (byte/char) arrays only, in array dump section
                 pipe.pipe(numBytes);
             }
         }
@@ -378,17 +379,21 @@ public class HeapDumpSanitizer {
                 .collect(Collectors.toList());
     }
 
-    private void copyInstanceWithExcludeStringField(final Pipe pipe, final String className, final long numBytes) throws IOException {
+    private void copyInstanceAndSanitizeSomeFields(final Pipe pipe, final String className, final long numBytes) throws IOException {
         final Collection<String> excludeStringFields = getExcludeStringFieldsInClassHierarchy(className);
         final ClassObject classObject = classNameToClassObjectsMap.get(className);
-        final MutableLong numBytesMutable = new MutableLong(numBytes);
         Objects.requireNonNull(classObject);
+        final MutableLong numBytesMutable = new MutableLong(numBytes);
         getAllFieldsInClassHierarchy(className).forEach(field -> {
             final int fieldSize = field.type.getValueSize(pipe.getIdSize());
 
             if (excludeStringFields.contains(field.name)) {
                 final long id = Failable.call(pipe::pipeId);
                 excludeStringObjectIds.add(id);
+
+            } else if (shouldSanitizeField(field.type.getU1Code())) {
+                Failable.run(() -> applySanitization(pipe, fieldSize));
+
             } else {
                 Failable.run(() -> pipe.pipe(fieldSize));
             }
@@ -403,10 +408,13 @@ public class HeapDumpSanitizer {
         return stringIdToStringMap.getOrDefault(stringId, "");
     }
 
-    private boolean isSanitizeAll() {
-        return ENABLE_SANITIZATION &&
-                !sanitizeCommand.isSanitizeByteCharArraysOnly() &&
-                !sanitizeCommand.isSanitizeArraysOnly();
+    private boolean shouldSanitizeField(final int fieldType) {
+        if (!ENABLE_SANITIZATION) {
+            return false;
+        }
+
+        final BasicType basicType = BasicType.findByU1Code(fieldType).orElse(BasicType.OBJECT);
+        return !sanitizeCommand.isSanitizeByteCharArraysOnly() && basicType != BasicType.OBJECT;
     }
 
     private void copyHeapDumpObjectArrayDump(final Pipe pipe) throws IOException {

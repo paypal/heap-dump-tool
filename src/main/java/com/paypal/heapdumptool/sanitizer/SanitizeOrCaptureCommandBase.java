@@ -54,13 +54,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
             showDefaultValue = ALWAYS)
     private boolean sanitizeByteCharArraysOnly = true;
 
-    @Option(names = {"-S", "--sanitize-arrays-only"},
-            description = "Sanitize arrays only",
-            arity = "1",
-            defaultValue = "false",
-            showDefaultValue = ALWAYS)
-    private boolean sanitizeArraysOnly;
-
     @Option(names = {"-t", "--text"}, description = "Sanitization text to replace with", defaultValue = "\\0", showDefaultValue = ALWAYS)
     private String sanitizationText = "\\0";
 
@@ -81,7 +74,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         this.forceMatchStringCoder = other.forceMatchStringCoder;
         this.excludeStringFields = other.excludeStringFields;
         this.sanitizationText = other.sanitizationText;
-        this.sanitizeArraysOnly = other.sanitizeArraysOnly;
         this.sanitizeByteCharArraysOnly = other.sanitizeByteCharArraysOnly;
         this.tarInput = other.tarInput;
     }
@@ -100,14 +92,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
 
     public void setSanitizeByteCharArraysOnly(final boolean sanitizeByteCharArraysOnly) {
         this.sanitizeByteCharArraysOnly = sanitizeByteCharArraysOnly;
-    }
-
-    public boolean isSanitizeArraysOnly() {
-        return sanitizeArraysOnly;
-    }
-
-    public void setSanitizeArraysOnly(final boolean sanitizeArraysOnly) {
-        this.sanitizeArraysOnly = sanitizeArraysOnly;
     }
 
     public boolean isTarInput() {

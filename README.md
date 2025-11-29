@@ -153,15 +153,12 @@ Sanitize a heap dump by replacing byte and char array contents
   -e, --exclude-string-fields=<excludeStringFields>
                      String fields to exclude from sanitization. Value in com.example.MyClass#fieldName format
                        Default: java.lang.Thread#name,java.lang.ThreadGroup#name
-  -f, --force-string-coder-match=<forceMatchStringCoder>
+  -f, --force-string-coder-match=<true|false>
                      Force strings coder values to match sanitizationText.coder value
                        Default: true
-  -s, --sanitize-byte-char-arrays-only
+  -s, --sanitize-byte-char-arrays-only=<true|false>
                      Sanitize byte/char arrays only
                        Default: true
-  -S, --sanitize-arrays-only
-                     Sanitize arrays only
-                       Default: false
   -t, --text=<sanitizationText>
                      Sanitization text to replace with
                        Default: \0
@@ -172,10 +169,12 @@ Sanitize a heap dump by replacing byte and char array contents
 ### Explanation of options
 
 * `-a, --tar-input    Treat input as tar archive`
-  * Meant for use with `-` or `stdin` as inputFile when piping heap dump from k8s `kubectl cp` command which produces tar archive.
+  * Meant for use with `-` or `stdin` as inputFile when piping heap dump from k8s `kubectl cp` command which produces tar
+    archive.
 
 * `-b, --buffer-size=<bufferSize>`
-  * Higher buffer size should improve performance when reading and writing large heap dump files at the cost of higher memory usage.
+  * Higher buffer size should improve performance when reading and writing large heap dump files at the cost of higher
+    memory usage.
 
 * `-d, --docker-registry=<dockerRegistry>`
   * Meant for use with private docker-registry setups.
@@ -183,18 +182,14 @@ Sanitize a heap dump by replacing byte and char array contents
 * `-e, --exclude-string-fields=<excludeStringFields>`
   * CSV list of string fields to exclude from sanitization.
 
-* `-f, --force-string-coder-match=<forceMatchStringCoder>`
-  * Newer Java versions (Java 9+) may encode string instances differently. This setting forces sanitized value in heap dump
-    to match the coder of the sanitization text provided via `-t` flag. If unset, some sanitized string fields may not be
-    displayed correctly in analysis tools due to coder mismatch.
+* `-f, --force-string-coder-match=<true|false>`
+  * In Java 9+, string instances may be encoded differently based on content. This setting forces encoding of sanitized
+    strings in heap dump to match the encoding of the sanitization text provided via `-t` flag. If unset, some sanitized
+    string fields may not be displayed correctly in analysis tools due to coder mismatch.
 
-* `-s, --sanitize-byte-char-arrays-only`
-  * When set to true, only byte[] and char[] arrays are sanitized. When false, all fields are sanitized (primitive, 
-  non-primitive, array, non-array). Be warned that some tools like VisualVM may not be able to open such
-  sanitized heap dumps; Eclipse Memory Analyzer (MAT) is known to work.
-
-* `-S, --sanitize-arrays-only`
-  * Deprecated. Use `--sanitize-byte-char-arrays-only` instead.
+* `-s, --sanitize-byte-char-arrays-only=<true|false>`
+  * When set to true, only byte and char arrays are sanitized. When false, all primitive array fields and all primitive
+    non-array fields are sanitized.
 
 * `-t, --text=<sanitizationText>`
   * Sanitization text to replace with. Default is null character `\0`.

@@ -39,9 +39,6 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
 
     @Override
     public void process() throws Exception {
-        if (command.isSanitizeArraysOnly() && command.isSanitizeByteCharArraysOnly()) {
-            throw new IllegalArgumentException("sanitizeArraysOnly and sanitizeByteCharArraysOnly cannot be both set to true simultaneously");
-        }
         if (streamFactory.isStdinInput() && !command.getExcludeStringFields().isEmpty()) {
             throw new IllegalArgumentException("stdin input and excludeStringFields cannot be both set to true simultaneously");
         }
