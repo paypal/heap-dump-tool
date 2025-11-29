@@ -1,7 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.Validate;
 
 import java.io.BufferedInputStream;
@@ -50,7 +50,7 @@ public class SanitizeStreamFactory {
         if (command.isZipOutput()) {
             final ZipOutputStream zipStream = new ZipOutputStream(output);
             final String name = getOutputFileName();
-            final String entryName = StringUtils.removeEnd(name, ".zip");
+            final String entryName = Strings.CS.removeEnd(name, ".zip");
             zipStream.putNextEntry(new ZipEntry(entryName));
             return zipStream;
         }
@@ -65,7 +65,7 @@ public class SanitizeStreamFactory {
 
     public boolean isStdinInput() {
         final String name = command.getInputFile().getFileName().toString();
-        return StringUtils.equalsAny(name, "-", "stdin", "0");
+        return Strings.CS.equalsAny(name, "-", "stdin", "0");
     }
 
     private static SanitizeCommand validate(final SanitizeCommand command) {

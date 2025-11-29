@@ -10,6 +10,8 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import picocli.CommandLine;
 
+import java.util.Objects;
+
 import static com.paypal.heapdumptool.ApplicationTestSupport.runApplication;
 import static com.paypal.heapdumptool.ApplicationTestSupport.runApplicationPrivileged;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.REQUIRED_AND_PROMPTED;
@@ -48,6 +50,7 @@ public class ApplicationTest {
                   .thenReturn(REQUIRED_AND_PROMPTED);
 
             try (final MockedConstruction<CommandLine> mockedCmd = mockConstruction(CommandLine.class, this::prepare)) {
+                Objects.requireNonNull(mockedCmd);
                 final int exitCode = runApplication("capture", "my-container");
                 assertThat(exitCode).isEqualTo(0);
             }

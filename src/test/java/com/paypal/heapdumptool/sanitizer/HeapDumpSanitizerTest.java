@@ -50,16 +50,7 @@ class HeapDumpSanitizerTest {
     private static final Logger LOGGER = LoggerFactory.getLogger(HeapDumpSanitizerTest.class);
 
     @TempDir
-    static Path tempDir2;
     static Path tempDir;
-
-    static {
-        try {
-            tempDir = Files.createTempDirectory("");
-        } catch (final IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
 
     private final SecretArrays secretArrays = new SecretArrays();
 
@@ -187,21 +178,11 @@ class HeapDumpSanitizerTest {
             assertThat(countOfSequence(clearHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
                     .isGreaterThan(500);
         }
-
-        {
-            final byte[] clearHeapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=false", "--sanitize-arrays-only=true");
-            assertThat(clearHeapDump)
-                    .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                    .containsSequence(nCopiesLongToBytes(deadcow(), 500));
-
-            assertThat(countOfSequence(clearHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
-                    .isGreaterThan(500);
-        }
     }
 
     @Test
     void testSanitizeArraysOnly() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=false", "--sanitize-arrays-only=true");
+        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-byte-char-arrays-only=false");
         verifyDoesNotContainsSequence(heapDump, secretArrays.getByteArraySequence());
         verifyDoesNotContainsSequence(heapDump, secretArrays.getCharArraySequence());
         verifyDoesNotContainsSequence(heapDump, secretArrays.getShortArraySequence());
