@@ -212,7 +212,7 @@ Set `--sanitize-byte-char-arrays-only=false`.
 
 To use the tool as a library and embed it within another app, you can declare it as dependency in your project. For maven:
 
-```
+```xml
 <dependency>
   <groupId>com.paypal</groupId>
   <artifactId>heap-dump-tool</artifactId>
