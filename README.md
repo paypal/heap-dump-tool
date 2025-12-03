@@ -18,9 +18,10 @@ graphical program.
 
 ## TOC
   * [Examples](#examples)
-  * [Usage](#usage)
+  * [CLI Usage](#cli-usage)
+  * [Library Usage](#library-usage)
   * [License](#license)
-	
+
 ## Examples
 
 The tool can be run in several ways depending on tool's packaging and where the target to-be-captured app is running.
@@ -107,21 +108,9 @@ $ java -jar heap-dump-tool.jar sanitize-hserr input-hs_err.log outout-hs_err.log
 $ docker run heapdumptool/heapdumptool sanitize-hserr input-hs_err.log outout-hs_err.log | bash
 ```
 
-### [Library] Embed within an app
+<a name="cli-usage"></a>
 
-To use it as a library and embed it within another app, you can declare it as dependency in maven:
-
-```
-<dependency>
-  <groupId>com.paypal</groupId>
-  <artifactId>heap-dump-tool</artifactId>
-  <version>1.3.4</version>
-</dependency>
-```
-
-<a name="usage"></a>
-
-## Usage
+## CLI Usage
 
 ```
 java -jar heap-dump-tool.jar  help
@@ -197,10 +186,63 @@ Sanitize a heap dump by replacing byte and char array contents
 * `-z, --zip-output   Write zipped output`
   * When set, output heap dump is compressed in .hprof.zip format.
 
-### FAQ
+### CLI FAQ
 
 **Q: How can I sanitize non-array primitive fields?**
 Set `--sanitize-byte-char-arrays-only=false`.
+
+
+<a name="library-usage"></a>
+
+## Library Usage
+
+To use the tool as a library and embed it within another app, you can declare it as dependency in your project. For maven:
+
+```
+<dependency>
+  <groupId>com.paypal</groupId>
+  <artifactId>heap-dump-tool</artifactId>
+  <version>1.3.4</version>
+</dependency>
+```
+
+Then, use `HeapDumpSanitizer` class to sanitize heap dumps programmatically. Example:
+
+```java
+public class Demo {
+  public static void main(String[] args) throws Exception {
+    SanitizeCommand command = new SanitizeCommand();
+    command.setInputFile(Path.of("/path/to/input.hprof"));
+    command.setOutputFile(Path.of("/path/to/output.hprof"));
+
+    SanitizeStreamFactory streamFactory = new SanitizeStreamFactory(command);
+
+    try (InputStream inputStream = streamFactory.newInputStream();
+         OutputStream outputStream = streamFactory.newOutputStream()) {
+      HeapDumpSanitizer sanitizer = new HeapDumpSanitizer();
+      sanitizer.setSanitizeCommand(command);
+      sanitizer.setInputStream(inputStream);
+      sanitizer.setOutputStream(outputStream);
+      sanitizer.setProgressMonitor(bytes -> {});
+      sanitizer.sanitize();
+    }
+  }
+}
+```
+
+### Library FAQ
+
+**Q: I see `java.lang.NoClassDefFoundError: org/apache/commons/lang3/Strings`** error
+
+A: Another dependency in your project is likely pulling in an older version of commons-lang3 library. Try explicitly
+adding a newer version of commons-lang3 as dependency:
+```xml
+<dependency>
+    <groupId>org.apache.commons</groupId>
+    <artifactId>commons-lang3</artifactId>
+    <version>3.18.0</version>
+</dependency>
+```
 
 <a name="license"></a>
 
