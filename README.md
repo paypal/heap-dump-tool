@@ -10,11 +10,25 @@ environment. For example, an app running in production environment may contain s
 numbers, etc) which should not be viewable when the heap dump is copied to a development environment for analysis with a
 graphical program.
 
+**Conceptual illustration of sanitization**:
+
 <img src="https://github.com/paypal/heap-dump-tool/raw/statics/heap-dump-file.png"/>
 
 ---
 
 <img src="https://github.com/paypal/heap-dump-tool/raw/statics/sanitized-heap-dump-file.png"/>
+
+&nbsp;
+&nbsp;
+
+**Concrete illustration of before-and-after sanitization**:
+
+<img src="https://github.com/paypal/heap-dump-tool/raw/statics/before.png"/>
+
+---
+
+<img src="https://github.com/paypal/heap-dump-tool/raw/statics/after.png"/>
+
 
 ## TOC
   * [Examples](#examples)
