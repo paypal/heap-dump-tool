@@ -2,13 +2,15 @@ package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.fixture.ResourceTool;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.io.FileUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.io.BufferedInputStream;
+import org.apache.commons.io.input.BufferedFileChannelInputStream;
+
 import java.io.BufferedOutputStream;
 import java.io.IOException;
-import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -39,13 +41,14 @@ public class SanitizeStreamFactoryTest {
 
     @Test
     public void testBufferedInputStream() throws IOException {
+        final Path inputFile = Files.createTempFile(tempDir, getClass().getSimpleName(), ".hprof");
+        FileUtils.write(inputFile.toFile(), "test data", StandardCharsets.UTF_8);
         final SanitizeCommand cmd = newCommand();
-        cmd.setInputFile(Paths.get("-"));
+        cmd.setInputFile(inputFile);
 
         streamFactory = new SanitizeStreamFactory(cmd);
         assertThat(streamFactory.newInputStream())
-                .isInstanceOf(BufferedInputStream.class)
-                .isNotSameAs(System.in);
+                .isInstanceOf(BufferedFileChannelInputStream.class);
     }
 
     @Test
@@ -67,7 +70,7 @@ public class SanitizeStreamFactoryTest {
 
         streamFactory = new SanitizeStreamFactory(cmd);
         assertThat(streamFactory.newInputStream())
-                .isNotInstanceOf(PrintStream.class);
+                .isNotInstanceOf(BufferedFileChannelInputStream.class);
     }
 
     @Test
@@ -80,7 +83,7 @@ public class SanitizeStreamFactoryTest {
 
         streamFactory = new SanitizeStreamFactory(cmd);
         assertThat(streamFactory.newOutputStream())
-                .isNotInstanceOf(PrintStream.class);
+                .isNotInstanceOf(BufferedOutputStream.class);
     }
 
     @Test

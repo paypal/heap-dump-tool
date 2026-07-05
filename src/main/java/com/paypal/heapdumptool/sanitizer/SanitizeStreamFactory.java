@@ -1,10 +1,10 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.io.input.BufferedFileChannelInputStream;
 import org.apache.commons.lang3.Strings;
 import org.apache.commons.lang3.Validate;
 
-import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -29,9 +29,7 @@ public class SanitizeStreamFactory {
 
     public InputStream newInputStream() throws IOException {
         final Path inputFile = command.getInputFile();
-        final InputStream inputStream = getBufferSize() == 0
-                                        ? newInputStream(inputFile)
-                                        : new BufferedInputStream(newInputStream(inputFile), getBufferSize());
+        final InputStream inputStream = newInputStream(inputFile);
 
         if (command.isTarInput()) {
             final TarArchiveInputStream tarStream = new TarArchiveInputStream(inputStream);
@@ -58,9 +56,16 @@ public class SanitizeStreamFactory {
     }
 
     protected InputStream newInputStream(final Path inputFile) throws IOException {
-        return isStdinInput()
-               ? System.in
-               : Files.newInputStream(inputFile);
+        if (isStdinInput()) {
+            return System.in;
+        }
+        if (getBufferSize() == 0) {
+            return Files.newInputStream(inputFile);
+        }
+        return BufferedFileChannelInputStream.builder()
+                                      .setPath(inputFile)
+                                      .setBufferSize(getBufferSize())
+                                      .get();
     }
 
     public boolean isStdinInput() {
