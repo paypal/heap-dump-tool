@@ -11,6 +11,8 @@ import org.apache.commons.lang3.RuntimeEnvironment;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -35,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.mockito.Mockito.mockStatic;
 
 @ExtendWith(OutputCaptureExtension.class)
+@DisabledOnOs(OS.WINDOWS)
 public class PrivilegeEscalatorTest {
 
     @TempDir

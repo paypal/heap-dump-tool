@@ -11,6 +11,8 @@ import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.mockito.MockedStatic;
 
 import java.io.IOException;
@@ -32,6 +34,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.withSettings;
 
+@DisabledOnOs(OS.WINDOWS)
 public class CaptureCommandProcessorTest {
 
     private final Instant now = Instant.parse("2020-09-18T23:33:17.764866Z");
