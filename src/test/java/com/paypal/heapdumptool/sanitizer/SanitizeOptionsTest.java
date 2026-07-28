@@ -160,9 +160,15 @@ class SanitizeOptionsTest {
 
     @Test
     void testLegacyByteCharArraysOnlyFalse() {
-        final SanitizationPolicy policy = parse("--sanitize-byte-char-arrays-only=false");
+        // --sanitize-all=false first, so the assertions below cannot be satisfied by the default
+        // all-on baseline: the legacy flag must actively turn everything back on.
+        final SanitizationPolicy policy = parse("--sanitize-all=false",
+                                                "--sanitize-byte-char-arrays-only=false");
         assertThat(policy.isAnyFieldSanitized()).isTrue();
-        assertThat(policy.sanitizeArray(BasicType.INT)).isTrue();
+        for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
+            assertThat(policy.sanitizeField(type)).as("field " + type).isTrue();
+            assertThat(policy.sanitizeArray(type)).as("array " + type).isTrue();
+        }
         assertThat(policy.getWarnings()).hasSize(1);
     }
 

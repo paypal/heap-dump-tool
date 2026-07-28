@@ -4,6 +4,6 @@ Tool primarily for capturing or sanitizing heap dumps
   -V, --version   Print version information and exit.
 Commands:
   capture         Capture sanitized heap dump of a containerized app
-  sanitize        Sanitize a heap dump by replacing byte and char array contents
+  sanitize        Sanitize a heap dump by replacing primitive field and array contents
   sanitize-hserr  Sanitize fatal error log by censoring environment variable values
   help            Display help information about the specified command.

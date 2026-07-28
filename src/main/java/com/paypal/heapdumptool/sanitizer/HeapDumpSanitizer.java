@@ -2,21 +2,17 @@ package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.utils.InternalLogger;
 import com.paypal.heapdumptool.utils.ProgressMonitor;
-import org.apache.commons.io.input.InfiniteCircularInputStream;
 import org.apache.commons.lang3.function.Failable;
 import org.apache.commons.lang3.mutable.MutableLong;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UnsupportedEncodingException;
-import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -54,6 +50,10 @@ public class HeapDumpSanitizer {
     private static final String STRING_CODER_FIELD = "coder";
     private static final String STRING_VALUE_FIELD = "value";
 
+    // Upper bound on the reusable tile buffer in applySanitization. Rounded down to a whole number
+    // of tiles, so the effective size is at most this and at least one tile.
+    private static final int TILED_BUFFER_SIZE = 8192;
+
     private static final InternalLogger LOGGER = InternalLogger.getLogger(HeapDumpSanitizer.class);
 
     // for debugging/testing
@@ -64,12 +64,28 @@ public class HeapDumpSanitizer {
     private ProgressMonitor progressMonitor;
     private SanitizeCommand sanitizeCommand;
 
+    /*
+     * Resolved once per sanitize() run, not per query. SanitizeCommand.getSanitizationPolicy()
+     * deliberately re-resolves the recorded flags on every call (a memo goes stale because picocli
+     * parses the same command object more than once), so it allocates. The scope questions below are
+     * asked once per field of every instance dump, which is as hot as this code gets.
+     */
+    private SanitizationPolicy sanitizationPolicy;
+
     private final Map<Long, String> stringIdToStringMap = new HashMap<>();
     private final Map<Long, Long> classObjectIdToStringIdMap = new HashMap<>();
-    private final Map<String, ClassObject> classNameToClassObjectsMap = new HashMap<>();
+
+    /*
+     * Field layouts, keyed by class object id rather than class name. Class names are not unique in a
+     * heap dump -- the same name loaded by two class loaders yields two distinct classes with
+     * distinct layouts -- and sharing one layout between them mis-slots every field after the first
+     * divergence: OBJECT references get classified as primitives and overwritten, and the widths
+     * disagree so the reader runs off the end of the record. Class object ids are unique by
+     * construction.
+     */
+    private final Map<Long, ClassObject> classObjectIdToClassObjectMap = new HashMap<>();
     private final Set<Long> excludeStringObjectIds = new HashSet<>();
     private final Set<Long> excludeStringValueArrayObjectIds = new HashSet<>();
-    private boolean isLikelyJdk9Plus;
 
     public void setInputStream(final InputStream inputStream) {
         this.inputStream = inputStream;
@@ -88,6 +104,8 @@ public class HeapDumpSanitizer {
     }
 
     public void sanitize() throws IOException {
+        sanitizationPolicy = sanitizeCommand.getSanitizationPolicy();
+
         final Pipe pipe = new Pipe(inputStream, outputStream, progressMonitor);
 
         /*
@@ -253,7 +271,7 @@ public class HeapDumpSanitizer {
 
         final ClassObject classObject = new ClassObject(classObjectId, superClassObjectId);
         if (shouldTrackClassMetadata() || isStringClass(classObjectId)) {
-            classNameToClassObjectsMap.putIfAbsent(getClassName(classObjectId), classObject);
+            classObjectIdToClassObjectMap.putIfAbsent(classObjectId, classObject);
         }
         final int numInstanceFields = pipe.pipeU2();
         for (int i = 0; i < numInstanceFields; i++) {
@@ -262,27 +280,24 @@ public class HeapDumpSanitizer {
             final String fieldName = stringIdToStringMap.getOrDefault(fieldNameStringId, "");
             final BasicType basicType = BasicType.findByU1Code(fieldType).orElseThrow(IllegalStateException::new);
             classObject.fields.add(new Field(fieldName, basicType));
-
-            if (isStringClass(classObjectId) && STRING_CODER_FIELD.equals(fieldName)) {
-                isLikelyJdk9Plus = true;
-            }
         }
     }
 
     private boolean shouldTrackClassMetadata() {
-        return !sanitizeCommand.getExcludeStringFields().isEmpty() || !sanitizeCommand.isSanitizeByteCharArraysOnly();
+        return !sanitizeCommand.getExcludeStringFields().isEmpty()
+                || sanitizationPolicy.isAnyFieldSanitized();
     }
 
     private boolean isAssignableClassWithExcludeStringField(final long classObjectId) {
-        final String className = getClassName(classObjectId);
-        return getClassNameHierarchy(className)
+        return getClassNameHierarchy(classObjectId)
                 .anyMatch(sanitizeCommand::isExactClassWithExcludeStringField);
     }
 
     private void pipeStaticField(final Pipe pipe, final int entryType) throws IOException {
         final int valueSize = BasicType.findValueSize(entryType, pipe.getIdSize());
         if (shouldSanitizeField(entryType)) {
-            applySanitization(pipe, valueSize);
+            final BasicType basicType = BasicType.findByU1Code(entryType).orElseThrow(IllegalStateException::new);
+            applySanitization(pipe, basicType, valueSize);
         } else {
             pipe.pipe(valueSize);
         }
@@ -309,38 +324,57 @@ public class HeapDumpSanitizer {
         final long numBytes = pipe.pipeU4();
         final String className = getClassName(classObjectId);
 
-        if (sanitizeCommand.isForceMatchStringCoder() && className.equals(String.class.getName())) {
-            copyStringsInstanceFields(pipe, objectId, numBytes);
+        if (classObjectIdToClassObjectMap.get(classObjectId) == null) {
+            /*
+             * No CLASS DUMP was seen for this class, so its field layout is unknown. A LOAD_CLASS
+             * record without a matching CLASS DUMP does occur in real dumps. Walking fields needs an
+             * exact layout: guessing one mis-slots every field, which overwrites OBJECT references
+             * and desynchronizes the reader from the record boundary. Pipe the body through instead.
+             */
+            pipe.pipe(numBytes);
 
-        } else if (isAssignableClassWithExcludeStringField(classObjectId)) {
-            copyInstanceAndSanitizeSomeFields(pipe, className, numBytes);
+        } else if (sanitizeCommand.isForceMatchStringCoder() && className.equals(String.class.getName())) {
+            copyStringsInstanceFields(pipe, classObjectId, objectId, numBytes);
+
+        } else if (isAssignableClassWithExcludeStringField(classObjectId)
+                || sanitizationPolicy.isAnyFieldSanitized()) {
+            copyInstanceAndSanitizeSomeFields(pipe, classObjectId, objectId, numBytes);
 
         } else {
-            if (!sanitizeCommand.isSanitizeByteCharArraysOnly()) {
-                copyInstanceAndSanitizeSomeFields(pipe, className, numBytes);
-            } else {
-                // no need to sanitize instance dump. sanitize (byte/char) arrays only, in array dump section
-                pipe.pipe(numBytes);
-            }
+            // nothing to sanitize in the instance dump; arrays are handled in the array dump section
+            pipe.pipe(numBytes);
         }
     }
 
-    private void copyStringsInstanceFields(final Pipe pipe, final long objectId, long numBytes) throws IOException {
-        final ClassObject classObject = classNameToClassObjectsMap.get(String.class.getName());
-        Objects.requireNonNull(classObject);
+    /*
+     * java.lang.String gets its own field walk because String.coder is never a generic BYTE field.
+     * On JDK 9+, coder selects how the backing byte[] is decoded (LATIN1=0, UTF16=1); every other
+     * value is illegal and breaks string rendering for the whole dump in MAT and JVisualVM. So the
+     * only two things that may be written are the original value and, when the backing array is
+     * genuinely being replaced with single-byte values, 0.
+     *
+     * On JDK 8 String has no coder field at all, and the loop simply never matches it.
+     */
+    private void copyStringsInstanceFields(final Pipe pipe,
+                                           final long classObjectId,
+                                           final long objectId,
+                                           long numBytes) throws IOException {
+        // never null: copyHeapDumpInstanceDump checks the layout before choosing this branch
+        final ClassObject classObject = classObjectIdToClassObjectMap.get(classObjectId);
         for (final Field field : classObject.fields) {
             final int fieldSize = field.type.getValueSize(pipe.getIdSize());
 
             if (STRING_CODER_FIELD.equals(field.name)) {
-                final int coder = isLatin1(sanitizeCommand.getSanitizationText()) ? 0 : 1;
-                pipe.readU1();
-                pipe.writeU1(coder);
+                pipeStringCoder(pipe, objectId);
 
             } else if (STRING_VALUE_FIELD.equals(field.name)) {
                 final long id = pipe.pipeId();
                 if (excludeStringObjectIds.contains(objectId)) {
                     excludeStringValueArrayObjectIds.add(id);
                 }
+
+            } else if (shouldSanitizeField(field.type.getU1Code())) {
+                applySanitization(pipe, field.type, fieldSize);
 
             } else {
                 pipe.pipe(fieldSize);
@@ -352,47 +386,85 @@ public class HeapDumpSanitizer {
         pipe.pipe(numBytes);
     }
 
-    private Stream<ClassObject> getClassHierarchy(final String className) {
-        ClassObject classObject = classNameToClassObjectsMap.get(className);
+    /*
+     * Forces the coder to LATIN1 if and only if THIS String's backing byte[] is actually being
+     * overwritten with a single-byte replacement, which every byte[] replacement is. Then any
+     * surviving coder==1 would claim the replaced bytes are UTF-16 code units and render as garbage,
+     * so 0 is the truthful value. That is:
+     *
+     *     --force-string-coder-match=true
+     *  && byte arrays are in scope (not --sanitize-byte-arrays=false, not --sanitize-all=false)
+     *  && this String is not itself excluded by --exclude-string-fields
+     *
+     * The last condition is per-object, not global: --exclude-string-fields preserves the backing
+     * array of the specific Strings it names (via excludeStringValueArrayObjectIds, checked in
+     * shouldApplyArraySanitization) while every other byte[] in the dump is still replaced. Forcing 0
+     * over such a surviving UTF-16 array reinterprets each code unit as two LATIN1 characters, i.e.
+     * mojibake at double length. It matters by default, because -e defaults to the thread and thread
+     * group name fields.
+     *
+     * In every other case the original coder is piped through unchanged.
+     */
+    private void pipeStringCoder(final Pipe pipe, final long objectId) throws IOException {
+        final boolean forceLatin1 = sanitizeCommand.isForceMatchStringCoder()
+                && sanitizationPolicy.sanitizeArray(BasicType.BYTE)
+                && !excludeStringObjectIds.contains(objectId);
+        if (forceLatin1) {
+            pipe.readU1();
+            pipe.writeU1(0);
+        } else {
+            pipe.pipeU1();
+        }
+    }
+
+    private Stream<ClassObject> getClassHierarchy(final long classObjectId) {
+        ClassObject classObject = classObjectIdToClassObjectMap.get(classObjectId);
         Stream<ClassObject> stream = Stream.of();
         while (classObject != null) {
             stream = Stream.concat(stream, Stream.of(classObject));
-            classObject = classNameToClassObjectsMap.get(getClassName(classObject.superClassObjectId));
+            classObject = classObjectIdToClassObjectMap.get(classObject.superClassObjectId);
         }
         return stream;
     }
 
-    private Stream<String> getClassNameHierarchy(final String className) {
-        return getClassHierarchy(className)
+    private Stream<String> getClassNameHierarchy(final long classObjectId) {
+        return getClassHierarchy(classObjectId)
                 .map(classObject -> classObject.id)
                 .map(this::getClassName);
     }
 
-    private Stream<Field> getAllFieldsInClassHierarchy(final String className) {
-        return getClassHierarchy(className).flatMap(classObject -> classObject.fields.stream());
+    private Stream<Field> getAllFieldsInClassHierarchy(final long classObjectId) {
+        return getClassHierarchy(classObjectId).flatMap(classObject -> classObject.fields.stream());
     }
 
-    private Collection<String> getExcludeStringFieldsInClassHierarchy(final String className) {
-        return getClassNameHierarchy(className)
+    private Collection<String> getExcludeStringFieldsInClassHierarchy(final long classObjectId) {
+        return getClassNameHierarchy(classObjectId)
                 .map(sanitizeCommand::getExcludeStringFields)
                 .flatMap(Collection::stream)
                 .collect(Collectors.toList());
     }
 
-    private void copyInstanceAndSanitizeSomeFields(final Pipe pipe, final String className, final long numBytes) throws IOException {
-        final Collection<String> excludeStringFields = getExcludeStringFieldsInClassHierarchy(className);
-        final ClassObject classObject = classNameToClassObjectsMap.get(className);
-        Objects.requireNonNull(classObject);
+    private void copyInstanceAndSanitizeSomeFields(final Pipe pipe,
+                                                   final long classObjectId,
+                                                   final long objectId,
+                                                   final long numBytes) throws IOException {
+        final Collection<String> excludeStringFields = getExcludeStringFieldsInClassHierarchy(classObjectId);
+        // reached for java.lang.String only when --force-string-coder-match=false
+        final boolean isStringClass = isStringClass(classObjectId);
         final MutableLong numBytesMutable = new MutableLong(numBytes);
-        getAllFieldsInClassHierarchy(className).forEach(field -> {
+        getAllFieldsInClassHierarchy(classObjectId).forEach(field -> {
             final int fieldSize = field.type.getValueSize(pipe.getIdSize());
 
             if (excludeStringFields.contains(field.name)) {
                 final long id = Failable.call(pipe::pipeId);
                 excludeStringObjectIds.add(id);
 
+            } else if (isStringClass && STRING_CODER_FIELD.equals(field.name)) {
+                // never a generic BYTE field: see pipeStringCoder
+                Failable.run(() -> pipeStringCoder(pipe, objectId));
+
             } else if (shouldSanitizeField(field.type.getU1Code())) {
-                Failable.run(() -> applySanitization(pipe, fieldSize));
+                Failable.run(() -> applySanitization(pipe, field.type, fieldSize));
 
             } else {
                 Failable.run(() -> pipe.pipe(fieldSize));
@@ -414,7 +486,7 @@ public class HeapDumpSanitizer {
         }
 
         final BasicType basicType = BasicType.findByU1Code(fieldType).orElse(BasicType.OBJECT);
-        return !sanitizeCommand.isSanitizeByteCharArraysOnly() && basicType != BasicType.OBJECT;
+        return sanitizationPolicy.sanitizeField(basicType);
     }
 
     private void copyHeapDumpObjectArrayDump(final Pipe pipe) throws IOException {
@@ -444,7 +516,8 @@ public class HeapDumpSanitizer {
         final long numBytes = Math.multiplyExact(numElements, elementSize);
 
         if (shouldApplyArraySanitization(objectId, elementType)) {
-            applySanitization(pipe, numBytes);
+            final BasicType basicType = BasicType.findByU1Code(elementType).orElseThrow(IllegalStateException::new);
+            applySanitization(pipe, basicType, numBytes);
         } else {
             pipe.pipe(numBytes);
         }
@@ -459,43 +532,55 @@ public class HeapDumpSanitizer {
             return false;
         }
 
-        final Optional<BasicType> typeOptional = BasicType.findByU1Code(elementType);
-        if (sanitizeCommand.isSanitizeByteCharArraysOnly()) {
-            return typeOptional.filter(type -> type == BasicType.BYTE || type == BasicType.CHAR)
-                    .isPresent();
-        }
-
-        return typeOptional.filter(type -> type != BasicType.OBJECT)
+        return BasicType.findByU1Code(elementType)
+                .filter(sanitizationPolicy::sanitizeArray)
                 .isPresent();
     }
 
-    private void applySanitization(final Pipe pipe, final long numBytes) throws IOException {
+    /*
+     * Overwrites the region by tiling the type's replacement bytes across it.
+     *
+     * Tiling is always exactly aligned: a non-array field's size is its type's width, and a
+     * primitive array's region is numElements * elementSize. So numBytes is always a whole multiple
+     * of the replacement's length, no partial tile can occur, and every sanitized value reads back
+     * as exactly the requested replacement. The tiled buffer holds a whole number of tiles for the
+     * same reason: any prefix of it whose length is a multiple of the replacement's length is itself
+     * correctly tiled, so writing it in chunks cannot shift the alignment.
+     *
+     * Deliberately not commons-io InfiniteCircularInputStream: it rejects any repeated byte equal to
+     * -1, so a perfectly legal replacement containing 0xFF -- e.g. --sanitize-byte-replacement=-1,
+     * --sanitize-int-replacement=255, or --sanitize-double-replacement=-1.0 -- would throw the first
+     * time a matching slot was sanitized, aborting the run mid-stream and leaving a truncated
+     * output file behind.
+     */
+    private void applySanitization(final Pipe pipe, final BasicType type, final long numBytes) throws IOException {
         pipe.skipInput(numBytes);
-        final byte[] replacementData = getSanitizationTextBytes();
+        final byte[] replacement = sanitizationPolicy.replacement(type);
+        final byte[] tiledBuffer = newTiledBuffer(replacement, numBytes);
 
-        try (final InputStream replacementDataStream = new InfiniteCircularInputStream(replacementData)) {
-            pipe.copyFrom(replacementDataStream, numBytes);
+        long numBytesRemaining = numBytes;
+        while (numBytesRemaining > 0) {
+            final int count = (int) Math.min(tiledBuffer.length, numBytesRemaining);
+            pipe.write(tiledBuffer, 0, count);
+            numBytesRemaining -= count;
         }
     }
 
-    private byte[] getSanitizationTextBytes() throws UnsupportedEncodingException {
-        if (!sanitizeCommand.isSanitizationTextCharsetAutoDetect()) {
-            final String sanitizationTextCharset = sanitizeCommand.getSanitizationTextCharset();
-            return sanitizeCommand.getSanitizationText().getBytes(sanitizationTextCharset);
-        }
+    /**
+     * A buffer of whole replacement tiles, no larger than the region it will fill.
+     */
+    private static byte[] newTiledBuffer(final byte[] replacement, final long numBytes) {
+        final long wantedSize = Math.min(numBytes, TILED_BUFFER_SIZE);
+        final int numTiles = Math.max(1, (int) (wantedSize / replacement.length));
+        final byte[] buffer = new byte[numTiles * replacement.length];
 
-        if (isLikelyJdk9Plus) {
-            return sanitizeCommand.getSanitizationText().getBytes(StandardCharsets.UTF_8);
-        }
-        return sanitizeCommand.getSanitizationText().getBytes(StandardCharsets.UTF_16BE);
-    }
-
-    private static boolean isLatin1(final String input) {
-        for (final char c : input.toCharArray()) {
-            if (c > 0xFF) {
-                return false;
+        if (replacement.length == 1) {
+            Arrays.fill(buffer, replacement[0]);
+        } else {
+            for (int offset = 0; offset < buffer.length; offset += replacement.length) {
+                System.arraycopy(replacement, 0, buffer, offset, replacement.length);
             }
         }
-        return true;
+        return buffer;
     }
 }

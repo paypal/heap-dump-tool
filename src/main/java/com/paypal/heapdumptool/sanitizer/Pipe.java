@@ -70,6 +70,10 @@ public class Pipe {
         IOUtils.write(bytes, output);
     }
 
+    public void write(final byte[] bytes, final int offset, final int length) throws IOException {
+        output.write(bytes, offset, length);
+    }
+
     public void copyFrom(final InputStream inputStream, final long count) throws IOException {
         IOUtils.copyLarge(inputStream, output, 0, count);
     }

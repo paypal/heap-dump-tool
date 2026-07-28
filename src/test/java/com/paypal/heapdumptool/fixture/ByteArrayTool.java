@@ -47,6 +47,14 @@ public class ByteArrayTool {
         return buffer.array();
     }
 
+    public static byte[] nCopiesIntToBytes(final int value, final int count) {
+        final ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES * count);
+        for (int i = 0; i < count; i++) {
+            buffer.putInt(value);
+        }
+        return buffer.array();
+    }
+
     private ByteArrayTool() {
         throw new AssertionError();
     }

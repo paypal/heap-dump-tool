@@ -2,7 +2,6 @@ package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.cli.CliCommand;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.text.StringEscapeUtils;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
 
@@ -24,8 +23,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
 
     static final String DOCKER_REGISTRY_OPTION = "--docker-registry";
 
-    private static final String LEGACY_CHARSET_AUTO_DETECT = "<auto-detect>";
-
     // to allow field injection from picocli, these variables can't be final
 
     @Option(names = {"-d", DOCKER_REGISTRY_OPTION}, description = "docker registry hostname for bootstrapping heap-dump-tool docker image")
@@ -41,7 +38,7 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     private List<String> excludeStringFields;
 
     @Option(names = {"-f", "--force-string-coder-match"},
-            description = "Force strings coder values to match sanitizationText.coder value",
+            description = "Force strings coder field to LATIN1 (0) when their backing byte[] is sanitized, so analysis tools render them correctly",
             defaultValue = "true",
             arity = "1",
             showDefaultValue = ALWAYS)
@@ -52,14 +49,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
 
     @Mixin
     private SanitizeOptions sanitizeOptions = new SanitizeOptions();
-
-    // Legacy mirror of the deprecated -s/-t values. HeapDumpSanitizer and
-    // SanitizeCommandProcessor still read these; they move to getSanitizationPolicy() in a
-    // follow-up change, after which these two fields and their getters can be deleted.
-    // -T has no mirror: its value is ignored, only warned about.
-    private boolean sanitizeByteCharArraysOnly = true;
-
-    private String sanitizationText = "\0";
 
     private StringFieldMap excludeStringFieldMap;
 
@@ -73,7 +62,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
                     + "--sanitize-char-arrays instead")
     void setLegacySanitizeByteCharArraysOnly(final boolean byteCharArraysOnly) {
         sanitizeOptions.recordLegacyByteCharArraysOnly(byteCharArraysOnly);
-        sanitizeByteCharArraysOnly = byteCharArraysOnly;
     }
 
     @Option(names = {"-t", "--text"},
@@ -82,8 +70,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
                     + "Supports a single ASCII character only")
     void setLegacySanitizationText(final String text) {
         sanitizeOptions.recordLegacyText(text);
-        // only reached when the value is a single ASCII character
-        sanitizationText = StringEscapeUtils.unescapeJava(text);
     }
 
     @Option(names = {"-T", "--text-charset"},
@@ -116,8 +102,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         this.excludeStringFields = other.excludeStringFields;
         this.tarInput = other.tarInput;
         this.sanitizeOptions.copyFrom(other.sanitizeOptions);
-        this.sanitizationText = other.sanitizationText;
-        this.sanitizeByteCharArraysOnly = other.sanitizeByteCharArraysOnly;
     }
 
     public DataSize getBufferSize() {
@@ -128,48 +112,12 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         this.bufferSize = bufferSize;
     }
 
-    /**
-     * @deprecated read {@link #getSanitizationPolicy()} instead. Retained only until the
-     * sanitizer reads the resolved policy.
-     */
-    @Deprecated
-    public boolean isSanitizeByteCharArraysOnly() {
-        return sanitizeByteCharArraysOnly;
-    }
-
     public boolean isTarInput() {
         return tarInput;
     }
 
     public void setTarInput(final boolean tarInput) {
         this.tarInput = tarInput;
-    }
-
-    /**
-     * @deprecated read {@link #getSanitizationPolicy()} instead. Retained only until the
-     * sanitizer reads the resolved policy.
-     */
-    @Deprecated
-    public String getSanitizationText() {
-        return sanitizationText;
-    }
-
-    /**
-     * @deprecated always true, because {@code -T} is now ignored. Retained only until the
-     * sanitizer reads the resolved policy.
-     */
-    @Deprecated
-    public boolean isSanitizationTextCharsetAutoDetect() {
-        return true;
-    }
-
-    /**
-     * @deprecated {@code -T} is ignored, so this is always the auto-detect placeholder.
-     * Retained only until the sanitizer reads the resolved policy.
-     */
-    @Deprecated
-    public String getSanitizationTextCharset() {
-        return LEGACY_CHARSET_AUTO_DETECT;
     }
 
     public boolean isForceMatchStringCoder() {

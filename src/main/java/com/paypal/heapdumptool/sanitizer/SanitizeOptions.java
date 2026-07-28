@@ -20,7 +20,7 @@ import java.util.Map;
  * defaults <em>after</em> matched options, so a default would overwrite whatever the user typed.
  * Defaults are seeded in {@link #resolve()} instead.</p>
  *
- * <h3>Why scope flags use {@code arity = "0..1"}</h3>
+ * <h2>Why scope flags use {@code arity = "0..1"}</h2>
  * <p>The 17 scope flags ({@code --sanitize-ints}, etc.) use {@code arity = "0..1"} so that a bare
  * flag without a value, e.g. {@code --sanitize-ints}, is interpreted as {@code true}. With
  * {@code arity = "1"} the bare form would require an explicit value and raise a
