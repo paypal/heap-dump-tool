@@ -173,7 +173,7 @@ $ java -jar heap-dump-tool.jar help sanitize
 Usage: heap-dump-tool sanitize [OPTIONS] <inputFile> <outputFile>
 Sanitize a heap dump by replacing primitive field and array contents
       <inputFile>     Input heap dump .hprof. File or stdin
-      <outputFile>    Output heap dump .hprof. File, stdout, or stderr
+      <outputFile>    Output heap dump .hprof file
   -a, --tar-input=<tarInput>
                       Treat input as tar archive
   -b, --buffer-size=<bufferSize>
@@ -185,8 +185,8 @@ Sanitize a heap dump by replacing primitive field and array contents
                       String fields to exclude from sanitization. Value in com.example.MyClass#fieldName format
                         Default: java.lang.Thread#name,java.lang.ThreadGroup#name
   -f, --force-string-coder-match=<forceMatchStringCoder>
-                      Force strings coder field to LATIN1 (0) when their backing byte[] is sanitized, so analysis tools
-                        render them correctly
+                      Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools render
+                        them correctly
                         Default: true
   -s, --sanitize-byte-char-arrays-only=<true|false>
                       Deprecated. Use --sanitize-all, --sanitize-byte-arrays, and --sanitize-char-arrays instead
@@ -194,7 +194,7 @@ Sanitize a heap dump by replacing primitive field and array contents
                       Sanitize all primitive fields and arrays. Object references are never sanitized. Default: true
       --sanitize-all-replacement=<value>
                       Value to replace all primitive data with, converted per type. A number, or a single character
-                        such as '*'
+                        such as * or \0
       --sanitize-boolean-arrays[=<true|false>]
                       Sanitize boolean[] contents. Default: true, via --sanitize-all
       --sanitize-boolean-replacement=<value>
@@ -210,7 +210,7 @@ Sanitize a heap dump by replacing primitive field and array contents
       --sanitize-char-arrays[=<true|false>]
                       Sanitize char[] contents. Default: true, via --sanitize-all
       --sanitize-char-replacement=<value>
-                      Value to replace char data with. Default: '*'
+                      Value to replace char data with. Default: *
       --sanitize-chars[=<true|false>]
                       Sanitize char fields. Default: true, via --sanitize-all
       --sanitize-double-arrays[=<true|false>]
@@ -300,25 +300,32 @@ Sanitize a heap dump by replacing primitive field and array contents
     | Value | Meaning | Example |
     | --- | --- | --- |
     | a decimal number | that numeric value | `42` is 42; per-type flags also accept `-1` and (for float/double) `0.5` |
-    | a single character, bare or single-quoted | that character's code point | `'*'` and `*` both mean 42 |
+    | a lone non-digit character | that character's code point | `*` is 42, `a` is 97 |
+    | a backslash escape | the character it denotes | `\0` is 0, `\98` is 98 (`b`), `\t` is 9 |
     | `true` / `false` | boolean; `--sanitize-boolean-replacement` only | `--sanitize-boolean-replacement=true` |
 
-  * A bare digit is a number, not a character: `--sanitize-byte-replacement=4` means 4, while
-    `--sanitize-byte-replacement='4'` means 52. Quoting is the only way to say "the character". Note that your shell
-    also strips the quotes and may glob-expand a bare `*`, so prefer `--sanitize-char-replacement="'*'"` in scripts.
+  * A character value must be exactly one character, or an escape. Quotes are not part of the grammar: the tool sees
+    whatever your shell hands it, so `--sanitize-char-replacement='*'` works (the shell strips the quotes, leaving
+    `*`), while a value whose quotes survive to the tool - `--sanitize-char-replacement="'*'"` - is the
+    three-character string `'*'` and a usage error. To pass `*` through a shell that would glob-expand it, quote it
+    (`'*'`, `"*"`) or escape it (`\*`, which this grammar also reads as the character `*`).
+  * A bare digit is a number, not a character: `--sanitize-byte-replacement=4` means 4. To mean the character `'4'`,
+    escape its code point: `--sanitize-byte-replacement=\52` means 52.
+  * `\` followed only by digits is a **decimal** code point, not Java's octal: `\98` is `b` (98). The other Java
+    escapes work as written - `\t`, `\n`, `\\` and `\uXXXX`.
   * Fractional values are only accepted by `float` and `double`; `--sanitize-int-replacement=0.5` is an error.
   * Hexadecimal literals such as `0x2A` are **not** accepted; write `42` instead.
   * A value outside its type's range is a usage error, e.g. `--sanitize-byte-replacement=300` (byte accepts -128..127)
     or `--sanitize-char-replacement=-1` (char accepts 0..65535). `--sanitize-boolean-replacement` accepts `true`,
     `false`, a single character, or any whole number - nonzero is true, zero is false - and rejects anything else, e.g.
     `--sanitize-boolean-replacement=maybe`.
-  * Defaults: `byte=42` (the `'*'` character), `char='*'` (`0x002A`), `short`/`int`/`long`=0,
+  * Defaults: `byte=42` (the `*` character), `char=*` (`0x002A`), `short`/`int`/`long`=0,
     `float`/`double`=0.0, `boolean=false`.
   * Each type's replacement is encoded big-endian at that type's exact width (byte and boolean 1 byte, char and short 2,
     int and float 4, long and double 8) and repeated across the sanitized region, always exactly aligned. So an `int[]`
     sanitized with `0` reads back as zeros rather than a repeating byte pattern.
   * `--sanitize-all-replacement=<value>` sets every type's replacement from one value, converted per type. For example
-    `--sanitize-all-replacement='*'` yields `byte=42`, `short=42`, `int=42`, `long=42`, `char='*'`, `float=42.0`,
+    `--sanitize-all-replacement=*` yields `byte=42`, `short=42`, `int=42`, `long=42`, `char=*`, `float=42.0`,
     `double=42.0`, `boolean=true`. Because the value has to be legal for all eight types at once, it must be an ASCII
     character or a whole number in `0..127`; `--sanitize-all-replacement=true`, `=0.5`, `=-1` and `=300` are all errors.
     Per-type flags remain unrestricted within their own type's range.
@@ -351,7 +358,7 @@ equivalent new flags had been typed there.
 | --- | --- |
 | `-s, --sanitize-byte-char-arrays-only=true` | `--sanitize-all=false --sanitize-byte-arrays=true --sanitize-char-arrays=true` |
 | `-s, --sanitize-byte-char-arrays-only=false` | `--sanitize-all=true` |
-| `-t, --text=<char>` | `--sanitize-all-replacement=<char>`, always treated as a character, so `-t 4` means the character `'4'` (52), not the number 4. The value is first passed through Java escape unescaping, then must be **a single ASCII character**; anything else is a usage error. So `-t '\0'` (byte `0x00`, the old default) and `-t '\t'` (`0x09`) are accepted even though they are two characters as typed, while `-t ab` and `-t abc` are rejected. This is deliberately narrower than the old contract, which took arbitrary text. |
+| `-t, --text=<char>` | `--sanitize-all-replacement=\<code point>`, so the value is always treated as a character: `-t 4` means the character `'4'` (52), not the number 4. The value is first passed through Java escape unescaping, then must be **a single ASCII character**; anything else is a usage error. So `-t '\0'` (byte `0x00`, the old default) and `-t '\t'` (`0x09`) are accepted even though they are two characters as typed, while `-t ab` and `-t abc` are rejected. This is deliberately narrower than the old contract, which took arbitrary text. |
 | `-T, --text-charset=<charset>` | Nothing. Replacement values are typed per primitive, so no charset is involved. The value is ignored. |
 
 `-f, --force-string-coder-match` and `-e, --exclude-string-fields` are **not** deprecated; both keep their names and

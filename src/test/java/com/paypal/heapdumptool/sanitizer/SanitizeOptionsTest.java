@@ -125,7 +125,7 @@ class SanitizeOptionsTest {
     @Test
     void testReplacementFlags() {
         final SanitizationPolicy policy = parse("--sanitize-int-replacement=7",
-                                                "--sanitize-byte-replacement='z'");
+                                                "--sanitize-byte-replacement=z");
         assertThat(policy.replacement(BasicType.INT)).containsExactly(0, 0, 0, 7);
         assertThat(policy.replacement(BasicType.BYTE)).containsExactly('z');
         assertThat(policy.replacement(BasicType.SHORT)).containsExactly(0, 0);
@@ -133,7 +133,7 @@ class SanitizeOptionsTest {
 
     @Test
     void testAllReplacementThenSpecific() {
-        final SanitizationPolicy policy = parse("--sanitize-all-replacement='*'",
+        final SanitizationPolicy policy = parse("--sanitize-all-replacement=*",
                                                 "--sanitize-int-replacement=0");
         assertThat(policy.replacement(BasicType.BYTE)).containsExactly(42);
         assertThat(policy.replacement(BasicType.INT)).containsExactly(0, 0, 0, 0);
@@ -242,6 +242,33 @@ class SanitizeOptionsTest {
     @Test
     void testAllReplacementBadValueIsParameterException() {
         assertThatThrownBy(() -> parse("--sanitize-all-replacement=bogus"))
+                .isInstanceOf(CommandLine.ParameterException.class);
+    }
+
+    @Test
+    void testEscapedCharReplacementFlags() {
+        // \0 through the CLI: char must be 0x0000, and byte 0x00 rather than the default 42
+        final SanitizationPolicy nul = parse("--sanitize-all-replacement=\\0");
+        assertThat(nul.replacement(BasicType.CHAR)).containsExactly(0, 0);
+        assertThat(nul.replacement(BasicType.BYTE)).containsExactly(0);
+        assertThat(nul.replacement(BasicType.BOOLEAN)).containsExactly(0);
+
+        // \98 is decimal, so the character 'b'
+        final SanitizationPolicy b = parse("--sanitize-char-replacement=\\98");
+        assertThat(b.replacement(BasicType.CHAR)).containsExactly(0x00, 0x62);
+
+        // a bare non-digit character
+        final SanitizationPolicy a = parse("--sanitize-char-replacement=a");
+        assertThat(a.replacement(BasicType.CHAR)).containsExactly(0x00, 0x61);
+    }
+
+    @Test
+    void testQuotedCharReplacementIsParameterException() {
+        // '*' is a 3-character string, no longer a synonym for *
+        assertThatThrownBy(() -> parse("--sanitize-char-replacement='*'"))
+                .isInstanceOf(CommandLine.ParameterException.class);
+
+        assertThatThrownBy(() -> parse("--sanitize-all-replacement='*'"))
                 .isInstanceOf(CommandLine.ParameterException.class);
     }
 

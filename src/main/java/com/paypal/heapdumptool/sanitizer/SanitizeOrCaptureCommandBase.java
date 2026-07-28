@@ -38,7 +38,7 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     private List<String> excludeStringFields;
 
     @Option(names = {"-f", "--force-string-coder-match"},
-            description = "Force strings coder field to LATIN1 (0) when their backing byte[] is sanitized, so analysis tools render them correctly",
+            description = "Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools render them correctly",
             defaultValue = "true",
             arity = "1",
             showDefaultValue = ALWAYS)

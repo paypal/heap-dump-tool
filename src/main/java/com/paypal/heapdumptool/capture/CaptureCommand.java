@@ -11,8 +11,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
-import static org.apache.commons.lang3.builder.ToStringStyle.MULTI_LINE_STYLE;
 import static picocli.CommandLine.Help.Visibility.ALWAYS;
 
 @Command(name = "capture",
@@ -111,11 +109,6 @@ public class CaptureCommand extends SanitizeOrCaptureCommandBase implements CliC
 
     public void setThreadOptions(final List<String> threadOptions) {
         this.threadOptions = threadOptions;
-    }
-
-    @Override
-    public String toString() {
-        return reflectionToString(this, MULTI_LINE_STYLE);
     }
 
 }

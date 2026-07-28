@@ -3,6 +3,7 @@ package com.paypal.heapdumptool.sanitizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,17 @@ import static org.apache.commons.lang3.builder.ToStringStyle.MULTI_LINE_STYLE;
  * command-line flags in order over a default baseline.</p>
  */
 public class SanitizationPolicy {
+
+    static final Set<BasicType> PRIMITIVES = EnumSet.of(
+            BasicType.BOOLEAN,
+            BasicType.CHAR,
+            BasicType.FLOAT,
+            BasicType.DOUBLE,
+            BasicType.BYTE,
+            BasicType.SHORT,
+            BasicType.INT,
+            BasicType.LONG
+    );
 
     private final Map<BasicType, Boolean> sanitizeField;
     private final Map<BasicType, Boolean> sanitizeArray;
@@ -75,17 +87,6 @@ public class SanitizationPolicy {
     public String toString() {
         return reflectionToString(this, MULTI_LINE_STYLE);
     }
-
-    static final BasicType[] PRIMITIVES = {
-            BasicType.BOOLEAN,
-            BasicType.CHAR,
-            BasicType.FLOAT,
-            BasicType.DOUBLE,
-            BasicType.BYTE,
-            BasicType.SHORT,
-            BasicType.INT,
-            BasicType.LONG
-    };
 
     public static class Builder {
 

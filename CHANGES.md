@@ -11,6 +11,10 @@
   from the `String.coder` byte of strings preserved by `-e`, which `-f` no longer rewrites.
 - Replacement values are now typed per primitive rather than tiled text, so an `int[]` sanitized with `0` reads back as
   zeros instead of a repeating byte pattern.
+- A replacement value may be a number, a single non-digit character (`*`, `a`), or a backslash escape denoting one
+  character. `\` followed only by digits is a decimal code point, so `\0` is NUL and `\98` is `b`; the other Java
+  escapes (`\t`, `\n`, `\\`, `\uXXXX`) work as written. The quoted form is not part of the grammar: a value that
+  reaches the tool as the three characters `'*'` is a usage error, not a synonym for `*`.
 - `-f, --force-string-coder-match` keeps its name and default but is now narrower: it rewrites a `String`'s `coder`
   field only when that string's backing `byte[]` is actually being sanitized. It is therefore a no-op when `byte[]` is
   out of scope, and it is skipped for the individual strings `-e, --exclude-string-fields` preserves, whose original

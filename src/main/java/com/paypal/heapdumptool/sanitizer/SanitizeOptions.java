@@ -171,7 +171,7 @@ public class SanitizeOptions {
     }
 
     @Option(names = "--sanitize-char-replacement", paramLabel = "<value>",
-            description = "Value to replace char data with. Default: '*'")
+            description = "Value to replace char data with. Default: *")
     void charReplacement(final String value) {
         addReplacement(BasicType.CHAR, value);
     }
@@ -196,7 +196,7 @@ public class SanitizeOptions {
 
     @Option(names = "--sanitize-all-replacement", paramLabel = "<value>",
             description = "Value to replace all primitive data with, converted per type. "
-                    + "A number, or a single character such as '*'")
+                    + "A number, or a single character such as * or \\0")
     void allReplacement(final String value) {
         // Encode eagerly so picocli converts any IllegalArgumentException to a ParameterException.
         final Map<BasicType, byte[]> encoded = new EnumMap<>(BasicType.class);
@@ -235,13 +235,12 @@ public class SanitizeOptions {
             throw new IllegalArgumentException("--text supports only a single ASCII character."
                     + " Use --sanitize-all-replacement instead. Got: " + text);
         }
-        final char replacement = unescaped.charAt(0);
-        // Use the quoted-character form so that a digit is re-parsed as the character's code point,
+        // Use the escaped code point so that a digit is re-parsed as the character's code point,
         // not as a number. E.g. --text=0 must produce byte 0x30 ('0'), not byte 0x00.
-        final String quotedReplacement = "'" + replacement + "'";
+        final String escapedReplacement = "\\" + (int) unescaped.charAt(0);
         directives.add(new Directive(builder -> {
             builder.addWarning("--text is deprecated. Use --sanitize-all-replacement instead");
-            builder.setAllReplacements(quotedReplacement);
+            builder.setAllReplacements(escapedReplacement);
         }));
     }
 

@@ -70,7 +70,7 @@ class SanitizationPolicyTest {
     @Test
     void testSetAllReplacementsFansOutAcrossTypes() {
         final SanitizationPolicy policy = SanitizationPolicy.builder()
-                .setAllReplacements("'*'")
+                .setAllReplacements("\\42")
                 .build();
 
         assertThat(policy.replacement(BasicType.BYTE)).containsExactly(42);
