@@ -33,7 +33,7 @@ public class SanitizationPolicy {
 
     private final Map<BasicType, Boolean> sanitizeField;
     private final Map<BasicType, Boolean> sanitizeArray;
-    private final Map<BasicType, byte[]> replacement;
+    private final Map<BasicType, Replacement> replacement;
     private final List<String> warnings;
 
     public static Builder builder() {
@@ -43,8 +43,15 @@ public class SanitizationPolicy {
     private SanitizationPolicy(final Builder builder) {
         this.sanitizeField = new EnumMap<>(builder.sanitizeField);
         this.sanitizeArray = new EnumMap<>(builder.sanitizeArray);
-        this.replacement = new EnumMap<>(builder.replacement);
         this.warnings = Collections.unmodifiableList(new ArrayList<>(builder.warnings));
+
+        // Tile each replacement once, here, rather than per sanitized region. The policy is
+        // immutable and resolved once per run, so the tiled buffers can be shared by every region
+        // of their type. See Replacement.
+        this.replacement = new EnumMap<>(BasicType.class);
+        for (final Map.Entry<BasicType, byte[]> entry : builder.replacement.entrySet()) {
+            this.replacement.put(entry.getKey(), new Replacement(entry.getValue()));
+        }
     }
 
     public boolean sanitizeField(final BasicType type) {
@@ -72,11 +79,19 @@ public class SanitizationPolicy {
      * Replacement bytes for the given type, big-endian, exactly the type's width.
      */
     public byte[] replacement(final BasicType type) {
-        final byte[] bytes = replacement.get(type);
-        if (bytes == null) {
+        return replacementOf(type).getBytes();
+    }
+
+    /**
+     * The given type's replacement with its pre-tiled buffer. Allocation-free, unlike
+     * {@link #replacement(BasicType)}, so this is what the streaming path uses.
+     */
+    Replacement replacementOf(final BasicType type) {
+        final Replacement value = replacement.get(type);
+        if (value == null) {
             throw new IllegalArgumentException("No replacement for " + type);
         }
-        return bytes.clone();
+        return value;
     }
 
     public List<String> getWarnings() {

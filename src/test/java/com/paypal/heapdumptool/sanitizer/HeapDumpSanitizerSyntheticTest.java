@@ -317,6 +317,57 @@ class HeapDumpSanitizerSyntheticTest {
                 .containsExactly(0, 0, 0, 0, 0, 0, 0, 0);
     }
 
+    /**
+     * The hierarchy walk is deliberately not memoized per class object id. A CLASS DUMP for the
+     * superclass can appear after an instance of the subclass, so the first instance sees a shorter
+     * chain than later ones; caching that first answer would leave every later instance's inherited
+     * fields unsanitized and desynchronize the reader.
+     */
+    @Test
+    @DisplayName("testSuperClassDumpSeenAfterAnInstanceStillAppliesToLaterInstances. A late CLASS DUMP must not be masked by an earlier walk")
+    void testSuperClassDumpSeenAfterAnInstanceStillAppliesToLaterInstances() throws Exception {
+        final long superClassId = 900;
+        final long subClassId = 901;
+
+        final Hprof input = new Hprof().header();
+        input.stringInUtf8(60, "com.example.LateBase");
+        input.stringInUtf8(61, "com.example.LateDerived");
+        input.stringInUtf8(62, "inheritedLong");
+        input.stringInUtf8(63, "declaredLong");
+        input.loadClass(1, superClassId, 60);
+        input.loadClass(2, subClassId, 61);
+
+        final Hprof body = new Hprof();
+        // only the subclass layout is known at this point
+        body.classDump(subClassId, superClassId, new int[]{63}, new BasicType[]{BasicType.LONG});
+
+        final Hprof early = new Hprof();
+        early.id(0x1111111111111111L); // declaredLong, wiped
+        final int earlyOffset = body.instanceDump(0x9000, subClassId, early.toByteArray());
+
+        // the superclass layout arrives only now, between the two instances
+        body.classDump(superClassId, 0, new int[]{62}, new BasicType[]{BasicType.LONG});
+
+        final Hprof late = new Hprof();
+        late.id(0x2222222222222222L); // declaredLong
+        late.id(0x3333333333333333L); // inheritedLong, only reachable via the late superclass layout
+        final int lateOffset = body.instanceDump(0x9001, subClassId, late.toByteArray());
+
+        final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
+
+        final byte[] output = sanitize(input.toByteArray());
+
+        assertThat(region(output, base + earlyOffset, Long.BYTES))
+                .as("the early instance's own field is still wiped")
+                .containsExactly(0, 0, 0, 0, 0, 0, 0, 0);
+        assertThat(region(output, base + lateOffset, Long.BYTES))
+                .as("the later instance's declared field is wiped")
+                .containsExactly(0, 0, 0, 0, 0, 0, 0, 0);
+        assertThat(region(output, base + lateOffset + Long.BYTES, Long.BYTES))
+                .as("the inherited field must be wiped too: the hierarchy is re-walked, not cached")
+                .containsExactly(0, 0, 0, 0, 0, 0, 0, 0);
+    }
+
     @Test
     @DisplayName("testDuplicateClassNamesDoNotShareALayout. Two classes with the same name must keep their own field layouts")
     void testDuplicateClassNamesDoNotShareALayout() throws Exception {

@@ -2,20 +2,18 @@ package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.utils.InternalLogger;
 import com.paypal.heapdumptool.utils.ProgressMonitor;
-import org.apache.commons.lang3.function.Failable;
-import org.apache.commons.lang3.mutable.MutableLong;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static com.paypal.heapdumptool.sanitizer.HeapRecord.HEAP_DUMP;
 import static com.paypal.heapdumptool.sanitizer.HeapRecord.HEAP_DUMP_SEGMENT;
@@ -49,10 +47,6 @@ public class HeapDumpSanitizer {
 
     private static final String STRING_CODER_FIELD = "coder";
     private static final String STRING_VALUE_FIELD = "value";
-
-    // Upper bound on the reusable tile buffer in applySanitization. Rounded down to a whole number
-    // of tiles, so the effective size is at most this and at least one tile.
-    private static final int TILED_BUFFER_SIZE = 8192;
 
     private static final InternalLogger LOGGER = InternalLogger.getLogger(HeapDumpSanitizer.class);
 
@@ -278,9 +272,21 @@ public class HeapDumpSanitizer {
             final long fieldNameStringId = pipe.pipeId();
             final int fieldType = pipe.pipeU1();
             final String fieldName = stringIdToStringMap.getOrDefault(fieldNameStringId, "");
-            final BasicType basicType = BasicType.findByU1Code(fieldType).orElseThrow(IllegalStateException::new);
+            final BasicType basicType = requireBasicType(fieldType);
             classObject.fields.add(new Field(fieldName, basicType));
         }
+    }
+
+    /**
+     * The type for a code that has already been validated as a basic type, e.g. by a preceding
+     * {@link BasicType#findValueSize(int, int)} or scope check.
+     */
+    private static BasicType requireBasicType(final int u1Code) {
+        final BasicType basicType = BasicType.byU1Code(u1Code);
+        if (basicType == null) {
+            throw new IllegalStateException("Unknown basic type code: " + u1Code);
+        }
+        return basicType;
     }
 
     private boolean shouldTrackClassMetadata() {
@@ -289,14 +295,18 @@ public class HeapDumpSanitizer {
     }
 
     private boolean isAssignableClassWithExcludeStringField(final long classObjectId) {
-        return getClassNameHierarchy(classObjectId)
-                .anyMatch(sanitizeCommand::isExactClassWithExcludeStringField);
+        for (ClassObject c = classHierarchyStart(classObjectId); c != null; c = superClassOf(c)) {
+            if (sanitizeCommand.isExactClassWithExcludeStringField(getClassName(c.id))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void pipeStaticField(final Pipe pipe, final int entryType) throws IOException {
         final int valueSize = BasicType.findValueSize(entryType, pipe.getIdSize());
         if (shouldSanitizeField(entryType)) {
-            final BasicType basicType = BasicType.findByU1Code(entryType).orElseThrow(IllegalStateException::new);
+            final BasicType basicType = requireBasicType(entryType);
             applySanitization(pipe, basicType, valueSize);
         } else {
             pipe.pipe(valueSize);
@@ -417,31 +427,46 @@ public class HeapDumpSanitizer {
         }
     }
 
-    private Stream<ClassObject> getClassHierarchy(final long classObjectId) {
-        ClassObject classObject = classObjectIdToClassObjectMap.get(classObjectId);
-        Stream<ClassObject> stream = Stream.of();
-        while (classObject != null) {
-            stream = Stream.concat(stream, Stream.of(classObject));
-            classObject = classObjectIdToClassObjectMap.get(classObject.superClassObjectId);
-        }
-        return stream;
+    /*
+     * The class object a hierarchy walk starts from, or null if no CLASS DUMP was seen for the id.
+     * Walk on with superClassOf. Each walk visits the class then its ancestors, which is the order
+     * HPROF lays instance fields in.
+     *
+     * Iterating the chain in place rather than collecting it: the walk runs up to three times per
+     * instance dump, and the previous Stream.concat-per-level version was one of the largest
+     * allocation sites in a profiled run -- each level added a concatenated stream, a spliterator and
+     * a lambda capture. Collecting into a list per walk is cheaper but still allocates per instance;
+     * in place allocates nothing at all.
+     *
+     * Deliberately not memoized per class object id: a CLASS DUMP can appear after instances of the
+     * class it describes, so a hierarchy captured from an earlier instance can be shorter than the
+     * truth.
+     */
+    private ClassObject classHierarchyStart(final long classObjectId) {
+        return classObjectIdToClassObjectMap.get(classObjectId);
     }
 
-    private Stream<String> getClassNameHierarchy(final long classObjectId) {
-        return getClassHierarchy(classObjectId)
-                .map(classObject -> classObject.id)
-                .map(this::getClassName);
+    private ClassObject superClassOf(final ClassObject classObject) {
+        return classObjectIdToClassObjectMap.get(classObject.superClassObjectId);
     }
 
-    private Stream<Field> getAllFieldsInClassHierarchy(final long classObjectId) {
-        return getClassHierarchy(classObjectId).flatMap(classObject -> classObject.fields.stream());
-    }
-
+    /*
+     * Returns the empty list without allocating in the common case: -e names a handful of classes, so
+     * almost no instance dump in a real heap contributes anything here.
+     */
     private Collection<String> getExcludeStringFieldsInClassHierarchy(final long classObjectId) {
-        return getClassNameHierarchy(classObjectId)
-                .map(sanitizeCommand::getExcludeStringFields)
-                .flatMap(Collection::stream)
-                .collect(Collectors.toList());
+        List<String> fields = null;
+        for (ClassObject c = classHierarchyStart(classObjectId); c != null; c = superClassOf(c)) {
+            final List<String> classFields = sanitizeCommand.getExcludeStringFields(getClassName(c.id));
+            if (!classFields.isEmpty()) {
+                if (fields == null) {
+                    fields = new ArrayList<>(classFields);
+                } else {
+                    fields.addAll(classFields);
+                }
+            }
+        }
+        return fields == null ? Collections.<String>emptyList() : fields;
     }
 
     private void copyInstanceAndSanitizeSomeFields(final Pipe pipe,
@@ -451,28 +476,30 @@ public class HeapDumpSanitizer {
         final Collection<String> excludeStringFields = getExcludeStringFieldsInClassHierarchy(classObjectId);
         // reached for java.lang.String only when --force-string-coder-match=false
         final boolean isStringClass = isStringClass(classObjectId);
-        final MutableLong numBytesMutable = new MutableLong(numBytes);
-        getAllFieldsInClassHierarchy(classObjectId).forEach(field -> {
-            final int fieldSize = field.type.getValueSize(pipe.getIdSize());
+        long numBytesRemaining = numBytes;
+        for (ClassObject c = classHierarchyStart(classObjectId); c != null; c = superClassOf(c)) {
+            for (final Field field : c.fields) {
+                final int fieldSize = field.type.getValueSize(pipe.getIdSize());
 
-            if (excludeStringFields.contains(field.name)) {
-                final long id = Failable.call(pipe::pipeId);
-                excludeStringObjectIds.add(id);
+                if (excludeStringFields.contains(field.name)) {
+                    final long id = pipe.pipeId();
+                    excludeStringObjectIds.add(id);
 
-            } else if (isStringClass && STRING_CODER_FIELD.equals(field.name)) {
-                // never a generic BYTE field: see pipeStringCoder
-                Failable.run(() -> pipeStringCoder(pipe, objectId));
+                } else if (isStringClass && STRING_CODER_FIELD.equals(field.name)) {
+                    // never a generic BYTE field: see pipeStringCoder
+                    pipeStringCoder(pipe, objectId);
 
-            } else if (shouldSanitizeField(field.type.getU1Code())) {
-                Failable.run(() -> applySanitization(pipe, field.type, fieldSize));
+                } else if (shouldSanitizeField(field.type.getU1Code())) {
+                    applySanitization(pipe, field.type, fieldSize);
 
-            } else {
-                Failable.run(() -> pipe.pipe(fieldSize));
+                } else {
+                    pipe.pipe(fieldSize);
+                }
+                numBytesRemaining -= fieldSize;
             }
-            numBytesMutable.subtract(fieldSize);
-        });
+        }
 
-        pipe.pipe(numBytesMutable.longValue());
+        pipe.pipe(numBytesRemaining);
     }
 
     private String getClassName(final long classObjectId) {
@@ -485,8 +512,8 @@ public class HeapDumpSanitizer {
             return false;
         }
 
-        final BasicType basicType = BasicType.findByU1Code(fieldType).orElse(BasicType.OBJECT);
-        return sanitizationPolicy.sanitizeField(basicType);
+        final BasicType basicType = BasicType.byU1Code(fieldType);
+        return basicType != null && sanitizationPolicy.sanitizeField(basicType);
     }
 
     private void copyHeapDumpObjectArrayDump(final Pipe pipe) throws IOException {
@@ -516,7 +543,7 @@ public class HeapDumpSanitizer {
         final long numBytes = Math.multiplyExact(numElements, elementSize);
 
         if (shouldApplyArraySanitization(objectId, elementType)) {
-            final BasicType basicType = BasicType.findByU1Code(elementType).orElseThrow(IllegalStateException::new);
+            final BasicType basicType = requireBasicType(elementType);
             applySanitization(pipe, basicType, numBytes);
         } else {
             pipe.pipe(numBytes);
@@ -532,20 +559,18 @@ public class HeapDumpSanitizer {
             return false;
         }
 
-        return BasicType.findByU1Code(elementType)
-                .filter(sanitizationPolicy::sanitizeArray)
-                .isPresent();
+        final BasicType basicType = BasicType.byU1Code(elementType);
+        return basicType != null && sanitizationPolicy.sanitizeArray(basicType);
     }
 
     /*
-     * Overwrites the region by tiling the type's replacement bytes across it.
+     * Overwrites the region with repeated whole-buffer writes of the type's pre-tiled replacement.
      *
      * Tiling is always exactly aligned: a non-array field's size is its type's width, and a
      * primitive array's region is numElements * elementSize. So numBytes is always a whole multiple
      * of the replacement's length, no partial tile can occur, and every sanitized value reads back
-     * as exactly the requested replacement. The tiled buffer holds a whole number of tiles for the
-     * same reason: any prefix of it whose length is a multiple of the replacement's length is itself
-     * correctly tiled, so writing it in chunks cannot shift the alignment.
+     * as exactly the requested replacement. See Replacement for why the shared buffer holds a whole
+     * number of tiles, which is what makes chunked writing safe.
      *
      * Deliberately not commons-io InfiniteCircularInputStream: it rejects any repeated byte equal to
      * -1, so a perfectly legal replacement containing 0xFF -- e.g. --sanitize-byte-replacement=-1,
@@ -555,8 +580,7 @@ public class HeapDumpSanitizer {
      */
     private void applySanitization(final Pipe pipe, final BasicType type, final long numBytes) throws IOException {
         pipe.skipInput(numBytes);
-        final byte[] replacement = sanitizationPolicy.replacement(type);
-        final byte[] tiledBuffer = newTiledBuffer(replacement, numBytes);
+        final byte[] tiledBuffer = sanitizationPolicy.replacementOf(type).getTiledBuffer();
 
         long numBytesRemaining = numBytes;
         while (numBytesRemaining > 0) {
@@ -564,23 +588,5 @@ public class HeapDumpSanitizer {
             pipe.write(tiledBuffer, 0, count);
             numBytesRemaining -= count;
         }
-    }
-
-    /**
-     * A buffer of whole replacement tiles, no larger than the region it will fill.
-     */
-    private static byte[] newTiledBuffer(final byte[] replacement, final long numBytes) {
-        final long wantedSize = Math.min(numBytes, TILED_BUFFER_SIZE);
-        final int numTiles = Math.max(1, (int) (wantedSize / replacement.length));
-        final byte[] buffer = new byte[numTiles * replacement.length];
-
-        if (replacement.length == 1) {
-            Arrays.fill(buffer, replacement[0]);
-        } else {
-            for (int offset = 0; offset < buffer.length; offset += replacement.length) {
-                System.arraycopy(replacement, 0, buffer, offset, replacement.length);
-            }
-        }
-        return buffer;
     }
 }

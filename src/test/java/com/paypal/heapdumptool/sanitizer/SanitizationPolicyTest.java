@@ -137,6 +137,47 @@ class SanitizationPolicyTest {
         assertThat(policy.replacement(BasicType.BYTE)).containsExactly(42);
     }
 
+    /**
+     * The tiled buffer is shared by every sanitized region of its type, so nothing reachable from
+     * the policy may alias it. replacement() returning the live buffer would let one caller's
+     * mutation corrupt every later write.
+     */
+    @Test
+    void testTiledBufferIsNotReachableThroughReplacement() {
+        final SanitizationPolicy policy = SanitizationPolicy.builder().build();
+        final byte[] buffer = policy.replacementOf(BasicType.BYTE).getTiledBuffer();
+
+        policy.replacement(BasicType.BYTE)[0] = 99;
+
+        assertThat(buffer[0]).isEqualTo((byte) 42);
+        assertThat(buffer[buffer.length - 1]).isEqualTo((byte) 42);
+    }
+
+    @Test
+    void testEachTypeGetsItsOwnTiledBuffer() {
+        final SanitizationPolicy policy = SanitizationPolicy.builder()
+                .setReplacement(BasicType.BYTE, new byte[]{7})
+                .setReplacement(BasicType.SHORT, new byte[]{0, 9})
+                .build();
+
+        assertThat(policy.replacementOf(BasicType.BYTE).getTiledBuffer())
+                .isNotSameAs(policy.replacementOf(BasicType.SHORT).getTiledBuffer());
+        assertThat(policy.replacementOf(BasicType.BYTE).getTiledBuffer()[0]).isEqualTo((byte) 7);
+        assertThat(policy.replacementOf(BasicType.SHORT).getTiledBuffer()[1]).isEqualTo((byte) 9);
+    }
+
+    /**
+     * The point of pre-tiling: the same buffer instance serves every region of a type, so repeated
+     * queries must not allocate a fresh one.
+     */
+    @Test
+    void testTiledBufferIsReusedAcrossQueries() {
+        final SanitizationPolicy policy = SanitizationPolicy.builder().build();
+
+        assertThat(policy.replacementOf(BasicType.INT).getTiledBuffer())
+                .isSameAs(policy.replacementOf(BasicType.INT).getTiledBuffer());
+    }
+
     @Test
     void testObjectReplacementRejected() {
         assertThatThrownBy(() -> SanitizationPolicy.builder().build().replacement(BasicType.OBJECT))

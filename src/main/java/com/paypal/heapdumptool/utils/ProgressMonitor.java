@@ -10,10 +10,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.util.function.Consumer;
 
+/**
+ * Takes a primitive long rather than extending {@code Consumer<Long>}: the monitored streams call
+ * this on every single write, and boxing each count made it one of the largest allocation sites in
+ * a profiled run.
+ */
 @FunctionalInterface
-public interface ProgressMonitor extends Consumer<Long> {
+public interface ProgressMonitor {
+
+    void accept(long numBytesProcessed);
 
     /**
      * Create a new {@link ProgressMonitor} that logs a message for each stepSize processed

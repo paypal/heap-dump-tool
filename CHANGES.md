@@ -24,6 +24,10 @@
 - Deprecate `-s, --sanitize-byte-char-arrays-only`, `-t, --text` and `-T, --text-charset`. Each prints a warning and is
   still applied at its position on the command line; `-t` now unescapes Java escape sequences and then accepts a single
   ASCII character only (so `-t '\0'` and `-t '\t'` work, `-t abc` does not), and `-T` is ignored.
+- Reduce allocation on the streaming path by roughly 90% (96 GB to 8.6 GB on a 1.19 GB dump) and wall clock by about
+  35%, with byte-for-byte identical output. `ProgressMonitor` now declares `accept(long)` instead of extending
+  `Consumer<Long>`, which is a breaking change for any code implementing it as a `Consumer`; a lambda or method
+  reference needs no change.
 
 ## 1.1.1
 - Upgrade to latest logback through spring-boot bom upgrade.

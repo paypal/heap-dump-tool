@@ -5,7 +5,9 @@ import org.meanbean.test.BeanVerifier;
 import picocli.CommandLine;
 
 import static com.paypal.heapdumptool.sanitizer.DataSize.ofMegabytes;
+import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class SanitizeCommandTest {
 
@@ -164,6 +166,53 @@ public class SanitizeCommandTest {
         assertThat(policy.sanitizeArray(BasicType.BYTE)).isFalse();
         assertThat(policy.isAnyFieldSanitized()).isFalse();
         assertThat(policy.getWarnings()).hasSize(1);
+    }
+
+    /**
+     * getExcludeStringFields() is memoized because HeapDumpSanitizer asks per record. The memo must
+     * still reflect a later setter -- picocli itself calls the setter after the command is built.
+     */
+    @Test
+    public void testExcludeStringFieldsMemoIsInvalidatedBySetter() {
+        final SanitizeCommand command = parse("in.hprof", "out.hprof");
+        assertThat(command.getExcludeStringFields())
+                .containsExactly("java.lang.Thread#name", "java.lang.ThreadGroup#name");
+        assertThat(command.isExactClassWithExcludeStringField("java.lang.Thread")).isTrue();
+
+        command.setExcludeStringFields(singletonList("com.example.Foo#bar"));
+
+        assertThat(command.getExcludeStringFields()).containsExactly("com.example.Foo#bar");
+        assertThat(command.getExcludeStringFields("com.example.Foo")).containsExactly("bar");
+        assertThat(command.isExactClassWithExcludeStringField("java.lang.Thread")).isFalse();
+    }
+
+    /**
+     * capture hands its options to a sanitize command via copyFrom, which is the other writer of
+     * excludeStringFields. A memo read before the copy must not survive it.
+     */
+    @Test
+    public void testExcludeStringFieldsMemoIsInvalidatedByCopyFrom() {
+        final SanitizeCommand target = parse("in.hprof", "out.hprof");
+        assertThat(target.getExcludeStringFields()).hasSize(2);
+
+        final SanitizeCommand source = parse("-e=com.example.Foo#bar", "in.hprof", "out.hprof");
+        target.copyFrom(source);
+
+        assertThat(target.getExcludeStringFields()).containsExactly("com.example.Foo#bar");
+        assertThat(target.isExactClassWithExcludeStringField("com.example.Foo")).isTrue();
+        assertThat(target.isExactClassWithExcludeStringField("java.lang.Thread")).isFalse();
+    }
+
+    /**
+     * The memoized list is handed to the streaming path on every record, so a caller must not be able
+     * to mutate the copy every later record will see.
+     */
+    @Test
+    public void testExcludeStringFieldsMemoIsUnmodifiable() {
+        final SanitizeCommand command = parse("in.hprof", "out.hprof");
+
+        assertThatThrownBy(() -> command.getExcludeStringFields().add("com.example.Foo#bar"))
+                .isInstanceOf(UnsupportedOperationException.class);
     }
 
     /**

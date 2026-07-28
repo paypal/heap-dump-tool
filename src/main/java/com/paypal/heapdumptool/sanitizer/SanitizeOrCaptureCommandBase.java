@@ -52,6 +52,8 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
 
     private StringFieldMap excludeStringFieldMap;
 
+    private List<String> resolvedExcludeStringFields;
+
     @Option(names = {"-b", "--buffer-size"}, description = "Buffer size for reading and writing", defaultValue = "100MB", showDefaultValue = ALWAYS)
     private DataSize bufferSize = ofMegabytes(100);
 
@@ -100,6 +102,7 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         this.bufferSize = other.bufferSize;
         this.forceMatchStringCoder = other.forceMatchStringCoder;
         this.excludeStringFields = other.excludeStringFields;
+        invalidateExcludeStringFieldCaches();
         this.tarInput = other.tarInput;
         this.sanitizeOptions.copyFrom(other.sanitizeOptions);
     }
@@ -128,19 +131,35 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         this.forceMatchStringCoder = forceMatchStringCoder;
     }
 
+    /**
+     * Memoized: {@code HeapDumpSanitizer} consults this once per class dump to decide whether to
+     * track class metadata, and re-running the stream pipeline there allocated a list, a stream and
+     * a split array per record -- the single largest allocation site in a profiled run. Invalidated
+     * by {@link #setExcludeStringFields(List)} and {@link #copyFrom} , the only writers.
+     */
     public List<String> getExcludeStringFields() {
+        if (resolvedExcludeStringFields != null) {
+            return resolvedExcludeStringFields;
+        }
         final List<String> list = excludeStringFields == null ? Collections.emptyList() : excludeStringFields;
-        return list.stream()
+        resolvedExcludeStringFields = Collections.unmodifiableList(list.stream()
                 .map(StringUtils::trimToNull)
                 .filter(Objects::nonNull)
                 .filter(field -> field.contains("#"))
                 .map(field -> field.split(","))
                 .flatMap(Arrays::stream)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
+        return resolvedExcludeStringFields;
     }
 
     public void setExcludeStringFields(final List<String> list) {
         this.excludeStringFields = list;
+        invalidateExcludeStringFieldCaches();
+    }
+
+    private void invalidateExcludeStringFieldCaches() {
+        this.resolvedExcludeStringFields = null;
+        this.excludeStringFieldMap = null;
     }
 
     private StringFieldMap getExcludeStringFieldMap() {
