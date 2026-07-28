@@ -1,8 +1,11 @@
 package com.paypal.heapdumptool;
 
 import com.paypal.heapdumptool.capture.PrivilegeEscalator;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.MockedConstruction;
 import org.mockito.MockedConstruction.Context;
 import org.mockito.MockedStatic;
@@ -40,6 +43,28 @@ public class ApplicationTest {
 
         final String expectedOutput = contentOf(getClass(), "help.txt");
         assertThat(output.getOut()).isEqualTo(expectedOutput);
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "--bogus-option                   | Unknown option: '--bogus-option'",
+            "-b nonsense                      | Invalid value for option '--buffer-size'",
+            "--sanitize-byte-replacement=300  | is out of range for byte",
+            "--s-a                            | '--s-a' is not unique",
+    })
+    public void testUsageErrorPrintsUsageMessage(final String badArg,
+                                                 final String expectedMessage,
+                                                 final CapturedOutput output) throws Exception {
+        final String[] args = ArrayUtils.addAll(new String[]{"sanitize"},
+                                                ArrayUtils.addAll(badArg.trim().split(" "), "in.hprof", "out.hprof"));
+
+        final int exitCode = runApplication(args);
+
+        assertThat(exitCode).isEqualTo(CommandLine.ExitCode.USAGE);
+        assertThat(output.getErr())
+                .contains(expectedMessage)
+                .contains("Usage: heap-dump-tool sanitize [OPTIONS] <inputFile> <outputFile>")
+                .doesNotContain("\tat com.paypal.heapdumptool"); // no stack trace
     }
 
     @Test

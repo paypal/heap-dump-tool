@@ -367,11 +367,10 @@ The CLI accepts unambiguous option abbreviations (`--z-o` for `--zip-output`). S
 
 ```
 $ java -jar heap-dump-tool.jar sanitize --s-a in.hprof out.hprof
+Error: '--s-a' is not unique: it matches '--sanitize-byte-arrays', '--sanitize-short-arrays', ...
+Usage: heap-dump-tool sanitize [OPTIONS] <inputFile> <outputFile>
+...
 ```
-
-(The picocli ambiguity message currently arrives wrapped in a `java.lang.reflect.InvocationTargetException` stack
-trace due to a pre-existing `PrivilegeEscalator` defect. The core message is:
-`Error: '--s-a' is not unique: it matches '--sanitize-byte-arrays', '--sanitize-short-arrays', ...`)
 
 Spell such options out in full.
 

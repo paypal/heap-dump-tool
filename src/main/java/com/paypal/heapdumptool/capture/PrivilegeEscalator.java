@@ -41,6 +41,11 @@ public class PrivilegeEscalator {
 
     public static Escalation escalatePrivilegesIfNeeded(final CommandLine commandLine, final String... args) throws Exception {
         final ParseResult parseResult = parse(commandLine, args);
+        if (hasErrors(parseResult)) {
+            // The command line is unusable. Let CommandLine.execute report the usage error.
+            return NOT_REQUIRED;
+        }
+
         final ParseResult subcommand = parseResult.subcommand();
         if (subcommand != null && subcommand.commandSpec() != null) {
             final Object userObject = subcommand.commandSpec().userObject();
@@ -93,7 +98,37 @@ public class PrivilegeEscalator {
             argsList.remove(DOCKER_REGISTRY_OPTION);
             argsList.remove(forcedDockerRegistry.get());
         }
-        return commandLine.parseArgs(argsList.toArray(new String[0]));
+
+        // This pre-parse only needs to identify the subcommand. Usage errors are reported later, by
+        // CommandLine.execute, which renders picocli's usage message instead of an escaping stack trace.
+        setCollectErrors(commandLine, true);
+        try {
+            return commandLine.parseArgs(argsList.toArray(new String[0]));
+        } finally {
+            setCollectErrors(commandLine, false);
+        }
+    }
+
+    private static boolean hasErrors(final ParseResult parseResult) {
+        for (ParseResult result = parseResult; result != null; result = result.subcommand()) {
+            if (!result.errors().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Makes {@code parseArgs} collect usage errors into {@link ParseResult#errors()} rather than throw them. Must be
+     * reverted before {@link CommandLine#execute} runs, or an invalid command line would be executed anyway.
+     */
+    private static void setCollectErrors(final CommandLine commandLine, final boolean collectErrors) {
+        commandLine.getCommandSpec()
+                   .parser()
+                   .collectErrors(collectErrors);
+        for (final CommandLine subcommand : commandLine.getSubcommands().values()) {
+            setCollectErrors(subcommand, collectErrors);
+        }
     }
 
     private static Map<String, String> buildTemplateParams(final String... args) {
