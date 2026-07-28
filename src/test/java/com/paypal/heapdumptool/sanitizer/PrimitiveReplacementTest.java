@@ -82,8 +82,20 @@ class PrimitiveReplacementTest {
         assertThatThrownBy(() -> encode(BasicType.SHORT, "70000"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("out of range for short");
+    }
 
-        assertThatThrownBy(() -> encode(BasicType.BOOLEAN, "7"))
+    @Test
+    void testBooleanAcceptsAnyNumber() {
+        // nonzero -> true
+        assertThat(encode(BasicType.BOOLEAN, "7")).containsExactly(1);
+        assertThat(encode(BasicType.BOOLEAN, "42")).containsExactly(1);
+        // zero -> false (already covered by testEncodeBoolean but added here for clarity)
+        assertThat(encode(BasicType.BOOLEAN, "0")).containsExactly(0);
+    }
+
+    @Test
+    void testBooleanRejectsMalformed() {
+        assertThatThrownBy(() -> encode(BasicType.BOOLEAN, "bogus"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("boolean");
     }

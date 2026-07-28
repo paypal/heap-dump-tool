@@ -91,6 +91,37 @@ class SanitizationPolicyTest {
         assertThat(policy.getWarnings()).containsExactly("first", "second");
     }
 
+    /**
+     * A deprecated flag can warn at most once per invocation (picocli raises
+     * OverwrittenOptionException on a repeated option), so a repeated identical warning can only
+     * come from the same flag being replayed -- e.g. by the double parse that
+     * {@code Application.main} performs. Deduplicate, keeping first-seen order.
+     */
+    @Test
+    void testDuplicateWarningsAreDeduplicatedKeepingFirstSeenOrder() {
+        final SanitizationPolicy policy = SanitizationPolicy.builder()
+                .addWarning("first")
+                .addWarning("second")
+                .addWarning("first")
+                .addWarning("second")
+                .addWarning("third")
+                .build();
+
+        assertThat(policy.getWarnings()).containsExactly("first", "second", "third");
+    }
+
+    @Test
+    void testDeduplicatedWarningsAreStillUnmodifiable() {
+        final SanitizationPolicy policy = SanitizationPolicy.builder()
+                .addWarning("w")
+                .addWarning("w")
+                .build();
+
+        assertThat(policy.getWarnings()).containsExactly("w");
+        assertThatThrownBy(() -> policy.getWarnings().add("x"))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
     @Test
     void testWarningsAreUnmodifiable() {
         final SanitizationPolicy policy = SanitizationPolicy.builder().addWarning("w").build();

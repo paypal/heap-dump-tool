@@ -3,8 +3,10 @@ package com.paypal.heapdumptool.sanitizer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 import static org.apache.commons.lang3.builder.ToStringStyle.MULTI_LINE_STYLE;
@@ -90,7 +92,9 @@ public class SanitizationPolicy {
         private final Map<BasicType, Boolean> sanitizeField = new EnumMap<>(BasicType.class);
         private final Map<BasicType, Boolean> sanitizeArray = new EnumMap<>(BasicType.class);
         private final Map<BasicType, byte[]> replacement = new EnumMap<>(BasicType.class);
-        private final List<String> warnings = new ArrayList<>();
+
+        // LinkedHashSet: deduplicate while preserving first-seen order. See addWarning.
+        private final Set<String> warnings = new LinkedHashSet<>();
 
         private Builder() {
             for (final BasicType type : PRIMITIVES) {
@@ -143,6 +147,20 @@ public class SanitizationPolicy {
             return this;
         }
 
+        /**
+         * Records a warning, ignoring an exact duplicate of one already recorded.
+         *
+         * <p>Deduplication is deliberate rather than defensive. A deprecated flag can only warn
+         * once per invocation -- picocli raises {@code OverwrittenOptionException} if the same
+         * option is passed twice -- so an identical warning can only arise from the same flag
+         * being recorded more than once. That happens on every real run: {@code Application.main}
+         * parses the same {@code CommandLine} twice, once via
+         * {@code PrivilegeEscalator.escalatePrivilegesIfNeeded} and once via
+         * {@code CommandLine.execute}, and picocli reuses the same user object, so every option
+         * setter -- and hence every recorded directive -- fires twice. Replaying an idempotent
+         * directive sequence twice leaves the scope and replacement values unchanged, but appended
+         * warnings would otherwise accumulate and be logged twice.</p>
+         */
         public Builder addWarning(final String warning) {
             warnings.add(warning);
             return this;

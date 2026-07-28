@@ -90,18 +90,23 @@ public final class PrimitiveReplacement {
     }
 
     private static boolean parseBoolean(final String value) {
-        if ("true".equalsIgnoreCase(value) || "1".equals(value)) {
+        if ("true".equalsIgnoreCase(value)) {
             return true;
         }
-        if ("false".equalsIgnoreCase(value) || "0".equals(value)) {
+        if ("false".equalsIgnoreCase(value)) {
             return false;
         }
         final Character character = asCharacterLiteral(value);
         if (character != null) {
             return character != 0;
         }
-        throw new IllegalArgumentException("Invalid boolean replacement value: " + value
-                + ". Expected true, false, 0, or 1");
+        // Accept any whole number: nonzero means true, zero means false.
+        try {
+            return Long.parseLong(value) != 0;
+        } catch (final NumberFormatException e) {
+            throw new IllegalArgumentException("Invalid boolean replacement value: " + value
+                    + ". Expected true, false, a number, or a single character such as '*'");
+        }
     }
 
     private static long parseIntegral(final BasicType type,
