@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer.Random;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.TestMethodOrder;
@@ -46,6 +47,9 @@ import static org.apache.commons.lang3.SystemUtils.isJavaVersionAtMost;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
+// Every test takes a real heap dump via HeapDumper (~15s each), so this is the slow suite.
+// Skip it with -DexcludedTestGroups=slow; run only it with -Dgroups=slow.
+@Tag("slow")
 @TestMethodOrder(Random.class)
 class HeapDumpSanitizerTest {
 
