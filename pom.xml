@@ -4,7 +4,7 @@
 
     <groupId>com.paypal</groupId>
     <artifactId>heap-dump-tool</artifactId>
-    <version>1.3.5-SNAPSHOT</version>
+    <version>1.4.0-SNAPSHOT</version>
 
     <name>Heap Dump Tool</name>
     <description>
@@ -34,6 +34,9 @@
         <maven-jar-plugin.version>3.4.2</maven-jar-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
+        <!-- JUnit tags to exclude from the test run. Empty runs everything; -DexcludedTestGroups=slow
+             skips the real-heap-dump tests (see @Tag("slow") on HeapDumpSanitizerTest). -->
+        <excludedTestGroups></excludedTestGroups>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>${project.build.sourceEncoding}</project.reporting.outputEncoding>
 
@@ -291,6 +294,7 @@
                     <classesDirectory>${project.build.outputDirectory}</classesDirectory>
                     <argLine>-Xmx2048m -Xms128m @{argLine}</argLine>
                     <runOrder>alphabetical</runOrder>
+                    <excludedGroups>${excludedTestGroups}</excludedGroups>
                 </configuration>
             </plugin>
 

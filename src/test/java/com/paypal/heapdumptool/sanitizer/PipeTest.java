@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -176,6 +177,46 @@ public class PipeTest {
                 .isEqualTo(" world\0");
         assertThat(outputString())
                 .isEqualTo("hello world\0");
+    }
+
+    /**
+     * One scratch buffer is shared by a pipe, its bounded children, and every copy any of them makes.
+     * A payload several buffers long, interleaved across parent and child, would surface any stale or
+     * partially-overwritten buffer content as garbled or truncated output.
+     */
+    @Test
+    @DisplayName("testCopiesLongerThanTheSharedBufferAreExact. interleaved multi-buffer copies must not corrupt each other")
+    public void testCopiesLongerThanTheSharedBufferAreExact() throws IOException {
+        final byte[] payload = new byte[3 * 8192 + 17];
+        for (int i = 0; i < payload.length; i++) {
+            payload[i] = (byte) (i % 251);
+        }
+
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+        final Pipe parent = new Pipe(new ByteArrayInputStream(payload), output, new AtomicLong()::set);
+
+        final int firstChunk = 8192 + 3;
+        parent.pipe(firstChunk);
+
+        final int childChunk = 2 * 8192 + 5;
+        final Pipe child = parent.newInputBoundedPipe(childChunk);
+        child.pipe(childChunk);
+
+        // a copyFrom on the parent, between two pipes, also shares the buffer
+        final byte[] injected = new byte[8192 + 1];
+        Arrays.fill(injected, (byte) 0x5A);
+        parent.copyFrom(new ByteArrayInputStream(injected), injected.length);
+
+        parent.pipe(payload.length - firstChunk - childChunk);
+
+        final byte[] expected = new byte[payload.length + injected.length];
+        System.arraycopy(payload, 0, expected, 0, firstChunk + childChunk);
+        System.arraycopy(injected, 0, expected, firstChunk + childChunk, injected.length);
+        System.arraycopy(payload, firstChunk + childChunk,
+                expected, firstChunk + childChunk + injected.length,
+                payload.length - firstChunk - childChunk);
+
+        assertThat(output.toByteArray()).containsExactly(expected);
     }
 
     @Test

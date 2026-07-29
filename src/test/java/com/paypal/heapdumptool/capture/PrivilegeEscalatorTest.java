@@ -6,12 +6,15 @@ import com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation;
 import com.paypal.heapdumptool.fixture.ConstructorTester;
 import com.paypal.heapdumptool.fixture.ResourceTool;
 import com.paypal.heapdumptool.sanitizer.DataSize;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RuntimeEnvironment;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.MockedStatic;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
@@ -23,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.escalatePrivilegesIfNeeded;
+import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.NOT_REQUIRED;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.REQUIRED_AND_PROMPTED;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.PRIVILEGED_ALREADY;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -120,6 +124,60 @@ public class PrivilegeEscalatorTest {
         assertThatExceptionOfType(IllegalArgumentException.class)
                 .isThrownBy(() -> escalate("--docker-registry"))
                 .withMessage("Cannot find argument value for --docker-registry");
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "--bogus-option",           // unknown option
+            "-b nonsense",              // bad option value
+            "--sanitize-byte-replacement=300", // out-of-range option value
+            "--s-a"                     // ambiguous abbreviation
+    })
+    public void testUsageErrorIsNotReportedHere(final String badArg) throws Exception {
+        expectInDockerContainer(true);
+
+        final String[] args = ArrayUtils.addAll(new String[]{"sanitize"},
+                                                ArrayUtils.addAll(badArg.split(" "), "in.hprof", "out.hprof"));
+
+        // no exception: CommandLine.execute reports usage errors, so it can render picocli's usage message
+        assertThat(escalate(args))
+                .isEqualTo(NOT_REQUIRED);
+    }
+
+    @Test
+    public void testMissingRequiredParameterIsNotReportedHere() throws Exception {
+        expectInDockerContainer(true);
+
+        assertThat(escalate("sanitize", "in.hprof"))
+                .isEqualTo(NOT_REQUIRED);
+    }
+
+    @Test
+    public void testUnknownSubcommandIsNotReportedHere() throws Exception {
+        expectInDockerContainer(true);
+
+        assertThat(escalate("sanitze", "in.hprof", "out.hprof"))
+                .isEqualTo(NOT_REQUIRED);
+    }
+
+    @Test
+    public void testErrorCollectionIsRevertedForEveryCommand() throws Exception {
+        expectInDockerContainer(false);
+
+        final CommandLine commandLine = newCommandLine();
+        escalatePrivilegesIfNeeded(commandLine, "sanitize", "--bogus-option", "in.hprof", "out.hprof");
+
+        // CommandLine.execute must still reject an invalid command line rather than run it
+        assertCollectErrorsReverted(commandLine);
+    }
+
+    private static void assertCollectErrorsReverted(final CommandLine commandLine) {
+        assertThat(commandLine.getCommandSpec().parser().collectErrors())
+                .describedAs("collectErrors of %s", commandLine.getCommandName())
+                .isFalse();
+        commandLine.getSubcommands()
+                   .values()
+                   .forEach(PrivilegeEscalatorTest::assertCollectErrorsReverted);
     }
 
     @Test

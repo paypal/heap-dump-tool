@@ -19,19 +19,36 @@ import java.nio.charset.StandardCharsets;
  */
 public class Pipe {
 
+    private static final int COPY_BUFFER_SIZE = 8192;
+
     private final DataInputStream input;
     private final DataOutputStream output;
+
+    /*
+     * One scratch buffer for every copy this pipe and its bounded children perform. Not an allocation
+     * saving: the IOUtils.copyLarge overload without a buffer reuses a ThreadLocal scratch array, so
+     * it allocates nothing either. It does Arrays.fill it to zero on every call, though, and pipe() is
+     * called at least once per record of the dump, so passing our own buffer skips an 8 KB zero-fill
+     * per record. Worth a few percent of wall clock, nothing measurable in allocation.
+     *
+     * Safe to share: copying is strictly sequential -- a copy never runs while another is in progress
+     * -- and a bounded child pipe reads the same underlying input as its parent.
+     */
+    private final byte[] copyBuffer;
+
     private Integer idSize;
 
     public Pipe(final InputStream input, final OutputStream output, final ProgressMonitor numBytesWrittenMonitor) {
         this.input = new DataInputStream(input);
         this.output = new DataOutputStream(numBytesWrittenMonitor.monitoredOutputStream(output));
+        this.copyBuffer = new byte[COPY_BUFFER_SIZE];
     }
 
-    private Pipe(final DataInputStream input, final DataOutputStream output, final Integer idSize) {
+    private Pipe(final DataInputStream input, final DataOutputStream output, final Integer idSize, final byte[] copyBuffer) {
         this.input = input;
         this.output = output;
         this.idSize = idSize;
+        this.copyBuffer = copyBuffer;
     }
 
     /**
@@ -40,7 +57,7 @@ public class Pipe {
     @SuppressWarnings("deprecation")
     public Pipe newInputBoundedPipe(final long inputCount) {
         final DataInputStream boundedInput = new DataInputStream(new BoundedInputStream(input, inputCount));
-        return new Pipe(boundedInput, output, idSize);
+        return new Pipe(boundedInput, output, idSize, copyBuffer);
     }
 
     public int getIdSize() {
@@ -70,8 +87,12 @@ public class Pipe {
         IOUtils.write(bytes, output);
     }
 
+    public void write(final byte[] bytes, final int offset, final int length) throws IOException {
+        output.write(bytes, offset, length);
+    }
+
     public void copyFrom(final InputStream inputStream, final long count) throws IOException {
-        IOUtils.copyLarge(inputStream, output, 0, count);
+        IOUtils.copyLarge(inputStream, output, 0, count, copyBuffer);
     }
 
     public int pipeU1() throws IOException {
@@ -112,7 +133,7 @@ public class Pipe {
     }
 
     public void pipe(final long count) throws IOException {
-        IOUtils.copyLarge(input, output, 0, count);
+        IOUtils.copyLarge(input, output, 0, count, copyBuffer);
     }
 
     public void skipInput(final long count) throws IOException {
