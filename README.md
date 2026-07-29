@@ -3,9 +3,8 @@
 [![Maven Central](https://maven-badges.sml.io/maven-central/com.paypal/heap-dump-tool/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.paypal/heap-dump-tool)
 
 Heap Dump Tool can capture and, more importantly, sanitize sensitive data from Java heap dumps. Sanitization is accomplished
-by replacing primitive field and array values in the heap dump file with a replacement value chosen per primitive type
-(by default `byte` and `char` data become `*`, whether it lives in a field or in an array; the other primitive types
-become zero, or `false` for `boolean`). Heap dump can then be more freely shared freely and analyzed.
+by replacing primitive field and array values in the heap dump file with a value like `*` for chars and `0` for numbers.
+Heap dump can then be more freely shared and analyzed.
 
 A typical scenario is when a heap dump needs to be sanitized before it can be given to another person or moved to a different
 environment. For example, an app running in production environment may contain sensitive data (passwords, credit card
@@ -33,35 +32,10 @@ graphical program.
 
 
 ## TOC
-  * [Breaking change: default sanitization scope](#breaking-change-default-sanitization-scope)
   * [Examples](#examples)
   * [CLI Usage](#cli-usage)
   * [Library Usage](#library-usage)
   * [License](#license)
-
-## Breaking change: default sanitization scope
-
-Sanitization is now controlled by per-primitive-type flags, and `--sanitize-all` **defaults to `true`**. Out of the box
-the tool therefore sanitizes **every primitive field and every primitive array**. Previously the default sanitized byte
-and char arrays only.
-
-Two consequences to be aware of:
-
-* Numeric fields that aid analysis - collection sizes, hash codes, timestamps, and so on - are now wiped unless you opt
-  out per type. To restore the previous **scope**, pass
-  `--sanitize-all=false --sanitize-byte-arrays=true --sanitize-char-arrays=true`. That still writes the new replacement
-  values, so add `--sanitize-all-replacement=0` as well to also restore the old fill (the old `-t` default was `\0`,
-  while `byte` now defaults to 42). With both, output matches the old default byte for byte, except for the `coder`
-  byte of any string preserved by `-e` - see `-f` under [Explanation of options](#explanation-of-options).
-* The sanitizer retains the field layout of every class in the dump (a memory cost proportional to the number of loaded
-  classes) whenever any non-array field type is in scope or `-e` lists at least one excluded string field. Both
-  conditions are true under the default options, so this cost is not new to this release; it disappears only for
-  argument lists that make both false - that is, `-e ''` together with any combination that leaves no non-array field
-  type in scope, such as `-e '' --sanitize-all=false`, `-e '' -s true`, or `-e ''` plus all eight `--sanitize-<type>s`
-  flags set to false. `--sanitize-all=false` on its own is not enough, because `-e` still has its default value.
-
-The old coarse options `-s, --sanitize-byte-char-arrays-only`, `-t, --text` and `-T, --text-charset` are deprecated but
-still work; see [Deprecated options](#deprecated-options).
 
 ## Examples
 
@@ -174,7 +148,7 @@ Usage: heap-dump-tool sanitize [OPTIONS] <inputFile> <outputFile>
 Sanitize a heap dump by replacing primitive field and array contents
       <inputFile>     Input heap dump .hprof. File or stdin
       <outputFile>    Output heap dump .hprof file
-  -a, --tar-input=<tarInput>
+  -a, --tar-input=<true|false>
                       Treat input as tar archive
   -b, --buffer-size=<bufferSize>
                       Buffer size for reading and writing
@@ -184,7 +158,7 @@ Sanitize a heap dump by replacing primitive field and array contents
   -e, --exclude-string-fields=<excludeStringFields>
                       String fields to exclude from sanitization. Value in com.example.MyClass#fieldName format
                         Default: java.lang.Thread#name,java.lang.ThreadGroup#name
-  -f, --force-string-coder-match=<forceMatchStringCoder>
+  -f, --force-string-coder-match=<true|false>
                       Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools render
                         them correctly
                         Default: true
@@ -267,16 +241,13 @@ Sanitize a heap dump by replacing primitive field and array contents
   * CSV list of string fields to exclude from sanitization.
 
 * `-f, --force-string-coder-match=<true|false>`
-  * In Java 9+, a `String`'s `coder` field says whether its backing `byte[]` holds LATIN1 bytes (0) or UTF-16 code units
-    (1). When set, this rewrites `coder` to 0 - but only for those strings whose backing `byte[]` is actually being
-    sanitized, i.e. only when `byte[]` is in scope and that particular string is not preserved by
-    `-e, --exclude-string-fields`. Every byte replacement is a single byte, so 0 is then the truthful coder and analysis
-    tools render the sanitized string correctly; a surviving `coder == 1` would make them read the replaced bytes as
-    UTF-16 and display garbage. Strings whose backing array is left intact keep their original coder, since forcing 0
-    over a real UTF-16 array would itself produce mojibake at double length. Defaults to true.
+  * Because of [JEP-254](https://openjdk.org/jeps/254), since Java 9, string instances may be encoded differently based on content. 
+    This setting forces encoding of sanitized strings in heap dump to match the encoding of the replacement text. 
+    If unset, some sanitized string fields may not be displayed correctly in [MAT](https://eclipse.dev/mat/) or similar
+    GUI tools.
 
 * `--sanitize-all[=<true|false>]`
-  * Sanitize every primitive field and array. **Defaults to true.** Object references are never sanitized, since
+  * Sanitize every primitive field and array. Defaults to true. Object references are never sanitized, since
     overwriting them corrupts the object graph.
 
 * `--sanitize-bytes`, `--sanitize-shorts`, `--sanitize-ints`, `--sanitize-longs`, `--sanitize-chars`,
@@ -285,53 +256,28 @@ Sanitize a heap dump by replacing primitive field and array contents
 
 * `--sanitize-byte-arrays`, `--sanitize-short-arrays`, `--sanitize-int-arrays`, `--sanitize-long-arrays`,
   `--sanitize-char-arrays`, `--sanitize-float-arrays`, `--sanitize-double-arrays`, `--sanitize-boolean-arrays`
-  * Sanitize the contents of arrays of that primitive type. The non-array flag and the array flag of a given type are
-    independent: `--sanitize-ints` does not affect `int[]`, and `--sanitize-int-arrays` does not affect `int` fields.
-
-* All 17 new scope flags - `--sanitize-all` and the eight field and eight array flags - accept the bare form
-  (`--sanitize-ints`, meaning true) or an explicit value (`--sanitize-ints=true`, `--sanitize-ints=false`). The
-  deprecated `-s, --sanitize-byte-char-arrays-only` is the exception: it still requires an explicit value, so a bare
-  `-s` swallows the following argument, e.g. `sanitize -s in.hprof out.hprof` fails with
-  `Invalid value for option '--sanitize-byte-char-arrays-only': 'in.hprof' is not a boolean`.
+  * Sanitize the contents of arrays of that primitive type.
 
 * `--sanitize-<type>-replacement=<value>`, `--sanitize-all-replacement=<value>`
   * The value to write over sanitized data, interpreted as a value of that type. For `--sanitize-<type>-replacement`:
 
-    | Value | Meaning | Example |
-    | --- | --- | --- |
-    | a decimal number | that numeric value | `42` is 42; per-type flags also accept `-1` and (for float/double) `0.5` |
-    | a lone non-digit character | that character's code point | `*` is 42, `a` is 97 |
-    | a backslash escape | the character it denotes | `\0` is 0, `\98` is 98 (`b`), `\t` is 9 |
-    | `true` / `false` | boolean; `--sanitize-boolean-replacement` only | `--sanitize-boolean-replacement=true` |
+    | Value | Meaning | Example                                 |
+    | --- | --- |-----------------------------------------|
+    | a decimal number | that numeric value | `42` is 42 |
+    | a lone non-digit character | that character's code point; `--sanitize-char-replacement` only | `*` is 42, `a` is 97                    |
+    | a backslash escape | the character it denotes; `--sanitize-char-replacement` only | `\0` is 0, `\98` is 98 (`b`), `\t` is 9 |
+    | `true` / `false` | boolean; `--sanitize-boolean-replacement` only | `--sanitize-boolean-replacement=true`   |
 
-  * A character value must be exactly one character, or an escape. Quotes are not part of the grammar: the tool sees
-    whatever your shell hands it, so `--sanitize-char-replacement='*'` works (the shell strips the quotes, leaving
-    `*`), while a value whose quotes survive to the tool - `--sanitize-char-replacement="'*'"` - is the
-    three-character string `'*'` and a usage error. To pass `*` through a shell that would glob-expand it, quote it
-    (`'*'`, `"*"`) or escape it (`\*`, which this grammar also reads as the character `*`).
-  * A bare digit is a number, not a character: `--sanitize-byte-replacement=4` means 4. To mean the character `'4'`,
-    escape its code point: `--sanitize-byte-replacement=\52` means 52.
-  * `\` followed only by digits is a **decimal** code point, not Java's octal: `\98` is `b` (98). The other Java
-    escapes work as written - `\t`, `\n`, `\\` and `\uXXXX`.
-  * Fractional values are only accepted by `float` and `double`; `--sanitize-int-replacement=0.5` is an error.
-  * Hexadecimal literals such as `0x2A` are **not** accepted; write `42` instead.
-  * A value outside its type's range is a usage error, e.g. `--sanitize-byte-replacement=300` (byte accepts -128..127)
-    or `--sanitize-char-replacement=-1` (char accepts 0..65535). `--sanitize-boolean-replacement` accepts `true`,
-    `false`, a single character, or any whole number - nonzero is true, zero is false - and rejects anything else, e.g.
-    `--sanitize-boolean-replacement=maybe`.
-  * Defaults: `byte=42` (the `*` character), `char=*` (`0x002A`), `short`/`int`/`long`=0,
-    `float`/`double`=0.0, `boolean=false`.
-  * Each type's replacement is encoded big-endian at that type's exact width (byte and boolean 1 byte, char and short 2,
-    int and float 4, long and double 8) and repeated across the sanitized region, always exactly aligned. So an `int[]`
-    sanitized with `0` reads back as zeros rather than a repeating byte pattern.
-  * `--sanitize-all-replacement=<value>` sets every type's replacement from one value, converted per type. For example
+  * Character literals like `*` or `x` are accepted only by `--sanitize-char-replacement`. The numeric per-type flags - 
+    `byte`, `short`, `int`, `long`, `float`, `double`, `boolean` - take a number only.
+  * Fractional values like `0.5` are only accepted by `float` and `double`.
+  * Defaults: byte=42 (`*` character), char=*, short/int/long/float/double=0, boolean=false.
+  * `--sanitize-all-replacement=<value>` sets every type's replacement from one value, converted per type.
     `--sanitize-all-replacement=*` yields `byte=42`, `short=42`, `int=42`, `long=42`, `char=*`, `float=42.0`,
-    `double=42.0`, `boolean=true`. Because the value has to be legal for all eight types at once, it must be an ASCII
-    character or a whole number in `0..127`; `--sanitize-all-replacement=true`, `=0.5`, `=-1` and `=300` are all errors.
-    Per-type flags remain unrestricted within their own type's range.
+    `double=42.0`, `boolean=true`.
 
-* `-z, --zip-output   Write zipped output`
-  * When set, output heap dump is compressed in .hprof.zip format.
+* `-z, --zip-output` 
+  * When set, output heap dump is compressed in zip format.
 
 #### Flags are resolved in command-line order
 
@@ -347,7 +293,7 @@ $ java -jar heap-dump-tool.jar sanitize --sanitize-shorts=true --sanitize-all=fa
 ```
 
 The same rule applies to replacement values: `--sanitize-all-replacement=0 --sanitize-int-replacement=7` gives ints 7
-and everything else 0, while reversing the two makes `--sanitize-all-replacement=0` override the int value.
+and everything else 0.
 
 #### Deprecated options
 
@@ -383,18 +329,12 @@ Spell such options out in full.
 
 ### CLI FAQ
 
-**Q: How can I sanitize non-array primitive fields?**
-They are sanitized by default. Use `--sanitize-all=false` plus the per-type flags you want, for example
-`--sanitize-all=false --sanitize-ints=true --sanitize-longs=true`, to sanitize only int and long fields.
-
-**Q: How do I get the old default scope back (byte and char arrays only)?**
-`--sanitize-all=false --sanitize-byte-arrays=true --sanitize-char-arrays=true`. That restores the old scope but writes
-the new replacement values; add `--sanitize-all-replacement=0` to also restore the old `\0` fill. The result matches a
-pre-1.4.0 default run byte for byte, apart from the `coder` byte of any string that `-e` preserves, which `-f` no longer
-rewrites.
+**Q: How can I sanitize only char array or byte array fields?**
+Set `--sanitize-all=false --sanitize-byte-arrays=true --sanitize-char-arrays=true`. The behavior mimics that of versions
+prior to 1.4.0.
 
 **Q: Why are collection sizes, hash codes and timestamps gone from my dump?**
-Because `--sanitize-all` now defaults to true, every primitive field is overwritten. Opt back in per type, e.g.
+Because `--sanitize-all` defaults to true, every primitive field is overwritten. Opt back in per type, e.g.
 `--sanitize-all=true --sanitize-ints=false --sanitize-longs=false`, keeping in mind that a later flag wins.
 
 

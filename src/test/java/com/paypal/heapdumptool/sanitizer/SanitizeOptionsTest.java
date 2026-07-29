@@ -125,7 +125,7 @@ class SanitizeOptionsTest {
     @Test
     void testReplacementFlags() {
         final SanitizationPolicy policy = parse("--sanitize-int-replacement=7",
-                                                "--sanitize-byte-replacement=z");
+                                                "--sanitize-byte-replacement=122");
         assertThat(policy.replacement(BasicType.INT)).containsExactly(0, 0, 0, 7);
         assertThat(policy.replacement(BasicType.BYTE)).containsExactly('z');
         assertThat(policy.replacement(BasicType.SHORT)).containsExactly(0, 0);

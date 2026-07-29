@@ -198,10 +198,14 @@ public class SanitizeOptions {
             description = "Value to replace all primitive data with, converted per type. "
                     + "A number, or a single character such as * or \\0")
     void allReplacement(final String value) {
+        // A character literal here means "the same character for every type": normalize it to its
+        // code point so the numeric types accept it as a number, since a character literal is
+        // otherwise a char-only form. See PrimitiveReplacement#toCodePointIfCharLiteral.
+        final String normalized = PrimitiveReplacement.toCodePointIfCharLiteral(value);
         // Encode eagerly so picocli converts any IllegalArgumentException to a ParameterException.
         final Map<BasicType, byte[]> encoded = new EnumMap<>(BasicType.class);
         for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
-            encoded.put(type, PrimitiveReplacement.encode(type, value));
+            encoded.put(type, PrimitiveReplacement.encode(type, normalized));
         }
         directives.add(new Directive(builder -> {
             for (final BasicType type : SanitizationPolicy.PRIMITIVES) {

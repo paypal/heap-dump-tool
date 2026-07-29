@@ -8,19 +8,19 @@ import java.nio.ByteBuffer;
 /**
  * Parses a user-supplied replacement value into bytes of a specific {@link BasicType}.
  *
- * <p>Value grammar, uniform across all primitive types:</p>
+ * <p>Value grammar:</p>
  * <ul>
- *   <li>a decimal number is that numeric value: {@code 42}, {@code -1}, {@code 0.5}</li>
- *   <li>a lone non-digit character is that character's code point: {@code *} is 42,
- *       {@code a} is 97</li>
- *   <li>a backslash escape is the character it denotes: {@code \0} is 0, {@code \98} is
- *       98 ({@code b}), {@code \t} is 9</li>
+ *   <li>a decimal number is that numeric value, for every type: {@code 42}, {@code -1}, {@code 0.5}</li>
+ *   <li>{@link BasicType#CHAR} also accepts a character literal -- a lone non-digit character
+ *       ({@code *} is code point 42, {@code a} is 97) or a backslash escape ({@code \0} is 0,
+ *       {@code \98} is 98 ({@code b}), {@code \t} is 9). The numeric types do not: they take a number
+ *       only.</li>
  *   <li>{@code true} / {@code false} are accepted for {@link BasicType#BOOLEAN} only</li>
  * </ul>
  *
- * <p>A bare digit is a number ({@code 4} is 4); to mean the character, escape its code point
- * ({@code \52} is {@code '4'}). Anything else of more than one character is rejected, so the
- * quoted form {@code '*'} is a usage error rather than a synonym for {@code *}.</p>
+ * <p>For char, a bare digit is a number ({@code 4} is code point 4); to mean the character, escape
+ * its code point ({@code \52} is {@code '4'}). A char value of more than one character is rejected,
+ * so the quoted form {@code '*'} is a usage error rather than a synonym for {@code *}.</p>
  */
 public final class PrimitiveReplacement {
 
@@ -50,6 +50,21 @@ public final class PrimitiveReplacement {
         }
     }
 
+    /**
+     * Normalizes a value for the flags that apply one replacement to every type
+     * ({@code --sanitize-all-replacement}, the deprecated {@code -t}): a character literal becomes its
+     * decimal code point, so the numeric types accept it as a number while {@link BasicType#CHAR}
+     * still reads that number as a code point. Any other value is returned unchanged. The per-type
+     * numeric flags do not call this, so a character literal remains a char-only form for them.
+     */
+    public static String toCodePointIfCharLiteral(final String value) {
+        if (StringUtils.isEmpty(value)) {
+            return value;
+        }
+        final Character character = asCharacterLiteral(value);
+        return character == null ? value : Integer.toString(character);
+    }
+
     public static byte[] encode(final BasicType type, final String value) {
         if (type == BasicType.OBJECT) {
             throw new IllegalArgumentException("Cannot sanitize OBJECT references");
@@ -72,7 +87,7 @@ public final class PrimitiveReplacement {
                 buffer.putDouble(parseDecimal(type, value));
                 break;
             case CHAR:
-                buffer.putChar((char) parseIntegral(type, value, Character.MIN_VALUE, Character.MAX_VALUE));
+                buffer.putChar((char) parseChar(value));
                 break;
             case BYTE:
                 buffer.put((byte) parseIntegral(type, value, Byte.MIN_VALUE, Byte.MAX_VALUE));
@@ -100,16 +115,12 @@ public final class PrimitiveReplacement {
         if ("false".equalsIgnoreCase(value)) {
             return false;
         }
-        final Character character = asCharacterLiteral(value);
-        if (character != null) {
-            return character != 0;
-        }
         // Accept any whole number: nonzero means true, zero means false.
         try {
             return Long.parseLong(value) != 0;
         } catch (final NumberFormatException e) {
             throw new IllegalArgumentException("Invalid boolean replacement value: " + value
-                    + ". Expected true, false, a number, or a single character such as * or \\0");
+                    + ". Expected true, false, or a number");
         }
     }
 
@@ -126,28 +137,37 @@ public final class PrimitiveReplacement {
     }
 
     private static long parseNumber(final BasicType type, final String value) {
-        final Character character = asCharacterLiteral(value);
-        if (character != null) {
-            return character;
-        }
         try {
             return Long.parseLong(value);
         } catch (final NumberFormatException e) {
             throw new IllegalArgumentException("Invalid " + lowerName(type) + " replacement value: " + value
-                    + ". Expected a whole number or a single character such as * or \\0");
+                    + ". Expected a whole number");
         }
     }
 
-    private static double parseDecimal(final BasicType type, final String value) {
+    /**
+     * The code point a {@link BasicType#CHAR} replacement denotes. Unlike the numeric types, char
+     * accepts a character literal ({@code *}, {@code \0}, {@code \98}) as well as a bare number.
+     */
+    private static int parseChar(final String value) {
         final Character character = asCharacterLiteral(value);
         if (character != null) {
             return character;
         }
+        final long parsed = parseNumber(BasicType.CHAR, value);
+        if (parsed < Character.MIN_VALUE || parsed > Character.MAX_VALUE) {
+            throw new IllegalArgumentException("Replacement value " + value + " is out of range for char. Expected "
+                    + (int) Character.MIN_VALUE + ".." + (int) Character.MAX_VALUE);
+        }
+        return (int) parsed;
+    }
+
+    private static double parseDecimal(final BasicType type, final String value) {
         try {
             return Double.parseDouble(value);
         } catch (final NumberFormatException e) {
             throw new IllegalArgumentException("Invalid " + lowerName(type) + " replacement value: " + value
-                    + ". Expected a number or a single character such as * or \\0");
+                    + ". Expected a number");
         }
     }
 

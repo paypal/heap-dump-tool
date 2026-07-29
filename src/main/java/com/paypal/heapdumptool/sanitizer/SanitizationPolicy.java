@@ -154,11 +154,15 @@ public class SanitizationPolicy {
         }
 
         /**
-         * Applies one user-supplied value to every primitive type, converted per type.
+         * Applies one user-supplied value to every primitive type, converted per type. A character
+         * literal is normalized to its code point so the numeric types accept it, since a character
+         * literal is otherwise a char-only form. See
+         * {@link PrimitiveReplacement#toCodePointIfCharLiteral(String)}.
          */
         public Builder setAllReplacements(final String value) {
+            final String normalized = PrimitiveReplacement.toCodePointIfCharLiteral(value);
             for (final BasicType type : PRIMITIVES) {
-                setReplacement(type, PrimitiveReplacement.encode(type, value));
+                setReplacement(type, PrimitiveReplacement.encode(type, normalized));
             }
             return this;
         }

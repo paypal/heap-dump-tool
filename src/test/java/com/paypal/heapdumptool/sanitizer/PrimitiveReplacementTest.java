@@ -46,22 +46,44 @@ class PrimitiveReplacementTest {
 
     @Test
     void testEncodeChars() {
-        // bare single character -> code point
+        // bare single character -> code point, for char only
         assertThat(encode(BasicType.CHAR, "*")).containsExactly(0x00, 0x2A);
         assertThat(encode(BasicType.CHAR, "a")).containsExactly(0x00, 0x61);
         assertThat(encode(BasicType.CHAR, "b")).containsExactly(0x00, 0x62);
-        // other types accept a character too
-        assertThat(encode(BasicType.BYTE, "*")).containsExactly(42);
-        assertThat(encode(BasicType.SHORT, "a")).containsExactly(0x00, 0x61);
+    }
+
+    @Test
+    void testNonCharTypesRejectCharacterLiterals() {
+        // a character literal is a char-only form; the numeric types take a number only
+        assertThatThrownBy(() -> encode(BasicType.BYTE, "*"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("byte");
+        assertThatThrownBy(() -> encode(BasicType.SHORT, "a"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("short");
+        assertThatThrownBy(() -> encode(BasicType.INT, "\\98"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("int");
+        assertThatThrownBy(() -> encode(BasicType.LONG, "\\0"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("long");
+        assertThatThrownBy(() -> encode(BasicType.FLOAT, "*"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("float");
+        assertThatThrownBy(() -> encode(BasicType.DOUBLE, "\\98"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("double");
+        assertThatThrownBy(() -> encode(BasicType.BOOLEAN, "*"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("boolean");
     }
 
     @Test
     void testEncodeEscapedChars() {
-        // \0 is NUL, not the number 0 -- and for char the two agree, so use a discriminating type
+        // \0 is NUL, not the number 0 -- and for char the two agree, so a discriminating escape too
         assertThat(encode(BasicType.CHAR, "\\0")).containsExactly(0x00, 0x00);
         // a backslash followed by digits is a DECIMAL code point: \98 is 'b', not octal 8
         assertThat(encode(BasicType.CHAR, "\\98")).containsExactly(0x00, 0x62);
-        assertThat(encode(BasicType.BYTE, "\\98")).containsExactly(98);
         assertThat(encode(BasicType.CHAR, "\\42")).containsExactly(0x00, 0x2A);
         // Java's named escapes still work
         assertThat(encode(BasicType.CHAR, "\\t")).containsExactly(0x00, 0x09);
@@ -72,22 +94,22 @@ class PrimitiveReplacementTest {
     }
 
     @Test
-    void testEscapedCharAppliesToEveryType() {
-        // \0 must mean the character NUL for every type, so a discriminating non-zero escape
-        assertThat(encode(BasicType.SHORT, "\\98")).containsExactly(0x00, 0x62);
-        assertThat(encode(BasicType.INT, "\\98")).containsExactly(0, 0, 0, 98);
-        assertThat(encode(BasicType.LONG, "\\98")).containsExactly(0, 0, 0, 0, 0, 0, 0, 98);
-        assertThat(encode(BasicType.FLOAT, "\\98")).containsExactly(0x42, 0xC4, 0x00, 0x00);
-        assertThat(encode(BasicType.BOOLEAN, "\\98")).containsExactly(1);
-        // NUL is falsy
-        assertThat(encode(BasicType.BOOLEAN, "\\0")).containsExactly(0);
+    void testCharAcceptsBareNumber() {
+        // char takes a plain number as a code point, as well as a character literal
+        assertThat(encode(BasicType.CHAR, "98")).containsExactly(0x00, 0x62);
+        assertThat(encode(BasicType.CHAR, "0")).containsExactly(0x00, 0x00);
+        // out of the char range is rejected
+        assertThatThrownBy(() -> encode(BasicType.CHAR, "70000"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("out of range for char");
     }
 
     @Test
-    void testBareDigitIsNumberEscapedDigitIsChar() {
+    void testBareDigitIsNumber() {
         assertThat(encode(BasicType.BYTE, "4")).containsExactly(4);
-        // to mean the character '4', escape its code point
-        assertThat(encode(BasicType.BYTE, "\\52")).containsExactly(52);
+        assertThat(encode(BasicType.CHAR, "4")).containsExactly(0x00, 0x04);
+        // to mean the character '4' rather than code point 4, escape its code point (char only)
+        assertThat(encode(BasicType.CHAR, "\\52")).containsExactly(0x00, 0x34);
     }
 
     @Test
@@ -138,11 +160,11 @@ class PrimitiveReplacementTest {
     }
 
     @Test
-    void testEscapedCharCanExceedNarrowerTypeRange() {
-        // the escape resolves to a code point, which then has to fit the target type
+    void testEscapeRejectedForNonCharType() {
+        // escapes are a char-only form now; byte takes a number only
         assertThatThrownBy(() -> encode(BasicType.BYTE, "\\200"))
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("out of range for byte");
+                .hasMessageContaining("byte");
     }
 
     @Test

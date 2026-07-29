@@ -28,7 +28,7 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     @Option(names = {"-d", DOCKER_REGISTRY_OPTION}, description = "docker registry hostname for bootstrapping heap-dump-tool docker image")
     private String dockerRegistry;
 
-    @Option(names = {"-a", "--tar-input"}, description = "Treat input as tar archive", arity = "1")
+    @Option(names = {"-a", "--tar-input"}, paramLabel = "<true|false>", description = "Treat input as tar archive", arity = "1")
     private boolean tarInput;
 
     @Option(names = {"-e", "--exclude-string-fields"},
@@ -41,6 +41,7 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
             description = "Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools render them correctly",
             defaultValue = "true",
             arity = "1",
+            paramLabel = "<true|false>",
             showDefaultValue = ALWAYS)
     // Suppose sanitizationText=*. If the coder value is not forced to match, the heap dump analyze tools like Eclipse
     // MAT might display escaped "\\u2A" (where 2A is ascii value) for Strings with coder==1. By forcing the coder value to
