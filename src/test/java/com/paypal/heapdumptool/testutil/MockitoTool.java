@@ -1,4 +1,4 @@
-package com.paypal.heapdumptool.fixture;
+package com.paypal.heapdumptool.testutil;
 
 import org.mockito.MockedConstruction;
 import org.mockito.stubbing.Answer;

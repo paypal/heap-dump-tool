@@ -1,5 +1,9 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.fixture.AliasedStringFixture;
+import com.paypal.heapdumptool.fixture.AllPrimitivesFixture;
+import com.paypal.heapdumptool.fixture.Hprof;
+import com.paypal.heapdumptool.fixture.StringFixture;
 import com.paypal.heapdumptool.utils.DataSize;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -7,15 +11,16 @@ import picocli.CommandLine;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.EnumMap;
 import java.util.List;
-import java.util.Map;
 
+import static com.paypal.heapdumptool.fixture.AllPrimitivesFixture.ALL_PRIMITIVES;
+import static com.paypal.heapdumptool.fixture.AllPrimitivesFixture.ARRAY_LENGTH;
+import static com.paypal.heapdumptool.fixture.AllPrimitivesFixture.UNSANITIZED_BYTE;
+import static com.paypal.heapdumptool.fixture.Hprof.ID_SIZE;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.util.Arrays.asList;
 import static org.apache.commons.lang3.ArrayUtils.EMPTY_STRING_ARRAY;
@@ -32,31 +37,6 @@ import static org.assertj.core.api.Assertions.assertThatCode;
  * offset recorded while building the input is also valid in the output.</p>
  */
 class HeapDumpSanitizerSyntheticTest {
-
-    private static final int ID_SIZE = 8;
-
-    // heap dump sub-record tags
-    private static final int CLASS_DUMP = 0x20;
-    private static final int INSTANCE_DUMP = 0x21;
-    private static final int PRIMITIVE_ARRAY_DUMP = 0x23;
-
-    /**
-     * The 8 sanitizable primitive types. {@link BasicType#OBJECT} is deliberately absent: object
-     * references are never sanitizable.
-     */
-    private static final BasicType[] ALL_PRIMITIVES = {
-            BasicType.BYTE, BasicType.BOOLEAN, BasicType.CHAR, BasicType.SHORT,
-            BasicType.INT, BasicType.FLOAT, BasicType.LONG, BasicType.DOUBLE
-    };
-
-    private static final int ARRAY_LENGTH = 4;
-
-    /**
-     * Fill byte for every payload in {@link AllPrimitivesFixture}. Chosen to differ from every
-     * byte of every type's default replacement (0x00 and 0x2A), so a preserved region and a
-     * sanitized region can never be confused.
-     */
-    private static final int UNSANITIZED_BYTE = 0x5A;
 
     // ---------------------------------------------------------------------------------------------
     // Finding 1: a replacement whose big-endian encoding contains 0xFF
@@ -220,7 +200,7 @@ class HeapDumpSanitizerSyntheticTest {
         // -f defaults to true and byte arrays are sanitized by default, but -e preserves THIS array
         final byte[] output = sanitize(input.toByteArray(),
                 "--force-string-coder-match=true",
-                "--exclude-string-fields=com.example.Holder#secret");
+                "--exclude-string-fields=" + AliasedStringFixture.EXCLUDE_TARGET);
 
         assertThat(region(output, base + dataOffset, utf16.length))
                 .as("the -e excluded backing array must be preserved")
@@ -228,6 +208,120 @@ class HeapDumpSanitizerSyntheticTest {
         assertThat(output[base + instanceOffset + relativeCoderOffset])
                 .as("forcing LATIN1 over a surviving UTF16 array is mojibake at double length")
                 .isEqualTo((byte) 1);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // -e / -f independence
+    // ---------------------------------------------------------------------------------------------
+
+    /**
+     * {@code -e} selects which fields to preserve and {@code -f} controls how {@code String.coder}
+     * is rewritten. They are logically independent, so {@code -f=false} must not silently disable
+     * {@code -e}. The step they used to share is the instance-id -> backing-array-id bridge: only
+     * the String field walk learns which {@code byte[]} an excluded String points at, and that walk
+     * used to be reachable only when {@code -f=true}. Without the bridge the excluded array is
+     * sanitized like any other and the value the user asked to keep is destroyed.
+     */
+    @Test
+    @DisplayName("testExcludedStringSurvivesWhenForceMatchDisabled. -e must be honored under -f=false")
+    void testExcludedStringSurvivesWhenForceMatchDisabled() throws Exception {
+        final AliasedStringFixture fixture = new AliasedStringFixture();
+
+        final byte[] output = sanitize(fixture.input,
+                "--force-string-coder-match=false",
+                "--exclude-string-fields=" + AliasedStringFixture.EXCLUDE_TARGET);
+
+        assertThat(region(output, fixture.arrayOffset, AliasedStringFixture.UTF16.length))
+                .as("the -e excluded backing array must be preserved regardless of -f")
+                .containsExactly(0, 'h', 0, 'i');
+        assertThat(output[fixture.excludedCoderOffset])
+                .as("-f=false must still pipe String.coder through unchanged")
+                .isEqualTo((byte) 1);
+    }
+
+    /**
+     * The array-scoped half of the same split. {@code -e} preservation is keyed by the backing
+     * array's id, but the coder decision used to be keyed by the String instance's id. On JDK 9+
+     * two Strings can share one backing {@code byte[]} -- {@code new String(String)},
+     * {@code substring(0)} and other zero-copy paths all alias it -- so a non-excluded String can
+     * sit over an array that was preserved on another String's behalf. Forcing its coder to LATIN1
+     * then reinterprets each surviving UTF-16 code unit as two characters: mojibake at double
+     * length, in a String whose bytes were in fact preserved.
+     */
+    @Test
+    @DisplayName("testAliasedBackingArrayKeepsItsCoder. A non-excluded String aliasing a preserved array keeps coder 1")
+    void testAliasedBackingArrayKeepsItsCoder() throws Exception {
+        final AliasedStringFixture fixture = new AliasedStringFixture();
+
+        final byte[] output = sanitize(fixture.input,
+                "--force-string-coder-match=true",
+                "--exclude-string-fields=" + AliasedStringFixture.EXCLUDE_TARGET);
+
+        assertThat(region(output, fixture.arrayOffset, AliasedStringFixture.UTF16.length))
+                .as("the -e excluded backing array must be preserved")
+                .containsExactly(0, 'h', 0, 'i');
+        assertThat(output[fixture.excludedCoderOffset])
+                .as("the excluded String's own coder must survive")
+                .isEqualTo((byte) 1);
+        assertThat(output[fixture.aliasCoderOffset])
+                .as("the aliasing String shares the surviving UTF16 array, so LATIN1 would be mojibake")
+                .isEqualTo((byte) 1);
+    }
+
+    /**
+     * {@code -e} names String-typed fields, but the declared type was never checked: the exclusion
+     * arm always consumed one object id for the field while the ledger subtracted the field's real
+     * width. Point {@code -e} at a 1-byte field and the walk over-reads by 7, every following field
+     * is mis-sliced, the sub-record boundary is lost, and the run aborts on a garbage tag leaving a
+     * truncated output file.
+     */
+    @Test
+    @DisplayName("testExcludeOnANonReferenceFieldKeepsTheStreamAligned. -e on a primitive field must not over-read")
+    void testExcludeOnANonReferenceFieldKeepsTheStreamAligned() throws Exception {
+        final long classId = 1000;
+        final byte[] trailing = {0x5A, 0x5A, 0x5A, 0x5A};
+
+        final Hprof input = new Hprof().header();
+        input.stringInUtf8(70, "com.example.Prim");
+        input.stringInUtf8(71, "marker");
+        input.stringInUtf8(72, "payload");
+        input.loadClass(1, classId, 70);
+
+        final Hprof body = new Hprof();
+        // marker is a 1-byte field, payload an 8-byte one: an id-width read of marker eats 7 bytes
+        // of payload, so a drifted cursor shows up in both regions
+        body.classDump(classId, 0, new int[]{71, 72},
+                new BasicType[]{BasicType.BYTE, BasicType.LONG});
+
+        final Hprof instance = new Hprof();
+        final int relativeMarkerOffset = instance.offset();
+        instance.fill(UNSANITIZED_BYTE, 1);
+        final int relativePayloadOffset = instance.offset();
+        instance.fill(UNSANITIZED_BYTE, Long.BYTES);
+        final int instanceOffset = body.instanceDump(0xA000, classId, instance.toByteArray());
+
+        // a sub-record AFTER the instance: if the boundary is lost, this is what gets eaten
+        final int trailingOffset = body.primitiveArrayDump(0xA100, BasicType.BYTE, trailing);
+        final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
+
+        // byte FIELDS in scope, byte ARRAYS out of scope, so each region below has a distinct
+        // expected value and a drifted cursor cannot coincidentally satisfy them
+        final byte[][] output = new byte[1][];
+        assertThatCode(() -> output[0] = sanitize(input.toByteArray(),
+                "--target=byte-fields",
+                "--exclude-string-fields=com.example.Prim#marker"))
+                .as("a non-reference -e target must not desynchronize the stream")
+                .doesNotThrowAnyException();
+
+        assertThat(region(output[0], base + instanceOffset + relativeMarkerOffset, 1))
+                .as("a non-reference -e target is not a String value, so it is sanitized normally")
+                .containsExactly(0x2A);
+        assertThat(region(output[0], base + instanceOffset + relativePayloadOffset, Long.BYTES))
+                .as("the long field is out of scope and must be piped through intact")
+                .containsExactly(unsanitized(Long.BYTES));
+        assertThat(region(output[0], base + trailingOffset, trailing.length))
+                .as("the following sub-record must still be parsed at its own boundary")
+                .containsExactly(unsanitized(trailing.length));
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -740,70 +834,6 @@ class HeapDumpSanitizerSyntheticTest {
                 .containsExactly(unsanitized(numBytes));
     }
 
-    /**
-     * One instance with exactly one field of each of the 8 primitive types, plus one primitive
-     * array dump of each of the 8 types. Every payload byte is {@link #UNSANITIZED_BYTE}, which
-     * differs from every type's default replacement, so "sanitized" and "preserved" are
-     * distinguishable byte for byte.
-     */
-    private static final class AllPrimitivesFixture {
-
-        private static final long CLASS_ID = 900;
-        private static final long INSTANCE_ID = 0x9000;
-        private static final long FIRST_ARRAY_ID = 0x9100;
-
-        private final byte[] input;
-        private final Map<BasicType, Integer> fieldOffsets = new EnumMap<>(BasicType.class);
-        private final Map<BasicType, Integer> arrayOffsets = new EnumMap<>(BasicType.class);
-
-        private AllPrimitivesFixture() throws IOException {
-            final Hprof hprof = new Hprof().header();
-            hprof.stringInUtf8(90, "com.example.AllPrimitives");
-
-            final int[] fieldNameStringIds = new int[ALL_PRIMITIVES.length];
-            for (int i = 0; i < ALL_PRIMITIVES.length; i++) {
-                fieldNameStringIds[i] = 91 + i;
-                hprof.stringInUtf8(fieldNameStringIds[i], "field" + ALL_PRIMITIVES[i].name());
-            }
-            hprof.loadClass(1, CLASS_ID, 90);
-
-            final Hprof body = new Hprof();
-            body.classDump(CLASS_ID, 0, fieldNameStringIds, ALL_PRIMITIVES);
-
-            final Hprof instance = new Hprof();
-            final Map<BasicType, Integer> relativeFieldOffsets = new EnumMap<>(BasicType.class);
-            for (final BasicType type : ALL_PRIMITIVES) {
-                relativeFieldOffsets.put(type, instance.offset());
-                instance.fill(UNSANITIZED_BYTE, type.getValueSize(ID_SIZE));
-            }
-            final int instanceOffset = body.instanceDump(INSTANCE_ID, CLASS_ID, instance.toByteArray());
-
-            final Map<BasicType, Integer> relativeArrayOffsets = new EnumMap<>(BasicType.class);
-            for (int i = 0; i < ALL_PRIMITIVES.length; i++) {
-                final BasicType type = ALL_PRIMITIVES[i];
-                final byte[] data = new byte[ARRAY_LENGTH * type.getValueSize(ID_SIZE)];
-                Arrays.fill(data, (byte) UNSANITIZED_BYTE);
-                relativeArrayOffsets.put(type, body.primitiveArrayDump(FIRST_ARRAY_ID + i, type, data));
-            }
-
-            final int base = hprof.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
-            this.input = hprof.toByteArray();
-
-            for (final BasicType type : ALL_PRIMITIVES) {
-                fieldOffsets.put(type, base + instanceOffset + relativeFieldOffsets.get(type));
-                arrayOffsets.put(type, base + relativeArrayOffsets.get(type));
-            }
-        }
-
-        private int fieldOffset(final BasicType type) {
-            return fieldOffsets.get(type);
-        }
-
-        private int arrayOffset(final BasicType type) {
-            return arrayOffsets.get(type);
-        }
-    }
-
     @Test
     @DisplayName("testPreprocessingOnlyProducesNoOutput. the metadata pass must consume the dump and write nothing")
     void testPreprocessingOnlyProducesNoOutput() throws IOException {
@@ -956,202 +986,4 @@ class HeapDumpSanitizerSyntheticTest {
         return unsigned;
     }
 
-    /**
-     * A minimal JDK9+ {@code java.lang.String}: {@code byte[] value}, {@code int hash},
-     * {@code byte coder}, plus the {@code byte[]} the value field points at.
-     */
-    private static final class StringFixture {
-
-        private static final long STRING_CLASS_ID = 500;
-        private static final long STRING_OBJECT_ID = 0x5000;
-        private static final long VALUE_ARRAY_ID = 0x1234;
-
-        private final byte[] input;
-        private final int coderOffset;
-        private final int valueIdOffset;
-        private final int hashOffset;
-
-        private StringFixture(final int coder) throws IOException {
-            final Hprof hprof = new Hprof().header();
-            hprof.stringInUtf8(20, String.class.getName());
-            hprof.stringInUtf8(21, "value");
-            hprof.stringInUtf8(22, "hash");
-            hprof.stringInUtf8(23, "coder");
-            hprof.loadClass(1, STRING_CLASS_ID, 20);
-
-            final Hprof body = new Hprof();
-            body.classDump(STRING_CLASS_ID, 0,
-                    new int[]{21, 22, 23},
-                    new BasicType[]{BasicType.OBJECT, BasicType.INT, BasicType.BYTE});
-
-            // "hi" as UTF16-BE, i.e. what a coder==1 String looks like
-            body.primitiveArrayDump(VALUE_ARRAY_ID, BasicType.BYTE, new byte[]{0, 'h', 0, 'i'});
-
-            final Hprof instance = new Hprof();
-            final int relativeValueIdOffset = instance.offset();
-            instance.id(VALUE_ARRAY_ID);
-            final int relativeHashOffset = instance.offset();
-            instance.u4(0x0BADC0DE);
-            final int relativeCoderOffset = instance.offset();
-            instance.u1(coder);
-
-            final int instanceOffset = body.instanceDump(STRING_OBJECT_ID, STRING_CLASS_ID, instance.toByteArray());
-            final int base = hprof.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
-
-            this.input = hprof.toByteArray();
-            this.valueIdOffset = base + instanceOffset + relativeValueIdOffset;
-            this.hashOffset = base + instanceOffset + relativeHashOffset;
-            this.coderOffset = base + instanceOffset + relativeCoderOffset;
-        }
-    }
-
-    /**
-     * Builds hprof bytes. Also used for record and sub-record bodies, where {@link #offset()} is
-     * relative to the start of that body.
-     */
-    private static final class Hprof {
-
-        private final ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        private final DataOutputStream out = new DataOutputStream(buffer);
-
-        private int offset() {
-            return out.size();
-        }
-
-        private byte[] toByteArray() throws IOException {
-            out.flush();
-            return buffer.toByteArray();
-        }
-
-        private Hprof header() throws IOException {
-            out.write("JAVA PROFILE 1.0.2".getBytes(US_ASCII));
-            out.write(0);
-            out.writeInt(ID_SIZE);
-            out.writeInt(0); // timestamp high word
-            out.writeInt(0); // timestamp low word
-            return this;
-        }
-
-        private void u1(final int value) throws IOException {
-            out.writeByte(value);
-        }
-
-        private void u2(final int value) throws IOException {
-            out.writeShort(value);
-        }
-
-        private void u4(final long value) throws IOException {
-            out.writeInt((int) value);
-        }
-
-        private void id(final long value) throws IOException {
-            out.writeLong(value);
-        }
-
-        private void fill(final int value, final int count) throws IOException {
-            for (int i = 0; i < count; i++) {
-                out.writeByte(value);
-            }
-        }
-
-        /**
-         * Writes a top level {@code tag / time / length / body} record and returns the absolute
-         * offset at which the body starts.
-         */
-        private int record(final int tag, final Hprof body) throws IOException {
-            final byte[] bytes = body.toByteArray();
-            u1(tag);
-            u4(0); // time
-            u4(bytes.length);
-            final int base = offset();
-            out.write(bytes);
-            return base;
-        }
-
-        private void stringInUtf8(final long stringId, final String value) throws IOException {
-            final Hprof body = new Hprof();
-            body.id(stringId);
-            body.out.write(value.getBytes(US_ASCII));
-            record(HeapRecord.STRING_IN_UTF8.getTag(), body);
-        }
-
-        private void loadClass(final int serial, final long classObjectId, final long nameStringId) throws IOException {
-            final Hprof body = new Hprof();
-            body.u4(serial);
-            body.id(classObjectId);
-            body.u4(0); // stack trace serial
-            body.id(nameStringId);
-            record(HeapRecord.LOAD_CLASS.getTag(), body);
-        }
-
-        private void classDump(final long classObjectId,
-                               final long superClassObjectId,
-                               final int[] fieldNameStringIds,
-                               final BasicType[] fieldTypes) throws IOException {
-            u1(CLASS_DUMP);
-            id(classObjectId);
-            u4(0); // stack trace serial
-            id(superClassObjectId);
-            id(0); // class loader
-            id(0); // signers
-            id(0); // protection domain
-            id(0); // reserved
-            id(0); // reserved
-            u4(0); // instance size
-            u2(0); // constant pool records
-            u2(0); // static fields
-            u2(fieldNameStringIds.length);
-            for (int i = 0; i < fieldNameStringIds.length; i++) {
-                id(fieldNameStringIds[i]);
-                u1(fieldTypes[i].getU1Code());
-            }
-        }
-
-        /**
-         * Writes an instance dump sub-record and returns the offset of the first payload byte,
-         * relative to the start of this builder.
-         */
-        private int instanceDump(final long objectId, final long classObjectId, final byte[] payload) throws IOException {
-            u1(INSTANCE_DUMP);
-            id(objectId);
-            u4(0); // stack trace serial
-            id(classObjectId);
-            u4(payload.length);
-            final int payloadOffset = offset();
-            out.write(payload);
-            return payloadOffset;
-        }
-
-        /**
-         * Writes a primitive array dump sub-record and returns the offset of the first element
-         * byte, relative to the start of this builder.
-         */
-        private int primitiveArrayDump(final long objectId, final BasicType elementType, final byte[] data) throws IOException {
-            u1(PRIMITIVE_ARRAY_DUMP);
-            id(objectId);
-            u4(0); // stack trace serial
-            u4(data.length / elementType.getValueSize(ID_SIZE));
-            u1(elementType.getU1Code());
-            final int dataOffset = offset();
-            out.write(data);
-            return dataOffset;
-        }
-
-        /**
-         * OBJECT ARRAY DUMP 0x22: array object id, u4 stack trace serial, u4 number of elements,
-         * ID array class id, then one ID per element. Returns the offset of the first element.
-         */
-        int objectArrayDump(final long arrayObjectId, final long arrayClassId, final long... elementIds) throws IOException {
-            out.writeByte(0x22);
-            out.writeLong(arrayObjectId);
-            out.writeInt(0);
-            out.writeInt(elementIds.length);
-            out.writeLong(arrayClassId);
-            final int offset = offset();
-            for (final long elementId : elementIds) {
-                out.writeLong(elementId);
-            }
-            return offset;
-        }
-    }
 }

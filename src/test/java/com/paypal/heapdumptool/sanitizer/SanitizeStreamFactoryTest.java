@@ -1,6 +1,6 @@
 package com.paypal.heapdumptool.sanitizer;
 
-import com.paypal.heapdumptool.fixture.ResourceTool;
+import com.paypal.heapdumptool.testutil.ResourceTool;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;

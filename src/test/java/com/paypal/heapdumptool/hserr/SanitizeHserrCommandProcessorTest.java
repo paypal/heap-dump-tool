@@ -1,6 +1,6 @@
 package com.paypal.heapdumptool.hserr;
 
-import com.paypal.heapdumptool.fixture.ResourceTool;
+import com.paypal.heapdumptool.testutil.ResourceTool;
 import com.paypal.heapdumptool.sanitizer.SanitizeStreamFactory;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

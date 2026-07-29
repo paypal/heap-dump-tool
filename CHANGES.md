@@ -20,6 +20,9 @@
   still accepts a character literal and applies it as its code point across every type.
 - `-f, --force-string-coder-match` has been improved: it rewrites a `String`'s `coder` field only when that string's
   backing `byte[]` is actually being sanitized.
+- Fix `-e, --exclude-string-fields` being silently ignored when `-f, --force-string-coder-match=false`.
+- Fix sanitizing string that shares its backing `byte[]` with an excluded string.
+- Fix `-e, --exclude-string-fields` truncating the output when it names a primitive field.
 - **Breaking change**: option abbreviations like `--zi` for `--zip-output` are no longer accepted. Spell out in full.
 - Options are now listed in a more logical order rather than alphabetically.
 - Command-line usage errors now prints the explanation plus usage help and exits 2; stack trace no more.
