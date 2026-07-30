@@ -1,6 +1,7 @@
 package com.paypal.heapdumptool.capture;
 
 import com.paypal.heapdumptool.cli.CliCommand;
+import com.paypal.heapdumptool.sanitizer.OptionOrder;
 import com.paypal.heapdumptool.sanitizer.SanitizeOrCaptureCommandBase;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
@@ -13,41 +14,63 @@ import java.util.List;
 
 import static picocli.CommandLine.Help.Visibility.ALWAYS;
 
+// sortOptions = false: see the note on SanitizeCommand. Order values come from OptionOrder, shared
+// with SanitizeOrCaptureCommandBase and the SanitizeOptions mixin.
 @Command(name = "capture",
         description = {
                 "Capture sanitized heap dump of a containerized app",
                 "Plain thread dump is also captured"
         },
-        abbreviateSynopsis = true)
+        abbreviateSynopsis = true, sortOptions = false)
 public class CaptureCommand extends SanitizeOrCaptureCommandBase implements CliCommand {
 
     static final String DOCKER_REGISTRY_OPTION = "--docker-registry";
     static final String SKIP_DOCKER_PULL = "--skip-docker-pull";
 
+    // capture's own options list after every shared one; see OptionOrder
+    private static final int PID_ORDER = OptionOrder.CAPTURE_COMMAND_BASE;
+    private static final int HEAP_CMD_ORDER = OptionOrder.CAPTURE_COMMAND_BASE + 10;
+    private static final int HEAP_OPTIONS_ORDER = OptionOrder.CAPTURE_COMMAND_BASE + 20;
+    private static final int THREAD_CMD_ORDER = OptionOrder.CAPTURE_COMMAND_BASE + 30;
+    private static final int THREAD_OPTIONS_ORDER = OptionOrder.CAPTURE_COMMAND_BASE + 40;
+    private static final int SKIP_DOCKER_PULL_ORDER = OptionOrder.CAPTURE_COMMAND_BASE + 50;
+
     // to allow field injection from picocli, these variables can't be final
 
-    @Option(names = {SKIP_DOCKER_PULL}, description = "skip pulling latest docker image")
+    @Option(names = {SKIP_DOCKER_PULL},
+            order = SKIP_DOCKER_PULL_ORDER,
+            description = "skip pulling latest docker image")
     private boolean skipDockerPull;
 
     @Parameters(index = "0", description = "Container name")
     private String containerName;
 
-    @Option(names = { "-p", "--pid" }, description = "Pid within the container, if there are multiple Java processes")
+    @Option(names = { "-p", "--pid" },
+            order = PID_ORDER,
+            description = "Pid within the container, if there are multiple Java processes")
     private Long pid;
 
-    @Option(names = { "--heap-cmd" }, description = "Command to capture heap dump", defaultValue = "jcmd PID GC.heap_dump FILE_PATH", showDefaultValue = ALWAYS)
+    @Option(names = { "--heap-cmd" },
+            order = HEAP_CMD_ORDER,
+            description = "Command to capture heap dump", defaultValue = "jcmd PID GC.heap_dump FILE_PATH", showDefaultValue = ALWAYS)
     // e.g. set --heap-cmd "jcmd PID GC.heap_dump -all FILE_PATH" to pass -all flag to jcmd heap dump
     private List<String> heapCmd = new ArrayList<>(Collections.singletonList("jcmd PID GC.heap_dump FILE_PATH"));
 
-    @Option(names = { "--heap-options" }, description = "Options to heap dump command", defaultValue = "", showDefaultValue = ALWAYS)
+    @Option(names = { "--heap-options" },
+            order = HEAP_OPTIONS_ORDER,
+            description = "Options to heap dump command", defaultValue = "", showDefaultValue = ALWAYS)
     // e.g. set --heap-options -all to pass -all flag to jcmd heap dump
     private List<String> heapOptions = new ArrayList<>();
 
-    @Option(names = { "--thread-cmd" }, description = "Command to capture thread dump", defaultValue = "jcmd PID Thread.print -l", showDefaultValue = ALWAYS)
+    @Option(names = { "--thread-cmd" },
+            order = THREAD_CMD_ORDER,
+            description = "Command to capture thread dump", defaultValue = "jcmd PID Thread.print -l", showDefaultValue = ALWAYS)
     // e.g. set --thread-cmd "jcmd 1 Thread.dump_to_file -format=json -" to thread dump in json format
     private List<String> threadCmd = new ArrayList<>(Collections.singletonList("jcmd PID Thread.print -l"));
 
-    @Option(names = { "--thread-option" }, description = "Options to thread dump command", defaultValue = "", showDefaultValue = ALWAYS)
+    @Option(names = { "--thread-option" },
+            order = THREAD_OPTIONS_ORDER,
+            description = "Options to thread dump command", defaultValue = "", showDefaultValue = ALWAYS)
     private List<String> threadOptions = new ArrayList<>();
 
     @Override

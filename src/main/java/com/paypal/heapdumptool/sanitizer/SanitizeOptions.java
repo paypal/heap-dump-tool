@@ -45,6 +45,7 @@ public class SanitizeOptions {
     // terminal width and indents the continuation, which splits a column layout mid-row. Verified
     // against picocli 4.7.5.
     @Option(names = "--target", paramLabel = "<selectors>",
+            order = OptionOrder.TARGET,
             description = {
                     "What to sanitize: a comma-separated list applied left to right. Default: all",
                     "Selectors: all, none, <type>, <type>-fields, <type>-arrays, fields, arrays."
@@ -65,6 +66,7 @@ public class SanitizeOptions {
     }
 
     @Option(names = "--replacement", paramLabel = "<type>=<value>",
+            order = OptionOrder.REPLACEMENT,
             description = {
                     "Replacement values for sanitization: comma-separated <type>=<value> entries"
                             + " applied left to right.",

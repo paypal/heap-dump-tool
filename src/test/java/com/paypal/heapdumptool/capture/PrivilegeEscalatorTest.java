@@ -134,7 +134,7 @@ public class PrivilegeEscalatorTest {
             "--bogus-option",           // unknown option
             "-b nonsense",              // bad option value
             "--replacement=byte=300", // out-of-range option value
-            "--ta"                     // ambiguous abbreviation
+            "--targ=all"                // abbreviations are not accepted
     })
     public void testUsageErrorIsNotReportedHere(final String badArg) throws Exception {
         expectInDockerContainer(true);
@@ -197,7 +197,6 @@ public class PrivilegeEscalatorTest {
         final CommandLine commandLine = new CommandLine(new Application());
         commandLine.setUsageHelpWidth(120);
         commandLine.registerConverter(DataSize.class, DataSize::parse);
-        commandLine.setAbbreviatedOptionsAllowed(true);
         return commandLine;
     }
 

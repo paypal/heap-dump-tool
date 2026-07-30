@@ -50,7 +50,6 @@ public class ApplicationTest {
             "--bogus-option                   | Unknown option: '--bogus-option'",
             "-b nonsense                      | Invalid value for option '--buffer-size'",
             "--replacement=byte=300           | is out of range for byte",
-            "--ta                             | '--ta' is not unique",
     })
     public void testUsageErrorPrintsUsageMessage(final String badArg,
                                                  final String expectedMessage,
@@ -64,6 +63,22 @@ public class ApplicationTest {
         assertThat(output.getErr())
                 .contains(expectedMessage)
                 .contains("Usage: heap-dump-tool sanitize [OPTIONS] <inputFile> <outputFile>")
+                .doesNotContain("\tat com.paypal.heapdumptool"); // no stack trace
+    }
+
+    /**
+     * Abbreviations are not accepted, so {@code --targ} is simply an unknown option. picocli prints
+     * the near-miss options in place of the usage block when it has suggestions to offer, which is
+     * why this cannot ride along in {@link #testUsageErrorPrintsUsageMessage}.
+     */
+    @Test
+    public void testAbbreviatedOptionIsRejected(final CapturedOutput output) throws Exception {
+        final int exitCode = runApplication("sanitize", "--targ=all", "in.hprof", "out.hprof");
+
+        assertThat(exitCode).isEqualTo(CommandLine.ExitCode.USAGE);
+        assertThat(output.getErr())
+                .contains("Unknown option: '--targ=all'")
+                .contains("Possible solutions: --tar-input, --target")
                 .doesNotContain("\tat com.paypal.heapdumptool"); // no stack trace
     }
 

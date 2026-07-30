@@ -148,13 +148,16 @@ Usage: heap-dump-tool sanitize [OPTIONS] <inputFile> <outputFile>
 Sanitize a heap dump by replacing primitive field and array contents
       <inputFile>            Input heap dump .hprof. File or stdin
       <outputFile>           Output heap dump .hprof file
-  -a, --tar-input=<true|false>
-                             Treat input as tar archive
-  -b, --buffer-size=<bufferSize>
-                             Buffer size for reading and writing
-                               Default: 100MB
-  -d, --docker-registry=<dockerRegistry>
-                             docker registry hostname for bootstrapping heap-dump-tool docker image
+      --target=<selectors>   What to sanitize: a comma-separated list applied left to right. Default: all
+                             Selectors: all, none, <type>, <type>-fields, <type>-arrays, fields, arrays. <type> alone
+                               means type's primitive fields and array fields; 'fields' or 'arrays' means type's
+                               primitive fields or array fields only
+                             Prefix an entry with '-' to deselect it, e.g. --target=all,-ints
+                             <type> is byte, short, int, long, char, float, double or boolean
+      --replacement=<type>=<value>
+                             Replacement values for sanitization: comma-separated <type>=<value> entries applied left
+                               to right.
+                             Defaults: all=0,byte=42,char=*,boolean=false
   -e, --exclude-string-fields=<excludeStringFields>
                              String fields to exclude from sanitization. Value in com.example.MyClass#fieldName format
                                Default: java.lang.Thread#name,java.lang.ThreadGroup#name
@@ -162,23 +165,20 @@ Sanitize a heap dump by replacing primitive field and array contents
                              Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools
                                render them correctly
                                Default: true
-      --replacement=<type>=<value>
-                             Replacement values for sanitization: comma-separated <type>=<value> entries applied left
-                               to right.
-                             Defaults: all=0,byte=42,char=*,boolean=false
+  -a, --tar-input=<true|false>
+                             Treat input as tar archive
+  -z, --zip-output           Write zipped output
+                               Default: false
+  -b, --buffer-size=<bufferSize>
+                             Buffer size for reading and writing
+                               Default: 100MB
+  -d, --docker-registry=<dockerRegistry>
+                             docker registry hostname for bootstrapping heap-dump-tool docker image
   -s, --sanitize-byte-char-arrays-only=<true|false>
                              Deprecated. Use --target=byte-arrays,char-arrays instead
   -t, --text=<text>          Deprecated. Use --replacement=all=<value> instead. Supports a single ASCII character only
   -T, --text-charset=<charset>
                              Deprecated and ignored. Replacement values are now typed per primitive
-      --target=<selectors>   What to sanitize: a comma-separated list applied left to right. Default: all
-                             Selectors: all, none, <type>, <type>-fields, <type>-arrays, fields, arrays. <type> alone
-                               means type's primitive fields and array fields; 'fields' or 'arrays' means type's
-                               primitive fields or array fields only
-                             Prefix an entry with '-' to deselect it, e.g. --target=all,-ints
-                             <type> is byte, short, int, long, char, float, double or boolean
-  -z, --zip-output           Write zipped output
-                               Default: false
 ```
 
 ### Explanation of options
@@ -204,7 +204,7 @@ Sanitize a heap dump by replacing primitive field and array contents
     GUI tools.
 
 * `--target=<selectors>`
-  * What to sanitize: a comma-separated list applied left to right over a base of `none`. Defaults to `all`.
+  * What to sanitize: a comma-separated list applied left to right. Defaults to `all`.
     Prefix an entry with `-` to subtract it.
 
     | Selector | Also accepted | Means |
@@ -217,8 +217,8 @@ Sanitize a heap dump by replacing primitive field and array contents
     | `field` | `fields` | every primitive-typed field, no array contents |
     | `array` | `arrays` | the contents of every primitive array, no fields |
 
-    `<type>` is one of `byte`, `short`, `int`, `long`, `char`, `float`, `double`, `boolean`; a trailing `s` is
-    ignored. `all` and `none` are singular only.
+    `<type>` is one of `byte`, `short`, `int`, `long`, `char`, `float`, `double`, `boolean`; a trailing `s` on a type
+    name is ignored.
 
   ```
   --target=all                          # the default
@@ -233,70 +233,30 @@ Sanitize a heap dump by replacing primitive field and array contents
 
 * `--replacement=<type>=<value>,...`
   * Replacement values for sanitization, as comma-separated `<type>=<value>` entries applied left to right.
-    `<type>` is `all` or a primitive type name; a trailing `s` on a type name is ignored, but `all` is singular only.
+    `<type>` is `all` or a primitive type name; a trailing `s` on a type name is ignored.
 
-    | Value | Meaning | Example |
-    | --- | --- | --- |
-    | a decimal number | that numeric value | `int=42` is 42 |
-    | a lone non-digit character | that character's code point; `char` and `all` only | `char=*` is 42, `char=a` is 97 |
-    | a backslash escape | the character it denotes; `char` and `all` only | `char=\0` is 0, `char=\98` is `b`, `char=\t` is 9 |
-    | `true` / `false` | boolean only | `boolean=true` |
+    | Value | Meaning | Example                                             |
+    | --- | --- |-----------------------------------------------------|
+    | a decimal number | that numeric value | `int=42` is 42                                      |
+    | a single non-digit character | that character's code point; `char` and `all` only | `char=*`, `char=a`                                  |
+    | a backslash escape | the character it denotes; `char` and `all` only | `char=\0` is 0, `char=\98` is `b`, `char=\t` is tab |
+    | `true` / `false` | boolean only | `boolean=true`                                      |
 
   * Character literals like `*` are accepted by `char` and by `all`.
   * Fractional values like `0.5` are only accepted by `float` and `double`.
   * Defaults: `byte=42` (the `*` character), `char=*`, `boolean=false`, everything else `0`.
-  * `all=<value>` sets every type from one value, converted per type. `--replacement=all=*` yields `byte=42`,
+  * `all=<value>` sets every type from one value, converted per type. e.g. `--replacement=all=*` means `byte=42`,
     `short=42`, `int=42`, `long=42`, `char=*`, `float=42.0`, `double=42.0`, `boolean=true`.
-  * Like `--target`, `--replacement` takes its whole list in one value and cannot be repeated.
+  * Like `--target`, `--replacement` cannot be passed multiple times.
 
   ```
-  --replacement=all=0                   # the pre-1.4.0 fill
+  --replacement=all=0                   # sanitize with null byte
   --replacement=all=0,char=*            # every type 0, then char back to *
   --replacement=int=42,byte=0
   ```
 
 * `-z, --zip-output` 
   * When set, output heap dump is compressed in zip format.
-
-#### Selectors are resolved left to right
-
-Within one `--target` value, a later entry overrides an earlier one:
-
-```
-# sanitize short fields only
-$ java -jar heap-dump-tool.jar sanitize --target=short-fields in.hprof out.hprof
-
-# sanitize nothing: 'none' comes last and clears the earlier entry
-$ java -jar heap-dump-tool.jar sanitize --target=short-fields,none in.hprof out.hprof
-```
-
-The same rule applies within `--replacement`: `--replacement=all=0,int=7` gives ints 7 and everything else 0.
-
-Deprecated flags still resolve against the new ones by position on the command line, since both record into the same
-ordered list. `-s=true --target=int-arrays` and `--target=int-arrays -s=true` therefore differ.
-
-#### Deprecated options
-
-Each deprecated flag prints a warning and is then applied at its position on the command line, exactly as though the
-equivalent new flags had been typed there.
-
-| Deprecated flag | Applied as |
-| --- | --- |
-| `-s, --sanitize-byte-char-arrays-only=true` | `--target=byte-arrays,char-arrays` |
-| `-s, --sanitize-byte-char-arrays-only=false` | `--target=all` |
-| `-t, --text=<char>` | `--replacement=all=\<code point>`, so the value is always treated as a character: `-t 4` means the character `'4'` (52), not the number 4. The value is first passed through Java escape unescaping, then must be **a single ASCII character**; anything else is a usage error. So `-t '\0'` (byte `0x00`, the old default) and `-t '\t'` (`0x09`) are accepted even though they are two characters as typed, while `-t ab` and `-t abc` are rejected. This is deliberately narrower than the old contract, which took arbitrary text. |
-| `-T, --text-charset=<charset>` | Nothing. Replacement values are typed per primitive, so no charset is involved. The value is ignored. |
-
-`-f, --force-string-coder-match` and `-e, --exclude-string-fields` are **not** deprecated; both keep their names and
-defaults. `-e`'s behavior is unchanged. `-f`'s is narrower: previously `-f=true` rewrote the `coder` field of *every*
-`String` instance in the dump, whereas it now rewrites it only for strings whose backing `byte[]` is actually being
-sanitized - so it is a no-op when `byte[]` is out of scope, and it is skipped for the individual strings `-e` preserves.
-See [`-f` above](#explanation-of-options) for why.
-
-#### A note on abbreviated options
-
-The CLI accepts unambiguous option abbreviations, so `--targ` works for `--target` and `--rep` for `--replacement`.
-`--tar` is ambiguous between `--target` and `--tar-input` and is rejected; spell out at least `--targ`.
 
 ### CLI FAQ
 

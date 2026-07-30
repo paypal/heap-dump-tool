@@ -23,8 +23,12 @@
   field only when that string's backing `byte[]` is actually being sanitized. It is therefore a no-op when `byte[]` is
   out of scope, and it is skipped for the individual strings `-e, --exclude-string-fields` preserves, whose original
   coder would otherwise be overwritten and render as garbage.
-- Fix command-line usage errors being reported as a Java stack trace and exit code 1. An unknown option, a malformed
-  option value or an ambiguous abbreviation now prints the explanation plus usage help and exits 2.
+- **Breaking change**: option abbreviations are no longer accepted. `--targ` previously resolved to `--target`;
+  it is now an unknown option, and the error lists the options it could have meant. Spell options out in full.
+- Options are now listed in a logical order rather than alphabetically: what to sanitize (`--target`,
+  `--replacement`) first, then what to spare, then input/output, with the deprecated flags last.
+- Fix command-line usage errors being reported as a Java stack trace and exit code 1. An unknown option or a malformed
+  option value now prints the explanation plus usage help and exits 2.
 - Deprecate `-s, --sanitize-byte-char-arrays-only`, `-t, --text` and `-T, --text-charset`. Each prints a warning and is
   still applied at its position on the command line; `-t` now unescapes Java escape sequences and then accepts a single
   ASCII character only (so `-t '\0'` and `-t '\t'` work, `-t abc` does not), and `-T` is ignored.
