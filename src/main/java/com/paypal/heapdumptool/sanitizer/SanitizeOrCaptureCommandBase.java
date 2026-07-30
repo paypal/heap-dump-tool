@@ -49,7 +49,7 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     private boolean forceMatchStringCoder;
 
     @Mixin
-    private SanitizeOptions sanitizeOptions = new SanitizeOptions();
+    private final SanitizeOptions sanitizeOptions = new SanitizeOptions();
 
     private StringFieldMap excludeStringFieldMap;
 
@@ -61,15 +61,14 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     @Option(names = {"-s", "--sanitize-byte-char-arrays-only"},
             arity = "1",
             paramLabel = "<true|false>",
-            description = "Deprecated. Use --sanitize-all, --sanitize-byte-arrays, and "
-                    + "--sanitize-char-arrays instead")
+            description = "Deprecated. Use --target=byte-arrays,char-arrays instead")
     void setLegacySanitizeByteCharArraysOnly(final boolean byteCharArraysOnly) {
         sanitizeOptions.recordLegacyByteCharArraysOnly(byteCharArraysOnly);
     }
 
     @Option(names = {"-t", "--text"},
             paramLabel = "<text>",
-            description = "Deprecated. Use --sanitize-all-replacement instead. "
+            description = "Deprecated. Use --replacement=all=<value> instead. "
                     + "Supports a single ASCII character only")
     void setLegacySanitizationText(final String text) {
         sanitizeOptions.recordLegacyText(text);

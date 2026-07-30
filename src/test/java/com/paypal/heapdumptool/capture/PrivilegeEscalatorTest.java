@@ -133,8 +133,8 @@ public class PrivilegeEscalatorTest {
     @ValueSource(strings = {
             "--bogus-option",           // unknown option
             "-b nonsense",              // bad option value
-            "--sanitize-byte-replacement=300", // out-of-range option value
-            "--s-a"                     // ambiguous abbreviation
+            "--replacement=byte=300", // out-of-range option value
+            "--ta"                     // ambiguous abbreviation
     })
     public void testUsageErrorIsNotReportedHere(final String badArg) throws Exception {
         expectInDockerContainer(true);

@@ -164,7 +164,7 @@ class HeapDumpSanitizerTest {
         assertThat(instance).isNotNull();
         assertThat(staticFields).isNotNull();
 
-        byte[] sanitizedHeapDump = loadSanitizedHeapDump("--sanitize-all=true");
+        byte[] sanitizedHeapDump = loadSanitizedHeapDump("--target=all");
         verifyDoesNotContainsSequence(sanitizedHeapDump, nCopiesLongToBytes(deadcow(), 100));
         assertThat(countOfSequence(sanitizedHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
                 .isLessThan(1000);
@@ -176,9 +176,7 @@ class HeapDumpSanitizerTest {
         {
             // scoped to byte/char arrays only: no non-array field is in scope, so the long
             // instance fields and the long static fields both survive
-            final byte[] clearHeapDump = loadSanitizedHeapDump("--sanitize-all=false",
-                                                               "--sanitize-byte-arrays=true",
-                                                               "--sanitize-char-arrays=true");
+            final byte[] clearHeapDump = loadSanitizedHeapDump("--target=byte-arrays,char-arrays");
             assertThat(clearHeapDump)
                     .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
                     .containsSequence(nCopiesLongToBytes(deadcow(), 500));
@@ -189,10 +187,9 @@ class HeapDumpSanitizerTest {
     }
 
     @Test
-    @DisplayName("testOnlySelectedArrayTypeIsSanitized. One --sanitize-X-arrays flag affects only X")
+    @DisplayName("testOnlySelectedArrayTypeIsSanitized. One --target selector affects only that type")
     void testOnlySelectedArrayTypeIsSanitized() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=false",
-                                                      "--sanitize-int-arrays=true");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=int-arrays");
 
         verifyDoesNotContainsSequence(heapDump, secretArrays.getIntArraySequence());
 
@@ -208,25 +205,23 @@ class HeapDumpSanitizerTest {
     }
 
     /**
-     * The whole point of recording flags in command-line order: {@code --sanitize-all} last wins.
+     * The whole point of recording flags in command-line order: later flags win.
      * Only this end-to-end path exercises the real picocli setup, where {@code Application.main}
      * parses the same command object twice, so replaying the recorded flags must stay idempotent
      * as well as ordered.
      */
     @Test
-    @DisplayName("testOrderMattersAllAfterSpecific. --sanitize-all last overwrites earlier opt-outs")
+    @DisplayName("testOrderMattersAllAfterSpecific. Later selectors override earlier ones")
     void testOrderMattersAllAfterSpecific() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-int-arrays=false",
-                                                      "--sanitize-all=true");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=int-arrays,all");
 
         verifyDoesNotContainsSequence(heapDump, secretArrays.getIntArraySequence());
     }
 
     @Test
-    @DisplayName("testOrderMattersSpecificAfterAll. A later per-type flag overrides --sanitize-all")
+    @DisplayName("testOrderMattersSpecificAfterAll. A later subtraction overrides earlier inclusion")
     void testOrderMattersSpecificAfterAll() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=true",
-                                                      "--sanitize-int-arrays=false");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=all,-int-arrays");
 
         assertThat(heapDump)
                 .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
@@ -239,10 +234,10 @@ class HeapDumpSanitizerTest {
 
     /**
      * The legacy migration contract. {@code -s=true} must mean exactly
-     * {@code --sanitize-all=false --sanitize-byte-arrays=true --sanitize-char-arrays=true}: byte[]
-     * and char[] wiped, WHILE the other six primitive array types and every non-array primitive
-     * field survive the same run. That positive selectivity is what the pre-feature suite proved
-     * and what the new all-on default no longer expresses anywhere else.
+     * {@code --target=byte-arrays,char-arrays}: byte[] and char[] wiped, WHILE the other six
+     * primitive array types and every non-array primitive field survive the same run. That positive
+     * selectivity is what the pre-feature suite proved and what the new all-on default no longer
+     * expresses anywhere else.
      */
     @Test
     @DisplayName("testLegacyByteCharArraysOnlyStillWorks. Deprecated -s=true maps to byte/char arrays only")
@@ -268,21 +263,20 @@ class HeapDumpSanitizerTest {
     }
 
     /**
-     * {@code --sanitize-ints} is the FIELD flag and {@code --sanitize-int-arrays} is the ARRAY
-     * flag; they are independent. Opting int fields out of an otherwise all-on run must leave int
-     * fields intact while the other seven field types, and every array type including
+     * {@code --target=int-fields} is the FIELD selector and {@code --target=int-arrays} is the ARRAY
+     * selector; they are independent. Opting int fields out of an otherwise all-on run must leave
+     * int fields intact while the other seven field types, and every array type including
      * {@code int[]}, are still wiped.
      */
     @Test
-    @DisplayName("testPerTypeFieldOptOutIsHonored. --sanitize-all=true --sanitize-ints=false keeps int fields only")
+    @DisplayName("testPerTypeFieldOptOutIsHonored. --target=all,-int-fields keeps int fields only")
     void testPerTypeFieldOptOutIsHonored() throws Exception {
         final Object intFields = new ClassWithManyIntFields();
         final Object longFields = new ClassWithManyInstanceFields();
         assertThat(intFields).isNotNull();
         assertThat(longFields).isNotNull();
 
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=true",
-                                                      "--sanitize-ints=false");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=all,-int-fields");
 
         assertThat(heapDump)
                 .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
@@ -317,9 +311,9 @@ class HeapDumpSanitizerTest {
     }
 
     @Test
-    @DisplayName("testSanitizeAllFalseSanitizesNothing. --sanitize-all=false leaves every primitive array intact")
+    @DisplayName("testSanitizeAllFalseSanitizesNothing. --target=none leaves every primitive array intact")
     void testSanitizeAllFalseSanitizesNothing() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=false");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=none");
         assertThat(heapDump)
                 .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
                 .containsSequence(secretArrays.getByteArraySequence())
@@ -340,7 +334,7 @@ class HeapDumpSanitizerTest {
         // rejects them, aborting the run and truncating the output.
         final long longReplacement = 1234829916808609672L;
 
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-long-replacement=" + longReplacement);
+        final byte[] heapDump = loadSanitizedHeapDump("--replacement=long=" + longReplacement);
 
         verifyDoesNotContainsSequence(heapDump, secretArrays.getLongArraySequence());
         // the secret long[] is SecretArrays.LENGTH elements, so the replacement tiles it exactly
@@ -358,9 +352,8 @@ class HeapDumpSanitizerTest {
         // replacement(INT) would go undetected.
         final int intReplacement = 0x11223344;
 
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=false",
-                                                      "--sanitize-int-arrays=true",
-                                                      "--sanitize-int-replacement=" + intReplacement);
+        final byte[] heapDump = loadSanitizedHeapDump("--target=int-arrays",
+                                                      "--replacement=int=" + intReplacement);
 
         verifyDoesNotContainsSequence(heapDump, secretArrays.getIntArraySequence());
 

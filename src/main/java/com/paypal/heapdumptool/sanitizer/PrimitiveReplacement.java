@@ -52,10 +52,11 @@ public final class PrimitiveReplacement {
 
     /**
      * Normalizes a value for the flags that apply one replacement to every type
-     * ({@code --sanitize-all-replacement}, the deprecated {@code -t}): a character literal becomes its
-     * decimal code point, so the numeric types accept it as a number while {@link BasicType#CHAR}
-     * still reads that number as a code point. Any other value is returned unchanged. The per-type
-     * numeric flags do not call this, so a character literal remains a char-only form for them.
+     * ({@code --replacement=all=<value>}, the deprecated {@code -t}): a character literal becomes
+     * its decimal code point, so the numeric types accept it as a number while
+     * {@link BasicType#CHAR} still reads that number as a code point. Any other value is returned
+     * unchanged. Per-type entries in the replacement list (e.g. {@code int=42}) do not call this,
+     * so a character literal remains a char-only form for them.
      */
     public static String toCodePointIfCharLiteral(final String value) {
         if (StringUtils.isEmpty(value)) {

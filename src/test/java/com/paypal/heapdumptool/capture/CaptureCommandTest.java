@@ -31,7 +31,7 @@ public class CaptureCommandTest {
         final CaptureCommand captureCommand = new CaptureCommand();
         new CommandLine(captureCommand)
                 .registerConverter(DataSize.class, DataSize::parse)
-                .parseArgs("-s=true", "--sanitize-int-arrays=true", "my-container");
+                .parseArgs("-s=true", "--target=byte-arrays,char-arrays,int-arrays", "my-container");
 
         final SanitizeCommand sanitizeCommand = new SanitizeCommand();
         sanitizeCommand.copyFrom(captureCommand);
@@ -52,7 +52,7 @@ public class CaptureCommandTest {
         final CaptureCommand captureCommand = new CaptureCommand();
         new CommandLine(captureCommand)
                 .registerConverter(DataSize.class, DataSize::parse)
-                .parseArgs("--sanitize-all=false", "my-container");
+                .parseArgs("--target=none", "my-container");
 
         final SanitizeCommand sanitizeCommand = new SanitizeCommand();
         assertThat(sanitizeCommand.getSanitizationPolicy().isAnyFieldSanitized()).isTrue();

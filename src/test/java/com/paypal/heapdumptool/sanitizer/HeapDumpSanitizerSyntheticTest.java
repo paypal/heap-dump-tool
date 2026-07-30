@@ -69,7 +69,7 @@ class HeapDumpSanitizerSyntheticTest {
         final Hprof input = new Hprof().header();
         final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
 
-        final byte[] output = sanitize(input.toByteArray(), "--sanitize-byte-replacement=-1");
+        final byte[] output = sanitize(input.toByteArray(), "--replacement=byte=-1");
 
         assertThat(region(output, base + dataOffset, 4))
                 .containsExactly(0xFF, 0xFF, 0xFF, 0xFF);
@@ -84,7 +84,7 @@ class HeapDumpSanitizerSyntheticTest {
         final Hprof input = new Hprof().header();
         final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
 
-        final byte[] output = sanitize(input.toByteArray(), "--sanitize-long-replacement=-1");
+        final byte[] output = sanitize(input.toByteArray(), "--replacement=long=-1");
 
         final int[] expected = new int[3 * Long.BYTES];
         Arrays.fill(expected, 0xFF);
@@ -103,7 +103,7 @@ class HeapDumpSanitizerSyntheticTest {
         final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
 
         // -2 encodes as 0xFFFE: contains 0xFF, and is asymmetric so a misalignment by one byte shows
-        final byte[] output = sanitize(input.toByteArray(), "--sanitize-short-replacement=-2");
+        final byte[] output = sanitize(input.toByteArray(), "--replacement=short=-2");
 
         final int[] expected = new int[numElements * Short.BYTES];
         for (int i = 0; i < numElements; i++) {
@@ -157,7 +157,7 @@ class HeapDumpSanitizerSyntheticTest {
         final StringFixture fixture = new StringFixture(1);
 
         final byte[] output = sanitize(fixture.input,
-                "--force-string-coder-match=true", "--sanitize-byte-arrays=false");
+                "--force-string-coder-match=true", "--target=all,-byte-arrays");
 
         assertThat(output[fixture.coderOffset])
                 .as("the original UTF16 payload survives, so forcing LATIN1 would produce mojibake")
@@ -165,12 +165,12 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testCoderPipedThroughUnderSanitizeAllFalse. --sanitize-all=false leaves String.coder alone")
+    @DisplayName("testCoderPipedThroughUnderSanitizeAllFalse. --target=none leaves String.coder alone")
     void testCoderPipedThroughUnderSanitizeAllFalse() throws Exception {
         final StringFixture fixture = new StringFixture(1);
 
         final byte[] output = sanitize(fixture.input,
-                "--force-string-coder-match=true", "--sanitize-all=false");
+                "--force-string-coder-match=true", "--target=none");
 
         assertThat(output[fixture.coderOffset]).isEqualTo((byte) 1);
     }
@@ -462,11 +462,11 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testSanitizeAllFalsePreservesEveryFieldAndArray. --sanitize-all=false sanitizes nothing")
+    @DisplayName("testSanitizeAllFalsePreservesEveryFieldAndArray. --target=none sanitizes nothing")
     void testSanitizeAllFalsePreservesEveryFieldAndArray() throws Exception {
         final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
-        final byte[] output = sanitize(fixture.input, "--sanitize-all=false");
+        final byte[] output = sanitize(fixture.input, "--target=none");
 
         for (final BasicType type : ALL_PRIMITIVES) {
             assertFieldPreserved(output, fixture, type);
@@ -475,13 +475,13 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testEachArrayFlagAffectsOnlyItsOwnArrayType. --sanitize-X-arrays wipes X[] and nothing else")
+    @DisplayName("testEachArrayFlagAffectsOnlyItsOwnArrayType. --target=X-arrays wipes X[] and nothing else")
     void testEachArrayFlagAffectsOnlyItsOwnArrayType() throws Exception {
         for (final BasicType selected : ALL_PRIMITIVES) {
             final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
             final byte[] output = sanitize(fixture.input,
-                    "--sanitize-all=false", arrayFlag(selected) + "=true");
+                    arrayTarget(selected));
 
             for (final BasicType type : ALL_PRIMITIVES) {
                 if (type == selected) {
@@ -496,13 +496,13 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testEachFieldFlagAffectsOnlyItsOwnFieldType. --sanitize-Xs wipes X fields and nothing else")
+    @DisplayName("testEachFieldFlagAffectsOnlyItsOwnFieldType. --target=X-fields wipes X fields and nothing else")
     void testEachFieldFlagAffectsOnlyItsOwnFieldType() throws Exception {
         for (final BasicType selected : ALL_PRIMITIVES) {
             final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
             final byte[] output = sanitize(fixture.input,
-                    "--sanitize-all=false", fieldFlag(selected) + "=true");
+                    fieldTarget(selected));
 
             for (final BasicType type : ALL_PRIMITIVES) {
                 if (type == selected) {
@@ -522,11 +522,11 @@ class HeapDumpSanitizerSyntheticTest {
      * {@code testPerTypeFieldOptOutIsHonored} end to end.
      */
     @Test
-    @DisplayName("testFieldOptOutLeavesTheSameTypesArrayInScope. --sanitize-all=true --sanitize-ints=false keeps int fields only")
+    @DisplayName("testFieldOptOutLeavesTheSameTypesArrayInScope. --target=all,-int-fields keeps int arrays only")
     void testFieldOptOutLeavesTheSameTypesArrayInScope() throws Exception {
         final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
-        final byte[] output = sanitize(fixture.input, "--sanitize-all=true", "--sanitize-ints=false");
+        final byte[] output = sanitize(fixture.input, "--target=all,-int-fields");
 
         assertFieldPreserved(output, fixture, BasicType.INT);
         assertArraySanitized(output, fixture, BasicType.INT);
@@ -540,23 +540,23 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testOrderMattersAllAfterSpecific. --sanitize-all last overwrites an earlier opt-out")
+    @DisplayName("testOrderMattersAllAfterSpecific. all last in --target overwrites an earlier opt-out")
     void testOrderMattersAllAfterSpecific() throws Exception {
         final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
         final byte[] output = sanitize(fixture.input,
-                "--sanitize-int-arrays=false", "--sanitize-all=true");
+                "--target=int-arrays,all");
 
         assertArraySanitized(output, fixture, BasicType.INT);
     }
 
     @Test
-    @DisplayName("testOrderMattersSpecificAfterAll. A later per-type flag overrides --sanitize-all")
+    @DisplayName("testOrderMattersSpecificAfterAll. A later per-type flag in --target overrides all")
     void testOrderMattersSpecificAfterAll() throws Exception {
         final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
         final byte[] output = sanitize(fixture.input,
-                "--sanitize-all=true", "--sanitize-int-arrays=false");
+                "--target=all,-int-arrays");
 
         assertArrayPreserved(output, fixture, BasicType.INT);
         // every other array type is still in scope
@@ -566,7 +566,7 @@ class HeapDumpSanitizerSyntheticTest {
 
     /**
      * The legacy migration contract: {@code -s=true} means exactly
-     * {@code --sanitize-all=false --sanitize-byte-arrays=true --sanitize-char-arrays=true}, so
+     * {@code --target=byte-arrays,char-arrays}, so
      * byte[] and char[] are wiped WHILE the other six array types and every non-array field
      * survive. Mirrors {@code testLegacyByteCharArraysOnlyStillWorks} end to end.
      */
@@ -589,14 +589,14 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testLegacyByteCharArraysOnlyFalseSanitizesEverything. -s=false means --sanitize-all=true")
+    @DisplayName("testLegacyByteCharArraysOnlyFalseSanitizesEverything. -s=false means --target=all")
     void testLegacyByteCharArraysOnlyFalseSanitizesEverything() throws Exception {
         final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
-        // The leading --sanitize-all=false is what makes this test discriminate: all-16-sanitized is
+        // The leading --target=none is what makes this test discriminate: all-16-sanitized is
         // the DEFAULT baseline, so "-s=false" alone would pass even if it were a complete no-op.
         // Turning everything off first means -s=false has to turn everything back on, in order.
-        final byte[] output = sanitize(fixture.input, "--sanitize-all=false", "-s=false");
+        final byte[] output = sanitize(fixture.input, "--target=none", "-s=false");
 
         for (final BasicType type : ALL_PRIMITIVES) {
             assertFieldSanitized(output, fixture, type);
@@ -605,7 +605,7 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testIntArrayReplacementValueIsTiled. --sanitize-int-replacement fills int[] with that value")
+    @DisplayName("testIntArrayReplacementValueIsTiled. --replacement=int=<value> fills int[] with that value")
     void testIntArrayReplacementValueIsTiled() throws Exception {
         final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
@@ -614,9 +614,8 @@ class HeapDumpSanitizerSyntheticTest {
         // byte-identical to four copies of the byte default, so fetching replacement(BYTE) instead of
         // replacement(INT) would go undetected.
         final byte[] output = sanitize(fixture.input,
-                "--sanitize-all=false",
-                "--sanitize-int-arrays=true",
-                "--sanitize-int-replacement=" + 0x11223344);
+                "--target=int-arrays",
+                "--replacement=int=" + 0x11223344);
 
         final int[] expected = new int[ARRAY_LENGTH * Integer.BYTES];
         for (int i = 0; i < expected.length; i += Integer.BYTES) {
@@ -655,50 +654,12 @@ class HeapDumpSanitizerSyntheticTest {
     // helpers
     // ---------------------------------------------------------------------------------------------
 
-    private static String fieldFlag(final BasicType type) {
-        switch (type) {
-            case BYTE:
-                return "--sanitize-bytes";
-            case CHAR:
-                return "--sanitize-chars";
-            case SHORT:
-                return "--sanitize-shorts";
-            case INT:
-                return "--sanitize-ints";
-            case LONG:
-                return "--sanitize-longs";
-            case FLOAT:
-                return "--sanitize-floats";
-            case DOUBLE:
-                return "--sanitize-doubles";
-            case BOOLEAN:
-                return "--sanitize-booleans";
-            default:
-                throw new IllegalArgumentException("" + type);
-        }
+    private static String fieldTarget(final BasicType type) {
+        return "--target=" + type.name().toLowerCase() + "-fields";
     }
 
-    private static String arrayFlag(final BasicType type) {
-        switch (type) {
-            case BYTE:
-                return "--sanitize-byte-arrays";
-            case CHAR:
-                return "--sanitize-char-arrays";
-            case SHORT:
-                return "--sanitize-short-arrays";
-            case INT:
-                return "--sanitize-int-arrays";
-            case LONG:
-                return "--sanitize-long-arrays";
-            case FLOAT:
-                return "--sanitize-float-arrays";
-            case DOUBLE:
-                return "--sanitize-double-arrays";
-            case BOOLEAN:
-                return "--sanitize-boolean-arrays";
-            default:
-                throw new IllegalArgumentException("" + type);
-        }
+    private static String arrayTarget(final BasicType type) {
+        return "--target=" + type.name().toLowerCase() + "-arrays";
     }
 
     /**

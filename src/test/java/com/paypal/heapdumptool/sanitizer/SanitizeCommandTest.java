@@ -23,8 +23,7 @@ public class SanitizeCommandTest {
 
     @Test
     public void testSanitizationPolicyFromCommandLine() {
-        final SanitizeCommand command = parse("--sanitize-all=false",
-                                              "--sanitize-byte-arrays=true",
+        final SanitizeCommand command = parse("--target=byte-arrays",
                                               "in.hprof", "out.hprof");
 
         final SanitizationPolicy policy = command.getSanitizationPolicy();
@@ -43,13 +42,13 @@ public class SanitizeCommandTest {
 
     @Test
     public void testLegacyAndNewFlagsInterleaveOnRealCommand() {
-        final SanitizationPolicy policy = parse("-s=true", "--sanitize-int-arrays=true",
+        final SanitizationPolicy policy = parse("-s=true", "--target=byte-arrays,char-arrays,int-arrays",
                                                 "in.hprof", "out.hprof").getSanitizationPolicy();
         assertThat(policy.sanitizeArray(BasicType.INT)).isTrue();
         assertThat(policy.sanitizeArray(BasicType.BYTE)).isTrue();
 
         // reverse order: the legacy flag comes last and wipes the int-array opt-in
-        final SanitizationPolicy reversed = parse("--sanitize-int-arrays=true", "-s=true",
+        final SanitizationPolicy reversed = parse("--target=int-arrays", "-s=true",
                                                  "in.hprof", "out.hprof").getSanitizationPolicy();
         assertThat(reversed.sanitizeArray(BasicType.INT)).isFalse();
     }
@@ -143,10 +142,10 @@ public class SanitizeCommandTest {
         final CommandLine commandLine = new CommandLine(command)
                 .registerConverter(DataSize.class, DataSize::parse);
 
-        commandLine.parseArgs("--sanitize-all=false", "in.hprof", "out.hprof");
+        commandLine.parseArgs("--target=none", "in.hprof", "out.hprof");
         assertThat(command.getSanitizationPolicy().isAnyFieldSanitized()).isFalse();
 
-        commandLine.parseArgs("--sanitize-all=true", "in.hprof", "out.hprof");
+        commandLine.parseArgs("--target=all", "in.hprof", "out.hprof");
         assertThat(command.getSanitizationPolicy().isAnyFieldSanitized()).isTrue();
     }
 
@@ -156,7 +155,7 @@ public class SanitizeCommandTest {
      */
     @Test
     public void testCopyFromSelfPreservesEverything() {
-        final SanitizeCommand command = parse("--sanitize-all=false", "--sanitize-char-arrays=true",
+        final SanitizeCommand command = parse("--target=char-arrays",
                                               "-T=UTF-8", "in.hprof", "out.hprof");
 
         command.copyFrom(command);

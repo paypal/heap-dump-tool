@@ -49,8 +49,8 @@ public class ApplicationTest {
     @CsvSource(delimiter = '|', value = {
             "--bogus-option                   | Unknown option: '--bogus-option'",
             "-b nonsense                      | Invalid value for option '--buffer-size'",
-            "--sanitize-byte-replacement=300  | is out of range for byte",
-            "--s-a                            | '--s-a' is not unique",
+            "--replacement=byte=300           | is out of range for byte",
+            "--ta                             | '--ta' is not unique",
     })
     public void testUsageErrorPrintsUsageMessage(final String badArg,
                                                  final String expectedMessage,
