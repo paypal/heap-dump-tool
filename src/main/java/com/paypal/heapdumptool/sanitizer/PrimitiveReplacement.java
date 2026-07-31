@@ -109,6 +109,64 @@ public final class PrimitiveReplacement {
         return buffer.array();
     }
 
+    /**
+     * Renders encoded replacement bytes back as a value of this grammar, so a logged or printed
+     * policy can be pasted straight back into {@code --replacement}. The inverse of
+     * {@link #encode(BasicType, String)} for the values it accepts: a char becomes the character
+     * itself when printable ASCII and a {@code \<code point>} escape otherwise.
+     *
+     * @throws IllegalArgumentException if the bytes are not exactly the type's width
+     */
+    public static String decode(final BasicType type, final byte[] bytes) {
+        if (type == BasicType.OBJECT) {
+            throw new IllegalArgumentException("Cannot sanitize OBJECT references");
+        }
+        final int width = type.getValueSize(ID_SIZE_UNUSED);
+        if (bytes.length != width) {
+            throw new IllegalArgumentException("Expected " + width + " bytes for " + lowerName(type)
+                    + ", got " + bytes.length);
+        }
+
+        final ByteBuffer buffer = ByteBuffer.wrap(bytes);
+        switch (type) {
+            case BOOLEAN:
+                return Boolean.toString(buffer.get() != 0);
+            case FLOAT:
+                return Float.toString(buffer.getFloat());
+            case DOUBLE:
+                return Double.toString(buffer.getDouble());
+            case CHAR:
+                return renderChar(buffer.getChar());
+            case BYTE:
+                return Byte.toString(buffer.get());
+            case SHORT:
+                return Short.toString(buffer.getShort());
+            case INT:
+                return Integer.toString(buffer.getInt());
+            case LONG:
+                return Long.toString(buffer.getLong());
+            default:
+                throw new IllegalArgumentException("Unknown basic type: " + type);
+        }
+    }
+
+    /**
+     * A char as the shortest form of this grammar that denotes it, chosen so the result parses back
+     * to the same char. A printable non-digit ASCII character stands for itself; everything else
+     * becomes its decimal code point escape -- a digit would read back as a number rather than a
+     * character, a control or non-ASCII character would not survive a log file or terminal intact,
+     * and {@code ,} {@code =} {@code \} are the punctuation of the surrounding
+     * {@code --replacement} list.
+     */
+    private static String renderChar(final char character) {
+        final boolean printableAscii = character > ' ' && character < 0x7F;
+        final boolean punctuation = character == ',' || character == '=' || character == '\\';
+        if (printableAscii && !punctuation && !Character.isDigit(character)) {
+            return Character.toString(character);
+        }
+        return "\\" + (int) character;
+    }
+
     private static boolean parseBoolean(final String value) {
         if ("true".equalsIgnoreCase(value)) {
             return true;

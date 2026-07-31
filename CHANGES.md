@@ -27,6 +27,9 @@
   it is now an unknown option, and the error lists the options it could have meant. Spell options out in full.
 - Options are now listed in a logical order rather than alphabetically: what to sanitize (`--target`,
   `--replacement`) first, then what to spare, then input/output, with the deprecated flags last.
+- `sanitize` now logs the resolved sanitization scope and replacement values on startup, written as `--target` and
+  `--replacement` values that reproduce the run. Useful when the policy comes from the deprecated flags, whose effect
+  depends on their position on the command line.
 - Fix command-line usage errors being reported as a Java stack trace and exit code 1. An unknown option or a malformed
   option value now prints the explanation plus usage help and exits 2.
 - Deprecate `-s, --sanitize-byte-char-arrays-only`, `-t, --text` and `-T, --text-charset`. Each prints a warning and is

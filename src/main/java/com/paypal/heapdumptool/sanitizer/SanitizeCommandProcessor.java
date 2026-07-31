@@ -42,9 +42,11 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         if (streamFactory.isStdinInput() && !command.getExcludeStringFields().isEmpty()) {
             throw new IllegalArgumentException("stdin input and excludeStringFields cannot be both set to true simultaneously");
         }
-        for (final String warning : command.getSanitizationPolicy().getWarnings()) {
+        final SanitizationPolicy policy = command.getSanitizationPolicy();
+        for (final String warning : policy.getWarnings()) {
             LOGGER.info("WARNING: {}", warning);
         }
+        logSanitizationPolicy(policy);
 
         final Instant now = Instant.now();
 
@@ -59,6 +61,21 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
             sanitize(sanitizer, inputStream, outputStream);
         }
         LOGGER.info("Finished heap dump sanitization in {}", getFriendlyDuration(now));
+    }
+
+    /**
+     * Logs what this run will sanitize and what it will write over it, in the flag syntax that
+     * produced it. The deprecated flags, and the order they were combined in, make the resolved
+     * policy hard to predict from the command line alone, so the log records the outcome. Both lines
+     * are valid flag values: pasting them back reproduces the run.
+     *
+     * <p>Logged before the preprocessing pass rather than beside the input and output files, because
+     * preprocessing reads the whole dump and takes minutes on a large one. Whoever is watching
+     * should see what the run is about to do before that wait, not after it.</p>
+     */
+    private static void logSanitizationPolicy(final SanitizationPolicy policy) {
+        LOGGER.info("Sanitization targets: --target={}", policy.describeTargets());
+        LOGGER.info("Replacement values: --replacement={}", policy.describeReplacements());
     }
 
     private HeapDumpSanitizer applyPreprocessing() throws IOException {

@@ -268,6 +268,17 @@ Set `--target=byte-arrays,char-arrays`. The behavior mimics that of versions pri
 Because `--target` defaults to `all`, every primitive field is overwritten. Subtract the types you want to keep, e.g.
 `--target=all,-int-fields,-long-fields`.
 
+**Q: How do I tell what a run actually sanitized?**
+Every `sanitize` run logs the resolved scope and replacement values on startup, before it reads the dump:
+
+```
+INFO SanitizeCommandProcessor - Sanitization targets: --target=char-arrays,byte-arrays
+INFO SanitizeCommandProcessor - Replacement values: --replacement=boolean=false,char=*,float=0.0,[...]
+```
+
+Both lines are valid flag values, so pasting them into a later command reproduces the same run. This is the reliable
+way to read a policy assembled from the deprecated flags, whose effect depends on where they sit on the command line.
+
 
 <a name="library-usage"></a>
 

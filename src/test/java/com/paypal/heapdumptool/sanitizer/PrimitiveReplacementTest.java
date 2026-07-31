@@ -2,6 +2,7 @@ package com.paypal.heapdumptool.sanitizer;
 
 import org.junit.jupiter.api.Test;
 
+import static com.paypal.heapdumptool.sanitizer.PrimitiveReplacement.decode;
 import static com.paypal.heapdumptool.sanitizer.PrimitiveReplacement.defaultFor;
 import static com.paypal.heapdumptool.sanitizer.PrimitiveReplacement.defaultValueText;
 import static com.paypal.heapdumptool.sanitizer.PrimitiveReplacement.encode;
@@ -226,6 +227,75 @@ class PrimitiveReplacementTest {
     @Test
     void testObjectTypeRejected() {
         assertThatThrownBy(() -> encode(BasicType.OBJECT, "0"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("OBJECT");
+    }
+
+    @Test
+    void testDecodeDefaults() {
+        assertThat(decode(BasicType.BYTE, defaultFor(BasicType.BYTE))).isEqualTo("42");
+        assertThat(decode(BasicType.CHAR, defaultFor(BasicType.CHAR))).isEqualTo("*");
+        assertThat(decode(BasicType.SHORT, defaultFor(BasicType.SHORT))).isEqualTo("0");
+        assertThat(decode(BasicType.INT, defaultFor(BasicType.INT))).isEqualTo("0");
+        assertThat(decode(BasicType.LONG, defaultFor(BasicType.LONG))).isEqualTo("0");
+        assertThat(decode(BasicType.FLOAT, defaultFor(BasicType.FLOAT))).isEqualTo("0.0");
+        assertThat(decode(BasicType.DOUBLE, defaultFor(BasicType.DOUBLE))).isEqualTo("0.0");
+        assertThat(decode(BasicType.BOOLEAN, defaultFor(BasicType.BOOLEAN))).isEqualTo("false");
+    }
+
+    @Test
+    void testDecodeNegativeAndBoundaryNumbers() {
+        assertThat(decode(BasicType.BYTE, encode(BasicType.BYTE, "-128"))).isEqualTo("-128");
+        assertThat(decode(BasicType.SHORT, encode(BasicType.SHORT, "-32768"))).isEqualTo("-32768");
+        assertThat(decode(BasicType.INT, encode(BasicType.INT, "-2147483648"))).isEqualTo("-2147483648");
+        assertThat(decode(BasicType.LONG, encode(BasicType.LONG, "9223372036854775807")))
+                .isEqualTo("9223372036854775807");
+        assertThat(decode(BasicType.DOUBLE, encode(BasicType.DOUBLE, "-0.5"))).isEqualTo("-0.5");
+        assertThat(decode(BasicType.BOOLEAN, encode(BasicType.BOOLEAN, "7"))).isEqualTo("true");
+    }
+
+    /**
+     * A char that stands for itself must not be one that reads back as something else. A digit is a
+     * number in this grammar, the list punctuation would split the entry, and a control or non-ASCII
+     * character would not survive a log file -- so each becomes a code point escape instead.
+     */
+    @Test
+    void testDecodeCharUsesEscapeWhereTheBareCharacterWouldNotRoundTrip() {
+        assertThat(decode(BasicType.CHAR, encode(BasicType.CHAR, "\\52"))).isEqualTo("\\52"); // '4'
+        assertThat(decode(BasicType.CHAR, encode(BasicType.CHAR, "\\44"))).isEqualTo("\\44"); // ','
+        assertThat(decode(BasicType.CHAR, encode(BasicType.CHAR, "\\61"))).isEqualTo("\\61"); // '='
+        assertThat(decode(BasicType.CHAR, encode(BasicType.CHAR, "\\92"))).isEqualTo("\\92"); // '\'
+        assertThat(decode(BasicType.CHAR, encode(BasicType.CHAR, "\\0"))).isEqualTo("\\0");
+        assertThat(decode(BasicType.CHAR, encode(BasicType.CHAR, "\\t"))).isEqualTo("\\9");
+        assertThat(decode(BasicType.CHAR, encode(BasicType.CHAR, "\\32"))).isEqualTo("\\32"); // space
+        assertThat(decode(BasicType.CHAR, encode(BasicType.CHAR, "\\233"))).isEqualTo("\\233"); // non-ASCII
+    }
+
+    /**
+     * The point of decode: what it prints is what the flags accept, for every char.
+     */
+    @Test
+    void testDecodedCharRoundTripsThroughEncodeForEveryValue() {
+        for (int codePoint = Character.MIN_VALUE; codePoint <= Character.MAX_VALUE; codePoint++) {
+            final byte[] original = encode(BasicType.CHAR, "\\" + codePoint);
+            final String rendered = decode(BasicType.CHAR, original);
+
+            assertThat(encode(BasicType.CHAR, rendered))
+                    .as("char code point " + codePoint + " rendered as " + rendered)
+                    .containsExactly(original[0], original[1]);
+        }
+    }
+
+    @Test
+    void testDecodeRejectsWrongWidth() {
+        assertThatThrownBy(() -> decode(BasicType.INT, new byte[]{0, 0}))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Expected 4 bytes for int");
+    }
+
+    @Test
+    void testDecodeRejectsObject() {
+        assertThatThrownBy(() -> decode(BasicType.OBJECT, new byte[8]))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("OBJECT");
     }

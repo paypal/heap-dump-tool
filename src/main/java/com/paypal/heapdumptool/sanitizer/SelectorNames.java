@@ -52,6 +52,13 @@ final class SelectorNames {
     }
 
     /**
+     * The selector name of a type: the singular, lowercase form the flags accept.
+     */
+    static String nameOf(final BasicType type) {
+        return type.name().toLowerCase();
+    }
+
+    /**
      * The valid type names, comma-separated and sorted, for error messages.
      */
     static String typeNames() {
