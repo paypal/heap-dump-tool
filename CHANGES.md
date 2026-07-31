@@ -35,6 +35,56 @@
 - Reduce allocation on the streaming path by roughly 90% (96 GB to 8.6 GB on a 1.19 GB dump) and wall clock by about
   35%, with byte-for-byte identical output.
 
+## 1.3.4
+- When `--sanitize-byte-char-arrays-only=false` is set, retain refs to objects.
+- Remove obsolete `--sanitize-arrays-only` flag.
+
+## 1.3.3
+- Support running sanitize commands in docker.
+
+## 1.3.2
+- New docker base image with fewer vulnerabilities.
+- Add support for multi-platform images.
+- Bump commons-lang3 from 3.17.0 to 3.18.0.
+
+## 1.3.1
+- Make it easier to skip docker pull.
+
+## 1.3.0
+- Fix wrong charset of sanitized strings in Java 8 heap dumps.
+- **Breaking change**: boolean cli options must be set with a `true|false` argument.
+
+## 1.2.0
+- Add ability to exclude certain string fields from sanitization.
+- Force `coder` field value in string instances to match sanitizationText's coder value.
+- Improve docker memory usage configuration.
+
+## 1.1.8
+- Remove logback.
+
+## 1.1.7
+- Add ability to customize jcmd cmd and options to create heap dump and thread dump.
+
+## 1.1.6
+- Upgrade logback from 1.2.13 to 1.3.14.
+
+## 1.1.5
+- Bump commons-compress from 1.21 to 1.26.0.
+- Upgrade commons-io, commons-lang3, commons-text, junit-pioneer, picocli to latest versions.
+
+## 1.1.4
+- Document more cli options.
+- Fix logback and guava vulnerabilities.
+- Bump guava from 30.1.1-jre to 32.0.0-jre.
+
+## 1.1.3
+- Allow sanitizing arrays of all types while preserving primitive values.
+
+## 1.1.2
+- Upgrade commons-text from 1.9 to 1.10.0.
+- Bump xercesImpl from 2.12.1 to 2.12.2.
+- Update LICENSE.
+
 ## 1.1.1
 - Upgrade to latest logback through spring-boot bom upgrade.
 - Also upgrade various other dependencies.
