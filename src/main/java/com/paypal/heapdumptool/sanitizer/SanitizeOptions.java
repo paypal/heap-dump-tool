@@ -13,205 +13,68 @@ import java.util.Map;
  *
  * <p>Every option is declared as a <em>setter method</em> rather than a field. picocli invokes
  * annotated setters in exact command-line order, which is what makes
- * {@code --sanitize-all=false --sanitize-ints=true} differ from the reverse. Field injection
+ * {@code -s=true --target=all} differ from the reverse. Field injection
  * carries no ordering information.</p>
  *
  * <p>For the same reason no option declares a picocli {@code defaultValue}: picocli applies
  * defaults <em>after</em> matched options, so a default would overwrite whatever the user typed.
  * Defaults are seeded in {@link #resolve()} instead.</p>
  *
- * <h2>Why scope flags use {@code arity = "0..1"}</h2>
- * <p>The 17 scope flags ({@code --sanitize-ints}, etc.) use {@code arity = "0..1"} so that a bare
- * flag without a value, e.g. {@code --sanitize-ints}, is interpreted as {@code true}. With
- * {@code arity = "1"} the bare form would require an explicit value and raise a
- * {@code MissingParameter} error. For typical positional arguments (file paths like
- * {@code in.hprof out.hprof}) there is no conflict: picocli only consumes the next token as the
- * option value if that token converts to a boolean, which ordinary file paths do not. The narrow
- * caveat is a file literally named {@code true} or {@code false}: picocli would consume it as the
- * option value instead of treating it as a positional argument. Such file names are extremely
- * unusual in practice.</p>
+ * <h2>Why the two flags are single-occurrence</h2>
+ * <p>Each flag takes its whole list in one value, and a second occurrence of the same flag on one
+ * command line is a picocli {@code OverwrittenOptionException}. That is deliberate. Declaring them
+ * as {@code List<String>} with {@code split = ","} would allow repeats, but picocli re-invokes such
+ * a setter with the entire accumulated list on each occurrence -- {@code [all]}, then
+ * {@code [all, -int]} -- so the earlier entries would be recorded twice and the resolved policy
+ * would depend on how the user split their list across occurrences. Ordering within a single value
+ * is what {@link TargetSelector} resolves; ordering against the deprecated flags is what the
+ * {@link Directive} list below resolves.</p>
+ *
+ * <p>Note that two separate {@code parseArgs} calls on the same {@code CommandLine} do not trip the
+ * single-occurrence rule, which matters because {@code Application.main} parses the same command
+ * object twice. Each setter simply fires again and appends its directive again; replaying an
+ * idempotent directive sequence is harmless. See {@code SanitizationPolicy.Builder#addWarning}.</p>
  */
 public class SanitizeOptions {
 
-    private static final String BOOL = "<true|false>";
-
     private final List<Directive> directives = new ArrayList<>();
 
-    // ---------- non-array field scope ----------
+    // ---------- scope and replacement values ----------
 
-    @Option(names = "--sanitize-bytes", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize byte fields. Default: true, via --sanitize-all")
-    void sanitizeBytes(final boolean enabled) {
-        addField(BasicType.BYTE, enabled);
-    }
-
-    @Option(names = "--sanitize-shorts", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize short fields. Default: true, via --sanitize-all")
-    void sanitizeShorts(final boolean enabled) {
-        addField(BasicType.SHORT, enabled);
-    }
-
-    @Option(names = "--sanitize-ints", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize int fields. Default: true, via --sanitize-all")
-    void sanitizeInts(final boolean enabled) {
-        addField(BasicType.INT, enabled);
-    }
-
-    @Option(names = "--sanitize-longs", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize long fields. Default: true, via --sanitize-all")
-    void sanitizeLongs(final boolean enabled) {
-        addField(BasicType.LONG, enabled);
-    }
-
-    @Option(names = "--sanitize-chars", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize char fields. Default: true, via --sanitize-all")
-    void sanitizeChars(final boolean enabled) {
-        addField(BasicType.CHAR, enabled);
-    }
-
-    @Option(names = "--sanitize-floats", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize float fields. Default: true, via --sanitize-all")
-    void sanitizeFloats(final boolean enabled) {
-        addField(BasicType.FLOAT, enabled);
-    }
-
-    @Option(names = "--sanitize-doubles", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize double fields. Default: true, via --sanitize-all")
-    void sanitizeDoubles(final boolean enabled) {
-        addField(BasicType.DOUBLE, enabled);
-    }
-
-    @Option(names = "--sanitize-booleans", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize boolean fields. Default: true, via --sanitize-all")
-    void sanitizeBooleans(final boolean enabled) {
-        addField(BasicType.BOOLEAN, enabled);
-    }
-
-    // ---------- array scope ----------
-
-    @Option(names = "--sanitize-byte-arrays", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize byte[] contents. Default: true, via --sanitize-all")
-    void sanitizeByteArrays(final boolean enabled) {
-        addArray(BasicType.BYTE, enabled);
-    }
-
-    @Option(names = "--sanitize-short-arrays", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize short[] contents. Default: true, via --sanitize-all")
-    void sanitizeShortArrays(final boolean enabled) {
-        addArray(BasicType.SHORT, enabled);
-    }
-
-    @Option(names = "--sanitize-int-arrays", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize int[] contents. Default: true, via --sanitize-all")
-    void sanitizeIntArrays(final boolean enabled) {
-        addArray(BasicType.INT, enabled);
-    }
-
-    @Option(names = "--sanitize-long-arrays", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize long[] contents. Default: true, via --sanitize-all")
-    void sanitizeLongArrays(final boolean enabled) {
-        addArray(BasicType.LONG, enabled);
-    }
-
-    @Option(names = "--sanitize-char-arrays", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize char[] contents. Default: true, via --sanitize-all")
-    void sanitizeCharArrays(final boolean enabled) {
-        addArray(BasicType.CHAR, enabled);
-    }
-
-    @Option(names = "--sanitize-float-arrays", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize float[] contents. Default: true, via --sanitize-all")
-    void sanitizeFloatArrays(final boolean enabled) {
-        addArray(BasicType.FLOAT, enabled);
-    }
-
-    @Option(names = "--sanitize-double-arrays", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize double[] contents. Default: true, via --sanitize-all")
-    void sanitizeDoubleArrays(final boolean enabled) {
-        addArray(BasicType.DOUBLE, enabled);
-    }
-
-    @Option(names = "--sanitize-boolean-arrays", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize boolean[] contents. Default: true, via --sanitize-all")
-    void sanitizeBooleanArrays(final boolean enabled) {
-        addArray(BasicType.BOOLEAN, enabled);
-    }
-
-    @Option(names = "--sanitize-all", arity = "0..1", paramLabel = BOOL,
-            description = "Sanitize all primitive fields and arrays. Object references are never "
-                    + "sanitized. Default: true")
-    void sanitizeAll(final boolean enabled) {
-        directives.add(new Directive(builder -> builder.setAll(enabled)));
-    }
-
-    // ---------- replacement values ----------
-
-    @Option(names = "--sanitize-byte-replacement", paramLabel = "<value>",
-            description = "Value to replace byte data with. Default: 42")
-    void byteReplacement(final String value) {
-        addReplacement(BasicType.BYTE, value);
-    }
-
-    @Option(names = "--sanitize-short-replacement", paramLabel = "<value>",
-            description = "Value to replace short data with. Default: 0")
-    void shortReplacement(final String value) {
-        addReplacement(BasicType.SHORT, value);
-    }
-
-    @Option(names = "--sanitize-int-replacement", paramLabel = "<value>",
-            description = "Value to replace int data with. Default: 0")
-    void intReplacement(final String value) {
-        addReplacement(BasicType.INT, value);
-    }
-
-    @Option(names = "--sanitize-long-replacement", paramLabel = "<value>",
-            description = "Value to replace long data with. Default: 0")
-    void longReplacement(final String value) {
-        addReplacement(BasicType.LONG, value);
-    }
-
-    @Option(names = "--sanitize-char-replacement", paramLabel = "<value>",
-            description = "Value to replace char data with. Default: *")
-    void charReplacement(final String value) {
-        addReplacement(BasicType.CHAR, value);
-    }
-
-    @Option(names = "--sanitize-float-replacement", paramLabel = "<value>",
-            description = "Value to replace float data with. Default: 0.0")
-    void floatReplacement(final String value) {
-        addReplacement(BasicType.FLOAT, value);
-    }
-
-    @Option(names = "--sanitize-double-replacement", paramLabel = "<value>",
-            description = "Value to replace double data with. Default: 0.0")
-    void doubleReplacement(final String value) {
-        addReplacement(BasicType.DOUBLE, value);
-    }
-
-    @Option(names = "--sanitize-boolean-replacement", paramLabel = "<value>",
-            description = "Value to replace boolean data with. Default: false")
-    void booleanReplacement(final String value) {
-        addReplacement(BasicType.BOOLEAN, value);
-    }
-
-    @Option(names = "--sanitize-all-replacement", paramLabel = "<value>",
-            description = "Value to replace all primitive data with, converted per type. "
-                    + "A number, or a single character such as * or \\0")
-    void allReplacement(final String value) {
-        // A character literal here means "the same character for every type": normalize it to its
-        // code point so the numeric types accept it as a number, since a character literal is
-        // otherwise a char-only form. See PrimitiveReplacement#toCodePointIfCharLiteral.
-        final String normalized = PrimitiveReplacement.toCodePointIfCharLiteral(value);
-        // Encode eagerly so picocli converts any IllegalArgumentException to a ParameterException.
-        final Map<BasicType, byte[]> encoded = new EnumMap<>(BasicType.class);
-        for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
-            encoded.put(type, PrimitiveReplacement.encode(type, normalized));
-        }
+    // Prose rather than an aligned two-column table: picocli re-wraps each description line to the
+    // terminal width and indents the continuation, which splits a column layout mid-row. Verified
+    // against picocli 4.7.5.
+    @Option(names = "--target", paramLabel = "<selectors>",
+            order = OptionOrder.TARGET,
+            description = {
+                    "What to sanitize: a comma-separated list applied left to right. Default: all",
+                    "Selectors: all, none, <type>, <type>-fields, <type>-arrays, fields, arrays."
+                            + " <type> alone means type's primitive fields and array fields;"
+                            + " 'fields' or 'arrays' means type's primitive fields or array fields only",
+                    "Prefix an entry with '-' to deselect it, e.g. --target=all,-ints",
+                    "<type> is byte, short, int, long, char, float, double or boolean"
+            })
+    void target(final String value) {
+        // Validate eagerly so picocli converts an IllegalArgumentException into a
+        // ParameterException, and a bad value fails with usage help rather than mid-stream.
+        TargetSelector.validate(value);
         directives.add(new Directive(builder -> {
-            for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
-                builder.setReplacement(type, encoded.get(type));
-            }
+            // Target selectors apply over a base of "none", so first clear everything
+            builder.setAll(false);
+            TargetSelector.applyTo(value, builder);
         }));
+    }
+
+    @Option(names = "--replacement", paramLabel = "<type>=<value>",
+            order = OptionOrder.REPLACEMENT,
+            description = {
+                    "Replacement values for sanitization: comma-separated <type>=<value> entries"
+                            + " applied left to right.",
+                    "Defaults: all=0,byte=42,char=*,boolean=false"
+            })
+    void replacement(final String value) {
+        ReplacementSpec.validate(value);
+        directives.add(new Directive(builder -> ReplacementSpec.applyTo(value, builder)));
     }
 
     // ---------- deprecated flag entry points, called from SanitizeOrCaptureCommandBase ----------
@@ -220,8 +83,8 @@ public class SanitizeOptions {
         directives.add(new Directive(builder -> {
             builder.addWarning("--sanitize-byte-char-arrays-only is deprecated. Use "
                     + (byteCharArraysOnly
-                    ? "--sanitize-all=false --sanitize-byte-arrays=true --sanitize-char-arrays=true"
-                    : "--sanitize-all=true"));
+                    ? "--target=byte-arrays,char-arrays"
+                    : "--target=all"));
             if (byteCharArraysOnly) {
                 builder.setAll(false)
                         .setArray(BasicType.BYTE, true)
@@ -237,13 +100,13 @@ public class SanitizeOptions {
         final String unescaped = StringEscapeUtils.unescapeJava(text);
         if (unescaped == null || unescaped.length() != 1 || unescaped.charAt(0) > 0x7F) {
             throw new IllegalArgumentException("--text supports only a single ASCII character."
-                    + " Use --sanitize-all-replacement instead. Got: " + text);
+                    + " Use --replacement=all=<value> instead. Got: " + text);
         }
         // Use the escaped code point so that a digit is re-parsed as the character's code point,
         // not as a number. E.g. --text=0 must produce byte 0x30 ('0'), not byte 0x00.
         final String escapedReplacement = "\\" + (int) unescaped.charAt(0);
         directives.add(new Directive(builder -> {
-            builder.addWarning("--text is deprecated. Use --sanitize-all-replacement instead");
+            builder.addWarning("--text is deprecated. Use --replacement=all=<value> instead");
             builder.setAllReplacements(escapedReplacement);
         }));
     }
@@ -277,19 +140,6 @@ public class SanitizeOptions {
         }
         directives.clear();
         directives.addAll(other.directives);
-    }
-
-    private void addField(final BasicType type, final boolean enabled) {
-        directives.add(new Directive(builder -> builder.setField(type, enabled)));
-    }
-
-    private void addArray(final BasicType type, final boolean enabled) {
-        directives.add(new Directive(builder -> builder.setArray(type, enabled)));
-    }
-
-    private void addReplacement(final BasicType type, final String value) {
-        final byte[] bytes = PrimitiveReplacement.encode(type, value);
-        directives.add(new Directive(builder -> builder.setReplacement(type, bytes)));
     }
 
     /**

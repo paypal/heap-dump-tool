@@ -6,7 +6,7 @@ package com.paypal.heapdumptool.sanitizer.example;
  * <p>Companion to {@link ClassWithManyInstanceFields} (all {@code long}). HotSpot lays out
  * fields of one width contiguously, so a live instance contributes one long run of identical
  * big-endian int values to the instance dump. That run is what makes
- * {@code --sanitize-ints=false} observable at the byte level: the int replacement default is 0,
+ * {@code --target=all,-int-fields} observable at the byte level: the int replacement default is 0,
  * so if int fields were in scope the run would be gone.</p>
  */
 public class ClassWithManyIntFields {

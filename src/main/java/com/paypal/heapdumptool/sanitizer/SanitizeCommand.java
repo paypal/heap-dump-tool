@@ -9,7 +9,11 @@ import java.nio.file.Path;
 
 import static picocli.CommandLine.Help.Visibility.ALWAYS;
 
-@Command(name = "sanitize", description = "Sanitize a heap dump by replacing primitive field and array contents", abbreviateSynopsis = true)
+// sortOptions = false: options are listed in the @Option(order = ...) sequence rather than
+// alphabetically, so what to sanitize comes before how, and the deprecated flags sink to the bottom.
+// Order values are shared with SanitizeOrCaptureCommandBase and the SanitizeOptions mixin.
+@Command(name = "sanitize", description = "Sanitize a heap dump by replacing primitive field and array contents",
+        abbreviateSynopsis = true, sortOptions = false)
 public class SanitizeCommand extends SanitizeOrCaptureCommandBase implements CliCommand {
 
     // to allow field injection from picocli, these variables can't be final
@@ -20,7 +24,9 @@ public class SanitizeCommand extends SanitizeOrCaptureCommandBase implements Cli
     @Parameters(index = "1", description = "Output heap dump .hprof file")
     private Path outputFile;
 
-    @Option(names = {"-z", "--zip-output"}, description = "Write zipped output", showDefaultValue = ALWAYS)
+    @Option(names = {"-z", "--zip-output"},
+            order = OptionOrder.ZIP_OUTPUT,
+            description = "Write zipped output", showDefaultValue = ALWAYS)
     private boolean zipOutput;
 
     @Override

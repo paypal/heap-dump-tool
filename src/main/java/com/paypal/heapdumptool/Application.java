@@ -55,7 +55,6 @@ public class Application implements IVersionProvider {
         final CommandLine commandLine = new CommandLine(new Application());
         commandLine.setUsageHelpWidth(120);
         commandLine.registerConverter(DataSize.class, DataSize::parse);
-        commandLine.setAbbreviatedOptionsAllowed(true);
         return commandLine;
     }
 

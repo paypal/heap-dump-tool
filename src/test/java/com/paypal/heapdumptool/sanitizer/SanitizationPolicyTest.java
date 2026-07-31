@@ -220,6 +220,90 @@ class SanitizationPolicyTest {
     }
 
     @Test
+    void testDescribeTargets() {
+        assertThat(SanitizationPolicy.builder().build().describeTargets())
+                .isEqualTo("none");
+        assertThat(SanitizationPolicy.builder().setAll(true).build().describeTargets())
+                .isEqualTo("all");
+        assertThat(SanitizationPolicy.builder()
+                           .setArray(BasicType.BYTE, true)
+                           .setArray(BasicType.CHAR, true)
+                           .build()
+                           .describeTargets())
+                .isEqualTo("char-arrays,byte-arrays");
+        assertThat(SanitizationPolicy.builder()
+                           .setField(BasicType.INT, true)
+                           .setArray(BasicType.INT, true)
+                           .setField(BasicType.LONG, true)
+                           .build()
+                           .describeTargets())
+                .isEqualTo("int,long-fields");
+    }
+
+    /**
+     * Every type selected but one half missing is not 'all': the shorthand may only stand in for a
+     * scope it exactly equals.
+     */
+    @Test
+    void testDescribeTargetsIsAllOnlyWhenEveryHalfIsSelected() {
+        assertThat(SanitizationPolicy.builder()
+                           .setAll(true)
+                           .setField(BasicType.BOOLEAN, false)
+                           .build()
+                           .describeTargets())
+                .isEqualTo("boolean-arrays,char,float,double,byte,short,int,long");
+    }
+
+    @Test
+    void testDescribeReplacementsListsEveryType() {
+        assertThat(SanitizationPolicy.builder().build().describeReplacements())
+                .isEqualTo("boolean=false,char=*,float=0.0,double=0.0,byte=42,short=0,int=0,long=0");
+
+        assertThat(SanitizationPolicy.builder()
+                           .setAllReplacements("0")
+                           .setReplacement(BasicType.INT, PrimitiveReplacement.encode(BasicType.INT, "7"))
+                           .build()
+                           .describeReplacements())
+                .isEqualTo("boolean=false,char=\\0,float=0.0,double=0.0,byte=0,short=0,int=7,long=0");
+    }
+
+    /**
+     * Both descriptions are advertised as pasteable, so they must parse back to the same policy.
+     */
+    @Test
+    void testDescriptionsRoundTripThroughTheParsers() {
+        final SanitizationPolicy original = SanitizationPolicy.builder()
+                .setArray(BasicType.BYTE, true)
+                .setField(BasicType.LONG, true)
+                .setAllReplacements("*")
+                .setReplacement(BasicType.INT, PrimitiveReplacement.encode(BasicType.INT, "-1"))
+                .build();
+
+        final SanitizationPolicy.Builder builder = SanitizationPolicy.builder();
+        TargetSelector.applyTo(original.describeTargets(), builder);
+        ReplacementSpec.applyTo(original.describeReplacements(), builder);
+        final SanitizationPolicy reparsed = builder.build();
+
+        assertThat(reparsed.describeTargets()).isEqualTo(original.describeTargets());
+        assertThat(reparsed.describeReplacements()).isEqualTo(original.describeReplacements());
+        for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
+            assertThat(reparsed.sanitizeField(type)).as("field " + type).isEqualTo(original.sanitizeField(type));
+            assertThat(reparsed.sanitizeArray(type)).as("array " + type).isEqualTo(original.sanitizeArray(type));
+            assertThat(reparsed.replacement(type)).as("replacement " + type).isEqualTo(original.replacement(type));
+        }
+    }
+
+    /**
+     * 'none' and 'all' are the two descriptions that are not a selector list, so check they parse
+     * back too -- 'none' especially, since TargetSelector rejects a leading subtraction.
+     */
+    @Test
+    void testNoneAndAllDescriptionsAreParseable() {
+        TargetSelector.validate(SanitizationPolicy.builder().build().describeTargets());
+        TargetSelector.validate(SanitizationPolicy.builder().setAll(true).build().describeTargets());
+    }
+
+    @Test
     void testSetFieldAndSetArrayRejectObject() {
         assertThatThrownBy(() -> SanitizationPolicy.builder().setField(BasicType.OBJECT, true))
                 .isInstanceOf(IllegalArgumentException.class)

@@ -22,13 +22,13 @@ public class SanitizationPolicy {
 
     static final Set<BasicType> PRIMITIVES = EnumSet.of(
             BasicType.BOOLEAN,
-            BasicType.CHAR,
-            BasicType.FLOAT,
-            BasicType.DOUBLE,
             BasicType.BYTE,
+            BasicType.CHAR,
             BasicType.SHORT,
             BasicType.INT,
-            BasicType.LONG
+            BasicType.LONG,
+            BasicType.FLOAT,
+            BasicType.DOUBLE
     );
 
     private final Map<BasicType, Boolean> sanitizeField;
@@ -96,6 +96,55 @@ public class SanitizationPolicy {
 
     public List<String> getWarnings() {
         return warnings;
+    }
+
+    /**
+     * The resolved scope written as a {@code --target} value, so a logged policy can be pasted back
+     * to reproduce this run. Selectors are additive over an implicit base of {@code none}, so this
+     * names what is sanitized and never subtracts: {@code all}, {@code none}, or a comma-separated
+     * list of {@code <type>}, {@code <type>-fields} and {@code <type>-arrays} entries.
+     */
+    public String describeTargets() {
+        final List<String> selectors = new ArrayList<>();
+        int numTypesFullySelected = 0;
+
+        for (final BasicType type : PRIMITIVES) {
+            final boolean field = sanitizeField(type);
+            final boolean array = sanitizeArray(type);
+            final String name = SelectorNames.nameOf(type);
+
+            if (field && array) {
+                numTypesFullySelected++;
+                selectors.add(name);
+            } else if (field) {
+                selectors.add(name + "-fields");
+            } else if (array) {
+                selectors.add(name + "-arrays");
+            }
+        }
+
+        if (selectors.isEmpty()) {
+            return "none";
+        }
+        if (numTypesFullySelected == PRIMITIVES.size()) {
+            return "all";
+        }
+        return String.join(",", selectors);
+    }
+
+    /**
+     * The resolved replacement values written as a {@code --replacement} value, one entry per
+     * primitive type. Like {@link #describeTargets()} this round-trips: pasting it back yields the
+     * same values. Every type is listed rather than only those in scope, so the line reads the same
+     * whatever the scope is.
+     */
+    public String describeReplacements() {
+        final List<String> entries = new ArrayList<>();
+        for (final BasicType type : PRIMITIVES) {
+            entries.add(SelectorNames.nameOf(type) + "="
+                    + PrimitiveReplacement.decode(type, replacement(type)));
+        }
+        return String.join(",", entries);
     }
 
     @Override

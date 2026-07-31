@@ -25,19 +25,25 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
 
     // to allow field injection from picocli, these variables can't be final
 
-    @Option(names = {"-d", DOCKER_REGISTRY_OPTION}, description = "docker registry hostname for bootstrapping heap-dump-tool docker image")
+    @Option(names = {"-d", DOCKER_REGISTRY_OPTION},
+            order = OptionOrder.DOCKER_REGISTRY,
+            description = "docker registry hostname for bootstrapping heap-dump-tool docker image")
     private String dockerRegistry;
 
-    @Option(names = {"-a", "--tar-input"}, paramLabel = "<true|false>", description = "Treat input as tar archive", arity = "1")
+    @Option(names = {"-a", "--tar-input"}, paramLabel = "<true|false>",
+            order = OptionOrder.TAR_INPUT,
+            description = "Treat input as tar archive", arity = "1")
     private boolean tarInput;
 
     @Option(names = {"-e", "--exclude-string-fields"},
+            order = OptionOrder.EXCLUDE_STRING_FIELDS,
             description = "String fields to exclude from sanitization. Value in com.example.MyClass#fieldName format",
             defaultValue = "java.lang.Thread#name,java.lang.ThreadGroup#name",
             showDefaultValue = ALWAYS)
     private List<String> excludeStringFields;
 
     @Option(names = {"-f", "--force-string-coder-match"},
+            order = OptionOrder.FORCE_STRING_CODER_MATCH,
             description = "Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools render them correctly",
             defaultValue = "true",
             arity = "1",
@@ -49,33 +55,37 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     private boolean forceMatchStringCoder;
 
     @Mixin
-    private SanitizeOptions sanitizeOptions = new SanitizeOptions();
+    private final SanitizeOptions sanitizeOptions = new SanitizeOptions();
 
     private StringFieldMap excludeStringFieldMap;
 
     private List<String> resolvedExcludeStringFields;
 
-    @Option(names = {"-b", "--buffer-size"}, description = "Buffer size for reading and writing", defaultValue = "100MB", showDefaultValue = ALWAYS)
+    @Option(names = {"-b", "--buffer-size"},
+            order = OptionOrder.BUFFER_SIZE,
+            description = "Buffer size for reading and writing", defaultValue = "100MB", showDefaultValue = ALWAYS)
     private DataSize bufferSize = ofMegabytes(100);
 
     @Option(names = {"-s", "--sanitize-byte-char-arrays-only"},
+            order = OptionOrder.LEGACY_BYTE_CHAR_ARRAYS_ONLY,
             arity = "1",
             paramLabel = "<true|false>",
-            description = "Deprecated. Use --sanitize-all, --sanitize-byte-arrays, and "
-                    + "--sanitize-char-arrays instead")
+            description = "Deprecated. Use --target=byte-arrays,char-arrays instead")
     void setLegacySanitizeByteCharArraysOnly(final boolean byteCharArraysOnly) {
         sanitizeOptions.recordLegacyByteCharArraysOnly(byteCharArraysOnly);
     }
 
     @Option(names = {"-t", "--text"},
+            order = OptionOrder.LEGACY_TEXT,
             paramLabel = "<text>",
-            description = "Deprecated. Use --sanitize-all-replacement instead. "
+            description = "Deprecated. Use --replacement=all=<value> instead. "
                     + "Supports a single ASCII character only")
     void setLegacySanitizationText(final String text) {
         sanitizeOptions.recordLegacyText(text);
     }
 
     @Option(names = {"-T", "--text-charset"},
+            order = OptionOrder.LEGACY_TEXT_CHARSET,
             paramLabel = "<charset>",
             description = "Deprecated and ignored. Replacement values are now typed per primitive")
     void setLegacySanitizationTextCharset(final String charset) {

@@ -403,7 +403,7 @@ public class HeapDumpSanitizer {
      * so 0 is the truthful value. That is:
      *
      *     --force-string-coder-match=true
-     *  && byte arrays are in scope (not --sanitize-byte-arrays=false, not --sanitize-all=false)
+     *  && byte arrays are in scope (not excluded by --target)
      *  && this String is not itself excluded by --exclude-string-fields
      *
      * The last condition is per-object, not global: --exclude-string-fields preserves the backing
@@ -573,10 +573,9 @@ public class HeapDumpSanitizer {
      * number of tiles, which is what makes chunked writing safe.
      *
      * Deliberately not commons-io InfiniteCircularInputStream: it rejects any repeated byte equal to
-     * -1, so a perfectly legal replacement containing 0xFF -- e.g. --sanitize-byte-replacement=-1,
-     * --sanitize-int-replacement=255, or --sanitize-double-replacement=-1.0 -- would throw the first
-     * time a matching slot was sanitized, aborting the run mid-stream and leaving a truncated
-     * output file behind.
+     * -1, so a perfectly legal replacement containing 0xFF -- e.g. --replacement=byte=-1,
+     * --replacement=int=255, or --replacement=double=-1.0 -- would throw the first time a matching
+     * slot was sanitized, aborting the run mid-stream and leaving a truncated output file behind.
      */
     private void applySanitization(final Pipe pipe, final BasicType type, final long numBytes) throws IOException {
         pipe.skipInput(numBytes);

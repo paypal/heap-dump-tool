@@ -56,94 +56,116 @@ class SanitizeOptionsTest {
     }
 
     @Test
-    void testAllThenSpecificOptOut() {
-        final SanitizationPolicy policy = parse("--sanitize-all=true", "--sanitize-shorts=false");
-        assertThat(policy.sanitizeField(BasicType.SHORT)).isFalse();
-        assertThat(policy.sanitizeField(BasicType.INT)).isTrue();
-        assertThat(policy.sanitizeArray(BasicType.SHORT)).isTrue();
-    }
-
-    @Test
-    void testSpecificThenAllIsOverwritten() {
-        // literal left-to-right: --sanitize-all comes last and wins
-        final SanitizationPolicy policy = parse("--sanitize-shorts=false", "--sanitize-all=true");
-        assertThat(policy.sanitizeField(BasicType.SHORT)).isTrue();
-    }
-
-    @Test
-    void testAllFalseThenOptIn() {
-        final SanitizationPolicy policy = parse("--sanitize-all=false", "--sanitize-byte-arrays=true");
-        assertThat(policy.sanitizeArray(BasicType.BYTE)).isTrue();
-        assertThat(policy.sanitizeArray(BasicType.CHAR)).isFalse();
-        assertThat(policy.sanitizeField(BasicType.BYTE)).isFalse();
+    void testTargetNoneSanitizesNothing() {
+        final SanitizationPolicy policy = parse("--target=none");
+        for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
+            assertThat(policy.sanitizeField(type)).as("field " + type).isFalse();
+            assertThat(policy.sanitizeArray(type)).as("array " + type).isFalse();
+        }
         assertThat(policy.isAnyFieldSanitized()).isFalse();
     }
 
     @Test
-    void testFlagWithoutValueMeansTrue() {
-        final SanitizationPolicy policy = parse("--sanitize-all=false", "--sanitize-ints");
+    void testTargetSubtraction() {
+        final SanitizationPolicy policy = parse("--target=all,-short-fields");
+        assertThat(policy.sanitizeField(BasicType.SHORT)).isFalse();
+        assertThat(policy.sanitizeArray(BasicType.SHORT)).isTrue();
         assertThat(policy.sanitizeField(BasicType.INT)).isTrue();
     }
 
     @Test
-    void testEveryScopeFlagIsWired() {
-        final String[] fieldFlags = {
-                "--sanitize-bytes", "--sanitize-shorts", "--sanitize-ints", "--sanitize-longs",
-                "--sanitize-chars", "--sanitize-floats", "--sanitize-doubles", "--sanitize-booleans"
-        };
-        final BasicType[] types = {
-                BasicType.BYTE, BasicType.SHORT, BasicType.INT, BasicType.LONG,
-                BasicType.CHAR, BasicType.FLOAT, BasicType.DOUBLE, BasicType.BOOLEAN
-        };
+    void testTargetImplicitNoneBase() {
+        final SanitizationPolicy policy = parse("--target=byte-arrays,char-arrays");
+        assertThat(policy.sanitizeArray(BasicType.BYTE)).isTrue();
+        assertThat(policy.sanitizeArray(BasicType.CHAR)).isTrue();
+        assertThat(policy.sanitizeArray(BasicType.INT)).isFalse();
+        assertThat(policy.isAnyFieldSanitized()).isFalse();
+    }
 
-        for (int i = 0; i < fieldFlags.length; i++) {
-            final SanitizationPolicy policy = parse("--sanitize-all=false", fieldFlags[i] + "=true");
-            assertThat(policy.sanitizeField(types[i])).as(fieldFlags[i]).isTrue();
-            assertThat(policy.sanitizeArray(types[i])).as(fieldFlags[i] + " array untouched").isFalse();
+    /**
+     * One --target value must produce exactly the policy the equivalent old flag sequence did.
+     * This is the migration contract for the pre-1.4.0 scope.
+     */
+    @Test
+    void testTargetReplacesTheOldTwoFlagSequences() {
+        final SanitizationPolicy policy = parse("--target=int-fields");
+        assertThat(policy.sanitizeField(BasicType.INT)).isTrue();
+        assertThat(policy.sanitizeArray(BasicType.INT)).isFalse();
+        for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
+            if (type != BasicType.INT) {
+                assertThat(policy.sanitizeField(type)).as("field " + type).isFalse();
+            }
+            assertThat(policy.sanitizeArray(type)).as("array " + type).isFalse();
         }
     }
 
     @Test
-    void testEveryArrayScopeFlagIsWired() {
-        final String[] arrayFlags = {
-                "--sanitize-byte-arrays", "--sanitize-short-arrays", "--sanitize-int-arrays",
-                "--sanitize-long-arrays", "--sanitize-char-arrays", "--sanitize-float-arrays",
-                "--sanitize-double-arrays", "--sanitize-boolean-arrays"
-        };
-        final BasicType[] types = {
-                BasicType.BYTE, BasicType.SHORT, BasicType.INT, BasicType.LONG,
-                BasicType.CHAR, BasicType.FLOAT, BasicType.DOUBLE, BasicType.BOOLEAN
-        };
+    void testBadTargetIsParameterException() {
+        assertThatThrownBy(() -> parse("--target=bogus"))
+                .isInstanceOf(CommandLine.ParameterException.class)
+                .hasMessageContaining("bogus");
 
-        for (int i = 0; i < arrayFlags.length; i++) {
-            final SanitizationPolicy policy = parse("--sanitize-all=false", arrayFlags[i] + "=true");
-            assertThat(policy.sanitizeArray(types[i])).as(arrayFlags[i]).isTrue();
-            assertThat(policy.sanitizeField(types[i])).as(arrayFlags[i] + " field untouched").isFalse();
-        }
+        assertThatThrownBy(() -> parse("--target=-int"))
+                .isInstanceOf(CommandLine.ParameterException.class)
+                .hasMessageContaining("cannot start");
+    }
+
+    /**
+     * --target takes the whole selector list in one value, so a second occurrence is an error
+     * rather than an accumulation. See the class comment on SanitizeOptions.
+     */
+    @Test
+    void testRepeatedTargetIsRejected() {
+        assertThatThrownBy(() -> parse("--target=all", "--target=-int"))
+                .isInstanceOf(CommandLine.OverwrittenOptionException.class);
     }
 
     @Test
-    void testReplacementFlags() {
-        final SanitizationPolicy policy = parse("--sanitize-int-replacement=7",
-                                                "--sanitize-byte-replacement=122");
+    void testReplacementFlag() {
+        final SanitizationPolicy policy = parse("--replacement=int=7,byte=122");
         assertThat(policy.replacement(BasicType.INT)).containsExactly(0, 0, 0, 7);
         assertThat(policy.replacement(BasicType.BYTE)).containsExactly('z');
         assertThat(policy.replacement(BasicType.SHORT)).containsExactly(0, 0);
     }
 
     @Test
-    void testAllReplacementThenSpecific() {
-        final SanitizationPolicy policy = parse("--sanitize-all-replacement=*",
-                                                "--sanitize-int-replacement=0");
+    void testReplacementAllThenSpecific() {
+        final SanitizationPolicy policy = parse("--replacement=all=*,int=0");
         assertThat(policy.replacement(BasicType.BYTE)).containsExactly(42);
         assertThat(policy.replacement(BasicType.INT)).containsExactly(0, 0, 0, 0);
     }
 
     @Test
-    void testInvalidReplacementIsRejected() {
-        assertThatThrownBy(() -> parse("--sanitize-byte-replacement=300"))
+    void testBadReplacementIsParameterException() {
+        assertThatThrownBy(() -> parse("--replacement=byte=300"))
                 .isInstanceOf(CommandLine.ParameterException.class)
                 .hasMessageContaining("out of range");
+
+        assertThatThrownBy(() -> parse("--replacement=bogus=1"))
+                .isInstanceOf(CommandLine.ParameterException.class);
+
+        assertThatThrownBy(() -> parse("--replacement=int=*"))
+                .isInstanceOf(CommandLine.ParameterException.class);
+    }
+
+    @Test
+    void testRepeatedReplacementIsRejected() {
+        assertThatThrownBy(() -> parse("--replacement=all=0", "--replacement=int=7"))
+                .isInstanceOf(CommandLine.OverwrittenOptionException.class);
+    }
+
+    /**
+     * --target and --replacement are independent axes: setting a value does not change scope, and
+     * narrowing scope does not change values.
+     */
+    @Test
+    void testTargetAndReplacementAreIndependent() {
+        final SanitizationPolicy policy = parse("--target=int-arrays", "--replacement=int=7");
+        assertThat(policy.sanitizeArray(BasicType.INT)).isTrue();
+        assertThat(policy.sanitizeField(BasicType.INT)).isFalse();
+        assertThat(policy.replacement(BasicType.INT)).containsExactly(0, 0, 0, 7);
+        // a type out of scope still has its replacement recorded, it is just never written
+        assertThat(policy.replacement(BasicType.BYTE)).containsExactly(42);
     }
 
     @Test
@@ -160,9 +182,9 @@ class SanitizeOptionsTest {
 
     @Test
     void testLegacyByteCharArraysOnlyFalse() {
-        // --sanitize-all=false first, so the assertions below cannot be satisfied by the default
+        // --target=none first, so the assertions below cannot be satisfied by the default
         // all-on baseline: the legacy flag must actively turn everything back on.
-        final SanitizationPolicy policy = parse("--sanitize-all=false",
+        final SanitizationPolicy policy = parse("--target=none",
                                                 "--sanitize-byte-char-arrays-only=false");
         assertThat(policy.isAnyFieldSanitized()).isTrue();
         for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
@@ -214,14 +236,15 @@ class SanitizeOptionsTest {
     void testLegacyAndNewFlagsInterleaveByPosition() {
         // legacy narrows to byte/char arrays, then the new flag re-adds int arrays
         final SanitizationPolicy policy = parse("--sanitize-byte-char-arrays-only=true",
-                                                "--sanitize-int-arrays=true");
-        assertThat(policy.sanitizeArray(BasicType.BYTE)).isTrue();
+                                                "--target=int-arrays");
+        assertThat(policy.sanitizeArray(BasicType.BYTE)).isFalse();
         assertThat(policy.sanitizeArray(BasicType.INT)).isTrue();
 
         // reverse order: legacy comes last and wipes the int-array opt-in
-        final SanitizationPolicy reversed = parse("--sanitize-int-arrays=true",
+        final SanitizationPolicy reversed = parse("--target=int-arrays",
                                                   "--sanitize-byte-char-arrays-only=true");
         assertThat(reversed.sanitizeArray(BasicType.INT)).isFalse();
+        assertThat(reversed.sanitizeArray(BasicType.BYTE)).isTrue();
     }
 
     @Test
@@ -239,61 +262,11 @@ class SanitizeOptionsTest {
         assertThat(policyZ.replacement(BasicType.BYTE)).containsExactly(122);
     }
 
-    @Test
-    void testAllReplacementBadValueIsParameterException() {
-        assertThatThrownBy(() -> parse("--sanitize-all-replacement=bogus"))
-                .isInstanceOf(CommandLine.ParameterException.class);
-    }
-
-    @Test
-    void testEscapedCharReplacementFlags() {
-        // \0 through the CLI: char must be 0x0000, and byte 0x00 rather than the default 42
-        final SanitizationPolicy nul = parse("--sanitize-all-replacement=\\0");
-        assertThat(nul.replacement(BasicType.CHAR)).containsExactly(0, 0);
-        assertThat(nul.replacement(BasicType.BYTE)).containsExactly(0);
-        assertThat(nul.replacement(BasicType.BOOLEAN)).containsExactly(0);
-
-        // \98 is decimal, so the character 'b'
-        final SanitizationPolicy b = parse("--sanitize-char-replacement=\\98");
-        assertThat(b.replacement(BasicType.CHAR)).containsExactly(0x00, 0x62);
-
-        // a bare non-digit character
-        final SanitizationPolicy a = parse("--sanitize-char-replacement=a");
-        assertThat(a.replacement(BasicType.CHAR)).containsExactly(0x00, 0x61);
-    }
-
-    @Test
-    void testQuotedCharReplacementIsParameterException() {
-        // '*' is a 3-character string, no longer a synonym for *
-        assertThatThrownBy(() -> parse("--sanitize-char-replacement='*'"))
-                .isInstanceOf(CommandLine.ParameterException.class);
-
-        assertThatThrownBy(() -> parse("--sanitize-all-replacement='*'"))
-                .isInstanceOf(CommandLine.ParameterException.class);
-    }
-
-    @Test
-    void testAllReplacementNumber() {
-        final SanitizationPolicy policy = parse("--sanitize-all-replacement=42");
-        assertThat(policy.replacement(BasicType.BYTE)).containsExactly(42);
-        assertThat(policy.replacement(BasicType.SHORT)).containsExactly(0, 42);
-        assertThat(policy.replacement(BasicType.INT)).containsExactly(0, 0, 0, 42);
-        assertThat(policy.replacement(BasicType.LONG)).containsExactly(0, 0, 0, 0, 0, 0, 0, 42);
-        // char 42 = 0x002A
-        assertThat(policy.replacement(BasicType.CHAR)).containsExactly(0x00, 0x2A);
-        // float 42.0f
-        assertThat(policy.replacement(BasicType.FLOAT)).containsExactly(0x42, 0x28, 0x00, 0x00);
-        // double 42.0
-        assertThat(policy.replacement(BasicType.DOUBLE))
-                .containsExactly(0x40, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
-        // boolean: 42 != 0 -> true -> 1
-        assertThat(policy.replacement(BasicType.BOOLEAN)).containsExactly(1);
-    }
 
     @Test
     void testCopyFromPreservesDirectiveOrder() {
         final TestCommand source = new TestCommand();
-        new CommandLine(source).parseArgs("--sanitize-all=false", "--sanitize-long-arrays=true");
+        new CommandLine(source).parseArgs("--target=long-arrays");
 
         final SanitizeOptions target = new SanitizeOptions();
         target.copyFrom(source.options);
@@ -311,9 +284,8 @@ class SanitizeOptionsTest {
     @Test
     void testCopyFromSelfIsANoOp() {
         final TestCommand command = new TestCommand();
-        new CommandLine(command).parseArgs("--sanitize-all=false",
-                                          "--sanitize-long-arrays=true",
-                                          "--sanitize-int-replacement=7",
+        new CommandLine(command).parseArgs("--target=long-arrays",
+                                          "--replacement=int=7",
                                           "--text-charset=UTF-8");
 
         final SanitizationPolicy before = command.options.resolve();

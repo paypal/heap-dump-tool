@@ -55,10 +55,18 @@ class HeapDumpSanitizerTest {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(HeapDumpSanitizerTest.class);
 
+    // How many bytes of a sequence an assertion failure prints. See abbreviateHex.
+    private static final int ABBREVIATED_SEQUENCE_LENGTH = 32;
+
     @TempDir
     static Path tempDir;
 
     private final SecretArrays secretArrays = new SecretArrays();
+
+    // Strong reference to the interned secret, so it survives until the heap dump is taken.
+    // See lengthenAndInternItsValue.
+    @SuppressWarnings("unused")
+    private String internedItsValue;
 
     @BeforeEach
     void beforeEach(final TestInfo info) {
@@ -102,19 +110,17 @@ class HeapDumpSanitizerTest {
         final byte[] expectedHerSecretValueBytes = adjustLettersToByteArray(herSecretValue);
         final byte[] expectedItsSecretValueBytes = adjustLettersToByteArray(itsSecretValue);
 
-        assertThat(heapDump)
-                .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                .containsSequence(expectedHisSecretValueBytes)
-                .containsSequence(expectedHerSecretValueBytes)
-                .containsSequence(expectedItsSecretValueBytes)
-                .containsSequence(secretArrays.getByteArraySequence())
-                .containsSequence(secretArrays.getCharArraySequence())
-                .containsSequence(secretArrays.getShortArraySequence())
-                .containsSequence(secretArrays.getIntArraySequence())
-                .containsSequence(secretArrays.getLongArraySequence())
-                .containsSequence(secretArrays.getFloatArraySequence())
-                .containsSequence(secretArrays.getDoubleArraySequence())
-                .containsSequence(secretArrays.getBooleanArraySequence());
+        verifyContainsSequence(heapDump, "his secret value (byte[] local)", expectedHisSecretValueBytes);
+        verifyContainsSequence(heapDump, "her secret value (String local)", expectedHerSecretValueBytes);
+        verifyContainsSequence(heapDump, "its secret value (interned)", expectedItsSecretValueBytes);
+        verifyContainsSequence(heapDump, "byte[]", secretArrays.getByteArraySequence());
+        verifyContainsSequence(heapDump, "char[]", secretArrays.getCharArraySequence());
+        verifyContainsSequence(heapDump, "short[]", secretArrays.getShortArraySequence());
+        verifyContainsSequence(heapDump, "int[]", secretArrays.getIntArraySequence());
+        verifyContainsSequence(heapDump, "long[]", secretArrays.getLongArraySequence());
+        verifyContainsSequence(heapDump, "float[]", secretArrays.getFloatArraySequence());
+        verifyContainsSequence(heapDump, "double[]", secretArrays.getDoubleArraySequence());
+        verifyContainsSequence(heapDump, "boolean[]", secretArrays.getBooleanArraySequence());
     }
 
     @ParameterizedTest
@@ -164,7 +170,7 @@ class HeapDumpSanitizerTest {
         assertThat(instance).isNotNull();
         assertThat(staticFields).isNotNull();
 
-        byte[] sanitizedHeapDump = loadSanitizedHeapDump("--sanitize-all=true");
+        byte[] sanitizedHeapDump = loadSanitizedHeapDump("--target=all");
         verifyDoesNotContainsSequence(sanitizedHeapDump, nCopiesLongToBytes(deadcow(), 100));
         assertThat(countOfSequence(sanitizedHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
                 .isLessThan(1000);
@@ -176,12 +182,8 @@ class HeapDumpSanitizerTest {
         {
             // scoped to byte/char arrays only: no non-array field is in scope, so the long
             // instance fields and the long static fields both survive
-            final byte[] clearHeapDump = loadSanitizedHeapDump("--sanitize-all=false",
-                                                               "--sanitize-byte-arrays=true",
-                                                               "--sanitize-char-arrays=true");
-            assertThat(clearHeapDump)
-                    .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                    .containsSequence(nCopiesLongToBytes(deadcow(), 500));
+            final byte[] clearHeapDump = loadSanitizedHeapDump("--target=byte-arrays,char-arrays");
+            verifyContainsSequence(clearHeapDump, "long instance fields", nCopiesLongToBytes(deadcow(), 500));
 
             assertThat(countOfSequence(clearHeapDump, nCopiesLongToBytes(cafegirl(), 1)))
                     .isGreaterThan(500);
@@ -189,48 +191,41 @@ class HeapDumpSanitizerTest {
     }
 
     @Test
-    @DisplayName("testOnlySelectedArrayTypeIsSanitized. One --sanitize-X-arrays flag affects only X")
+    @DisplayName("testOnlySelectedArrayTypeIsSanitized. One --target selector affects only that type")
     void testOnlySelectedArrayTypeIsSanitized() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=false",
-                                                      "--sanitize-int-arrays=true");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=int-arrays");
 
         verifyDoesNotContainsSequence(heapDump, secretArrays.getIntArraySequence());
 
-        assertThat(heapDump)
-                .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                .containsSequence(secretArrays.getByteArraySequence())
-                .containsSequence(secretArrays.getCharArraySequence())
-                .containsSequence(secretArrays.getShortArraySequence())
-                .containsSequence(secretArrays.getLongArraySequence())
-                .containsSequence(secretArrays.getFloatArraySequence())
-                .containsSequence(secretArrays.getDoubleArraySequence())
-                .containsSequence(secretArrays.getBooleanArraySequence());
+        verifyContainsSequence(heapDump, "byte[]", secretArrays.getByteArraySequence());
+        verifyContainsSequence(heapDump, "char[]", secretArrays.getCharArraySequence());
+        verifyContainsSequence(heapDump, "short[]", secretArrays.getShortArraySequence());
+        verifyContainsSequence(heapDump, "long[]", secretArrays.getLongArraySequence());
+        verifyContainsSequence(heapDump, "float[]", secretArrays.getFloatArraySequence());
+        verifyContainsSequence(heapDump, "double[]", secretArrays.getDoubleArraySequence());
+        verifyContainsSequence(heapDump, "boolean[]", secretArrays.getBooleanArraySequence());
     }
 
     /**
-     * The whole point of recording flags in command-line order: {@code --sanitize-all} last wins.
+     * The whole point of recording flags in command-line order: later flags win.
      * Only this end-to-end path exercises the real picocli setup, where {@code Application.main}
      * parses the same command object twice, so replaying the recorded flags must stay idempotent
      * as well as ordered.
      */
     @Test
-    @DisplayName("testOrderMattersAllAfterSpecific. --sanitize-all last overwrites earlier opt-outs")
+    @DisplayName("testOrderMattersAllAfterSpecific. Later selectors override earlier ones")
     void testOrderMattersAllAfterSpecific() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-int-arrays=false",
-                                                      "--sanitize-all=true");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=int-arrays,all");
 
         verifyDoesNotContainsSequence(heapDump, secretArrays.getIntArraySequence());
     }
 
     @Test
-    @DisplayName("testOrderMattersSpecificAfterAll. A later per-type flag overrides --sanitize-all")
+    @DisplayName("testOrderMattersSpecificAfterAll. A later subtraction overrides earlier inclusion")
     void testOrderMattersSpecificAfterAll() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=true",
-                                                      "--sanitize-int-arrays=false");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=all,-int-arrays");
 
-        assertThat(heapDump)
-                .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                .containsSequence(secretArrays.getIntArraySequence());
+        verifyContainsSequence(heapDump, "int[]", secretArrays.getIntArraySequence());
 
         // every other array type is still in scope, so the opt-out really is per type
         verifyDoesNotContainsSequence(heapDump, secretArrays.getShortArraySequence());
@@ -239,10 +234,10 @@ class HeapDumpSanitizerTest {
 
     /**
      * The legacy migration contract. {@code -s=true} must mean exactly
-     * {@code --sanitize-all=false --sanitize-byte-arrays=true --sanitize-char-arrays=true}: byte[]
-     * and char[] wiped, WHILE the other six primitive array types and every non-array primitive
-     * field survive the same run. That positive selectivity is what the pre-feature suite proved
-     * and what the new all-on default no longer expresses anywhere else.
+     * {@code --target=byte-arrays,char-arrays}: byte[] and char[] wiped, WHILE the other six
+     * primitive array types and every non-array primitive field survive the same run. That positive
+     * selectivity is what the pre-feature suite proved and what the new all-on default no longer
+     * expresses anywhere else.
      */
     @Test
     @DisplayName("testLegacyByteCharArraysOnlyStillWorks. Deprecated -s=true maps to byte/char arrays only")
@@ -255,38 +250,34 @@ class HeapDumpSanitizerTest {
         verifyDoesNotContainsSequence(heapDump, secretArrays.getByteArraySequence());
         verifyDoesNotContainsSequence(heapDump, secretArrays.getCharArraySequence());
 
-        assertThat(heapDump)
-                .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                .containsSequence(secretArrays.getShortArraySequence())
-                .containsSequence(secretArrays.getIntArraySequence())
-                .containsSequence(secretArrays.getLongArraySequence())
-                .containsSequence(secretArrays.getFloatArraySequence())
-                .containsSequence(secretArrays.getDoubleArraySequence())
-                .containsSequence(secretArrays.getBooleanArraySequence())
-                // no non-array field is in scope either
-                .containsSequence(nCopiesLongToBytes(deadcow(), 500));
+        verifyContainsSequence(heapDump, "short[]", secretArrays.getShortArraySequence());
+        verifyContainsSequence(heapDump, "int[]", secretArrays.getIntArraySequence());
+        verifyContainsSequence(heapDump, "long[]", secretArrays.getLongArraySequence());
+        verifyContainsSequence(heapDump, "float[]", secretArrays.getFloatArraySequence());
+        verifyContainsSequence(heapDump, "double[]", secretArrays.getDoubleArraySequence());
+        verifyContainsSequence(heapDump, "boolean[]", secretArrays.getBooleanArraySequence());
+        // no non-array field is in scope either
+        verifyContainsSequence(heapDump, "long instance fields", nCopiesLongToBytes(deadcow(), 500));
     }
 
     /**
-     * {@code --sanitize-ints} is the FIELD flag and {@code --sanitize-int-arrays} is the ARRAY
-     * flag; they are independent. Opting int fields out of an otherwise all-on run must leave int
-     * fields intact while the other seven field types, and every array type including
+     * {@code --target=int-fields} is the FIELD selector and {@code --target=int-arrays} is the ARRAY
+     * selector; they are independent. Opting int fields out of an otherwise all-on run must leave
+     * int fields intact while the other seven field types, and every array type including
      * {@code int[]}, are still wiped.
      */
     @Test
-    @DisplayName("testPerTypeFieldOptOutIsHonored. --sanitize-all=true --sanitize-ints=false keeps int fields only")
+    @DisplayName("testPerTypeFieldOptOutIsHonored. --target=all,-int-fields keeps int fields only")
     void testPerTypeFieldOptOutIsHonored() throws Exception {
         final Object intFields = new ClassWithManyIntFields();
         final Object longFields = new ClassWithManyInstanceFields();
         assertThat(intFields).isNotNull();
         assertThat(longFields).isNotNull();
 
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=true",
-                                                      "--sanitize-ints=false");
+        final byte[] heapDump = loadSanitizedHeapDump("--target=all,-int-fields");
 
-        assertThat(heapDump)
-                .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                .containsSequence(nCopiesIntToBytes(ClassWithManyIntFields.VALUE, 500));
+        verifyContainsSequence(heapDump, "int instance fields",
+                               nCopiesIntToBytes(ClassWithManyIntFields.VALUE, 500));
 
         // control, in the same run: field sanitization is active, just not for int
         verifyDoesNotContainsSequence(heapDump, nCopiesLongToBytes(deadcow(), 100));
@@ -317,19 +308,17 @@ class HeapDumpSanitizerTest {
     }
 
     @Test
-    @DisplayName("testSanitizeAllFalseSanitizesNothing. --sanitize-all=false leaves every primitive array intact")
+    @DisplayName("testSanitizeAllFalseSanitizesNothing. --target=none leaves every primitive array intact")
     void testSanitizeAllFalseSanitizesNothing() throws Exception {
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=false");
-        assertThat(heapDump)
-                .overridingErrorMessage("sequences do not match") // normal error message would be long and not helpful at all
-                .containsSequence(secretArrays.getByteArraySequence())
-                .containsSequence(secretArrays.getCharArraySequence())
-                .containsSequence(secretArrays.getShortArraySequence())
-                .containsSequence(secretArrays.getIntArraySequence())
-                .containsSequence(secretArrays.getLongArraySequence())
-                .containsSequence(secretArrays.getFloatArraySequence())
-                .containsSequence(secretArrays.getDoubleArraySequence())
-                .containsSequence(secretArrays.getBooleanArraySequence());
+        final byte[] heapDump = loadSanitizedHeapDump("--target=none");
+        verifyContainsSequence(heapDump, "byte[]", secretArrays.getByteArraySequence());
+        verifyContainsSequence(heapDump, "char[]", secretArrays.getCharArraySequence());
+        verifyContainsSequence(heapDump, "short[]", secretArrays.getShortArraySequence());
+        verifyContainsSequence(heapDump, "int[]", secretArrays.getIntArraySequence());
+        verifyContainsSequence(heapDump, "long[]", secretArrays.getLongArraySequence());
+        verifyContainsSequence(heapDump, "float[]", secretArrays.getFloatArraySequence());
+        verifyContainsSequence(heapDump, "double[]", secretArrays.getDoubleArraySequence());
+        verifyContainsSequence(heapDump, "boolean[]", secretArrays.getBooleanArraySequence());
     }
 
     @Test
@@ -340,7 +329,7 @@ class HeapDumpSanitizerTest {
         // rejects them, aborting the run and truncating the output.
         final long longReplacement = 1234829916808609672L;
 
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-long-replacement=" + longReplacement);
+        final byte[] heapDump = loadSanitizedHeapDump("--replacement=long=" + longReplacement);
 
         verifyDoesNotContainsSequence(heapDump, secretArrays.getLongArraySequence());
         // the secret long[] is SecretArrays.LENGTH elements, so the replacement tiles it exactly
@@ -358,9 +347,8 @@ class HeapDumpSanitizerTest {
         // replacement(INT) would go undetected.
         final int intReplacement = 0x11223344;
 
-        final byte[] heapDump = loadSanitizedHeapDump("--sanitize-all=false",
-                                                      "--sanitize-int-arrays=true",
-                                                      "--sanitize-int-replacement=" + intReplacement);
+        final byte[] heapDump = loadSanitizedHeapDump("--target=int-arrays",
+                                                      "--replacement=int=" + intReplacement);
 
         verifyDoesNotContainsSequence(heapDump, secretArrays.getIntArraySequence());
 
@@ -419,6 +407,38 @@ class HeapDumpSanitizerTest {
         return 0xCAFEBABD + Integer.parseInt("1");
     }
 
+    /**
+     * Asserts that {@code big} contains {@code small}, naming what was looked for on failure.
+     *
+     * <p>AssertJ's own message would dump both arrays, and a heap dump is tens of megabytes, so
+     * these assertions used to share one {@code overridingErrorMessage("sequences do not match")}.
+     * That hid which value was missing: a chained assertion aborts at the first failure, so the
+     * report named a line number and nothing else. The name plus the sequence -- short enough to
+     * print -- identifies the failing value without printing the dump.</p>
+     */
+    private void verifyContainsSequence(final byte[] big, final String name, final byte[] small) {
+        assertThat(big)
+                .overridingErrorMessage("heap dump (%s bytes) does not contain the %s sequence (%s bytes): %s",
+                                        big.length, name, small.length, abbreviateHex(small))
+                .containsSequence(small);
+    }
+
+    /**
+     * The sequence as hex, capped at {@value #ABBREVIATED_SEQUENCE_LENGTH} bytes. The array
+     * sequences run to a few kilobytes, and enough of a prefix to identify one is plenty.
+     */
+    private String abbreviateHex(final byte[] bytes) {
+        final int shown = Math.min(bytes.length, ABBREVIATED_SEQUENCE_LENGTH);
+        final StringBuilder hex = new StringBuilder(shown * 3);
+        for (int i = 0; i < shown; i++) {
+            hex.append(String.format("%02x ", bytes[i]));
+        }
+        if (shown < bytes.length) {
+            hex.append("... (").append(bytes.length - shown).append(" more)");
+        }
+        return hex.toString().trim();
+    }
+
     private void verifyDoesNotContainsSequence(final byte[] big, final byte[] small) {
         final String corrId = System.currentTimeMillis() + "";
         assertThatCode(() -> {
@@ -428,10 +448,22 @@ class HeapDumpSanitizerTest {
                 .hasMessageContaining(corrId);
     }
 
+    /**
+     * Builds the third secret and interns it, keeping the interned reference in {@link
+     * #internedItsValue}.
+     *
+     * <p>Keeping it is load-bearing. The native StringTable holds interned strings only weakly, so
+     * an interned {@code String} whose reference is discarded is collectible; any GC between here
+     * and {@link #triggerHeapDump()} then removes the value from the heap, and it never reaches the
+     * dump. Whether such a GC lands in that window is pure ergonomics -- heap sizing, GC choice,
+     * core count, and which test ran before this one under {@link Random} ordering -- so the
+     * discarded form passed on some machines and failed on others. The two sibling secrets are
+     * reachable from their locals throughout, which is why only this one was affected.</p>
+     */
     private void lengthenAndInternItsValue(final byte[] value) {
         String itsValue = new String(value, UTF_8).replace("his", "its");
         itsValue = lengthen(itsValue, DataSize.ofMegabytes(1));
-        unused(itsValue.intern());
+        internedItsValue = itsValue.intern();
     }
 
     private byte[] adjustLettersToByteArray(final String str) {
