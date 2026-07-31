@@ -50,13 +50,21 @@ public class HeapDumpSanitizer {
 
     private static final InternalLogger LOGGER = InternalLogger.getLogger(HeapDumpSanitizer.class);
 
-    // for debugging/testing
-    private static final boolean ENABLE_SANITIZATION = isFalse(Boolean.getBoolean("disable-sanitization"));
-
     private InputStream inputStream;
     private OutputStream outputStream;
     private ProgressMonitor progressMonitor;
     private SanitizeCommand sanitizeCommand;
+
+    /*
+     * Debugging switch to disable sanitization. Useful for verifying that the tool is able to correctly parse and
+     * create valid heap dump files.
+     */
+    private boolean sanitizationEnabled = isFalse(Boolean.getBoolean("disable-sanitization"));
+
+    /*
+     * True for the metadata-collection pass, whose output is discarded.
+     */
+    private boolean preprocessingOnly;
 
     /*
      * Resolved once per sanitize() run, not per query. SanitizeCommand.getSanitizationPolicy()
@@ -68,6 +76,25 @@ public class HeapDumpSanitizer {
 
     private final Map<Long, String> stringIdToStringMap = new HashMap<>();
     private final Map<Long, Long> classObjectIdToStringIdMap = new HashMap<>();
+
+    /*
+     * The string ids this run actually reads back, recorded during the metadata pass and consulted by
+     * the writing pass.
+     *
+     * stringIdToStringMap is queried for exactly two things -- class names (getClassName) and instance
+     * field names (class dumps) -- but STRING_IN_UTF8 records carry every string in the heap, so on a
+     * 1.2 GB dump it stored around 1.4 mil entries of which only about 100k were ever looked up. The
+     * other ~90% are heap object contents that nothing queries, retaining a few hundred MB for the
+     * length of the run.
+     *
+     * The ids cannot be known on a single pass: STRING_IN_UTF8 records precede the LOAD_CLASS and class
+     * dump records that reference them. They can be known on the second, because both passes share one
+     * instance -- so the metadata pass notes every id it queries, and the writing pass keeps only
+     * those. Null until a metadata pass has finished, meaning "keep everything", which is what a
+     * single-pass run and the metadata pass itself both need.
+     */
+    private Set<Long> neededStringIds;
+    private Set<Long> queriedStringIds;
 
     /*
      * Field layouts, keyed by class object id rather than class name. Class names are not unique in a
@@ -97,10 +124,42 @@ public class HeapDumpSanitizer {
         this.sanitizeCommand = sanitizeCommand;
     }
 
+    public void setPreprocessingOnly(final boolean preprocessingOnly) {
+        this.preprocessingOnly = preprocessingOnly;
+        this.sanitizationEnabled = !preprocessingOnly && isFalse(Boolean.getBoolean("disable-sanitization"));
+        if (preprocessingOnly) {
+            /*
+             * Entering the metadata pass: start recording which string ids get read back, and keep
+             * every string for the duration, since the set is not known until this pass ends.
+             */
+            queriedStringIds = new HashSet<>();
+            neededStringIds = null;
+        } else if (queriedStringIds != null) {
+            /*
+             * Leaving it: the recorded ids are the only ones the writing pass can read back, because
+             * both passes see the same records in the same order and ask the same questions of them.
+             * Dropping the recorder also stops the writing pass from growing a set nothing consults.
+             */
+            neededStringIds = queriedStringIds;
+            queriedStringIds = null;
+
+            /*
+             * Both passes share this map, so the entries the metadata pass already stored have to go
+             * too -- gating the writing pass's puts alone would leave all of them resident. The
+             * writing pass repopulates what it keeps from the same records, in the same order.
+             */
+            final int storedBefore = stringIdToStringMap.size();
+            stringIdToStringMap.keySet().retainAll(neededStringIds);
+            LOGGER.debug("Retained {} of {} strings for the sanitization pass", stringIdToStringMap.size(), storedBefore);
+        }
+    }
+
     public void sanitize() throws IOException {
         sanitizationPolicy = sanitizeCommand.getSanitizationPolicy();
 
-        final Pipe pipe = new Pipe(inputStream, outputStream, progressMonitor);
+        final Pipe pipe = preprocessingOnly
+                          ? Pipe.readOnlyPipe(inputStream, progressMonitor)
+                          : new Pipe(inputStream, outputStream, progressMonitor);
 
         /*
          * The basic fields in the binary output are u1 (1 byte), u2 (2 byte), u4 (4 byte), and u8 (8 byte).
@@ -168,12 +227,32 @@ public class HeapDumpSanitizer {
         return getClassName(classObjectId).equals(String.class.getName());
     }
 
+    /*
+     * STRING IN UTF8  0x01
+     *
+     * ID     string id
+     * [u1]*  UTF8 bytes, for the rest of the record (no trailing NUL)
+     *
+     * The body length is the record length less the leading id, and the pipe now reads exactly that many
+     * bytes. Previously the body was read through a per-record bounded child pipe, which is where the
+     * correct length lived: the length argument was the whole record length, over-long by idSize, and
+     * only the child's bound stopped it from reading into the next record. Passing the true length makes
+     * the bound redundant, which drops three allocations (child Pipe, DataInputStream,
+     * BoundedInputStream) from the most numerous record type in a dump.
+     */
     private void copyStringInUtf8Record(final Pipe pipe, final long length) throws IOException {
         final long id = pipe.pipeId();
-        final Pipe dataPipe = pipe.newInputBoundedPipe(length - pipe.getIdSize());
-        final String string = dataPipe.pipeString(length);
-        if (shouldTrackClassMetadata() || sanitizeCommand.isForceMatchStringCoder()) {
-            stringIdToStringMap.put(id, string.replace("/", "."));
+        final long bodyLength = length - pipe.getIdSize();
+
+        /*
+         * Decided before reading, so a record nothing will store is never decoded. The map keeps only
+         * about 100k of some 1.4 mil records on a 1.2 GB dump, so the other ~90% were being turned into
+         * a String -- and, for the half of them containing a slash, a second String -- to be dropped.
+         */
+        if (isNeededStringId(id) && (shouldTrackClassMetadata() || sanitizeCommand.isForceMatchStringCoder())) {
+            stringIdToStringMap.put(id, pipe.pipeStringReplacing(bodyLength, '/', '.'));
+        } else {
+            pipe.pipeExactly(bodyLength);
         }
     }
 
@@ -271,6 +350,7 @@ public class HeapDumpSanitizer {
         for (int i = 0; i < numInstanceFields; i++) {
             final long fieldNameStringId = pipe.pipeId();
             final int fieldType = pipe.pipeU1();
+            recordStringIdQuery(fieldNameStringId);
             final String fieldName = stringIdToStringMap.getOrDefault(fieldNameStringId, "");
             final BasicType basicType = requireBasicType(fieldType);
             classObject.fields.add(new Field(fieldName, basicType));
@@ -504,11 +584,30 @@ public class HeapDumpSanitizer {
 
     private String getClassName(final long classObjectId) {
         final Long stringId = classObjectIdToStringIdMap.get(classObjectId);
+        recordStringIdQuery(stringId);
         return stringIdToStringMap.getOrDefault(stringId, "");
     }
 
+    /**
+     * Notes that this string id is read back, so the writing pass knows to keep it. Only the metadata
+     * pass records; the writing pass has the finished set and adds nothing.
+     */
+    private void recordStringIdQuery(final Long stringId) {
+        if (queriedStringIds != null && stringId != null) {
+            queriedStringIds.add(stringId);
+        }
+    }
+
+    /**
+     * Whether the resolved string for this id is worth keeping. True for every id until a metadata pass
+     * has produced the set -- so the metadata pass itself, and a run that skips it, behave as before.
+     */
+    private boolean isNeededStringId(final long id) {
+        return neededStringIds == null || neededStringIds.contains(id);
+    }
+
     private boolean shouldSanitizeField(final int fieldType) {
-        if (!ENABLE_SANITIZATION) {
+        if (!sanitizationEnabled) {
             return false;
         }
 
@@ -516,13 +615,30 @@ public class HeapDumpSanitizer {
         return basicType != null && sanitizationPolicy.sanitizeField(basicType);
     }
 
+    /*
+     * OBJECT ARRAY DUMP  0x22
+     *
+     * ID  array object ID
+     * u4  stack trace serial number
+     * u4  number of elements
+     * ID  array class object ID
+     * [ID]*  elements
+     *
+     * The elements are object references, which are never sanitized, and nothing here reads their
+     * values -- so one bulk transfer of the whole element region is byte-for-byte what a per-element
+     * pipeId() loop produced, and collapses to a single seek in the metadata pass. Object arrays are a
+     * large share of a real dump, so the loop was worth removing.
+     *
+     * This does forgo pipeId()'s "Small unsigned long expected" check on each element. That check
+     * exists so a >2^63 id cannot be misread as negative by later arithmetic; these values feed no
+     * later arithmetic. Every id that is actually used -- object, class object, field name, and
+     * String.value -- still goes through pipeId().
+     */
     private void copyHeapDumpObjectArrayDump(final Pipe pipe) throws IOException {
-        pipe.pipeU4();
+        pipe.pipeU4(); // stack trace serial number
         final long numElements = pipe.pipeU4();
-        pipe.pipeId();
-        for (long i = 0; i < numElements; i++) {
-            pipe.pipeId();
-        }
+        pipe.pipeId(); // array class object id
+        pipe.pipe(Math.multiplyExact(numElements, (long) pipe.getIdSize()));
     }
 
     /*
@@ -551,7 +667,7 @@ public class HeapDumpSanitizer {
     }
 
     private boolean shouldApplyArraySanitization(final long objectId, final int elementType) {
-        if (!ENABLE_SANITIZATION) {
+        if (!sanitizationEnabled) {
             return false;
         }
 

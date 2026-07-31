@@ -1,6 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedConstruction;
@@ -10,6 +11,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.List;
 
 import static com.paypal.heapdumptool.sanitizer.DataSize.ofBytes;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,6 +21,7 @@ import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(OutputCaptureExtension.class)
@@ -98,6 +101,25 @@ class SanitizeCommandProcessorTest {
 
     private void prepare(final HeapDumpSanitizer mock, final MockedConstruction.Context context) throws Throwable {
         doNothing().when(mock).sanitize();
+    }
+
+    @Test
+    @DisplayName("testPreprocessingOpensNoOutputStream. the metadata pass must not open an output")
+    void testPreprocessingOpensNoOutputStream() throws Exception {
+        final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
+
+        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+            processor.process();
+
+            final List<HeapDumpSanitizer> constructed = mocked.constructed();
+            assertThat(constructed).hasSize(1);
+            verify(constructed.get(0)).setPreprocessingOnly(true);
+            verify(constructed.get(0)).setPreprocessingOnly(false);
+        }
+
+        // one output stream for the writing pass only, not two
+        verify(streamFactory, times(1)).newOutputStream();
+        verify(streamFactory, times(2)).newInputStream();
     }
 
 }
