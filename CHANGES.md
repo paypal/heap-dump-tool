@@ -26,6 +26,17 @@
 - Reduce allocation by roughly 90% (about 96 GB down to under 10 GB on a 1.2 GB dump) and wall clock by about 35%.
 - Speed up the pre-processing pass that runs. On a 1.2 GB dump the pass drops from 20-22s to 12-14s (~40% faster) and
   the whole run from 43-46s to 35-37s (roughly 20%).
+- Progress is now reported as `Processed 484.32 MB / 1.11 GB (ETA 12s)` — how far along the run is against the size of
+  the input, with an estimate of the time left. Each figure takes the largest unit it is not a fraction of (`bytes`,
+  `KB`, `MB`, `GB`, `TB`) to two decimals, so a value below 1 GB reads as MB rather than as `0.48 GB`. A `stdin` input
+  has no knowable size, so it logs the processed count alone rather than a made-up ratio.
+- The pre-processing pass now logs `Finished pre-processing in 12s` when it completes. It is minutes of a large run
+  with nothing after it but more progress lines, so its end is marked the way the run's already was. A pass that failed
+  logs nothing.
+- Progress is logged every 5 seconds instead of once per `-b, --buffer-size` of data processed. A data-size step says
+  nothing about how long the run has been silent: the same step logged every few seconds through the bulk stretches of a
+  dump and went minutes without a line where records are small and numerous. `-b` no longer affects logging, only i/o
+  buffering as documented.
 
 ## 1.3.4
 - When `--sanitize-byte-char-arrays-only=false` is set, retain refs to objects.

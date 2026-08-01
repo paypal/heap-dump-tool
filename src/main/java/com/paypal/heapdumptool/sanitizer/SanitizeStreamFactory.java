@@ -1,5 +1,6 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.utils.ProgressMonitor;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.io.input.BufferedFileChannelInputStream;
 import org.apache.commons.lang3.Strings;
@@ -71,6 +72,26 @@ public class SanitizeStreamFactory {
     public boolean isStdinInput() {
         final String name = command.getInputFile().getFileName().toString();
         return Strings.CS.equalsAny(name, "-", "stdin", "0");
+    }
+
+    /**
+     * The number of bytes the input will yield, for progress reporting, or
+     * {@link ProgressMonitor#UNKNOWN_TOTAL} if that cannot be known.
+     *
+     * <p>Unknowable for stdin, which has no length. With {@code --tar-input} the file size is the
+     * archive's, a few hundred header bytes larger than the dump inside; that is close enough for a
+     * progress line and the ETA calculation clamps the tail.</p>
+     */
+    public long getInputSizeBytes() {
+        if (isStdinInput()) {
+            return ProgressMonitor.UNKNOWN_TOTAL;
+        }
+        try {
+            return Files.size(command.getInputFile());
+        } catch (final IOException e) {
+            // progress reporting is not worth failing a run over; the size is simply not shown
+            return ProgressMonitor.UNKNOWN_TOTAL;
+        }
     }
 
     private static SanitizeCommand validate(final SanitizeCommand command) {

@@ -75,9 +75,7 @@ public class Application implements IVersionProvider {
         gitProperties.load(new ByteArrayInputStream(bytes));
         gitProperties.put("appId", APP_ID);
 
-        final String versionInfo = StringSubstitutor.replace(
-                "${appId} (${git.build.version} ${git.commit.id.abbrev}, ${git.commit.time})",
-                gitProperties);
+        final String versionInfo = StringSubstitutor.replace("${appId} ${git.build.version}", gitProperties);
         return new String[]{versionInfo};
     }
 

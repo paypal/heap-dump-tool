@@ -41,6 +41,9 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         if (streamFactory.isStdinInput() && !command.getExcludeStringFields().isEmpty()) {
             throw new IllegalArgumentException("stdin input and excludeStringFields cannot be both set to true simultaneously");
         }
+
+        LOGGER.info("Input File: {}", command.getInputFile());
+        LOGGER.info("Output File: {}", command.getOutputFile());
         final SanitizationPolicy policy = command.getSanitizationPolicy();
         for (final String warning : policy.getWarnings()) {
             LOGGER.info("WARNING: {}", warning);
@@ -51,8 +54,6 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
 
         final HeapDumpSanitizer sanitizer = applyPreprocessing();
         LOGGER.info("Starting heap dump sanitization ...");
-        LOGGER.info("Input File: {}", command.getInputFile());
-        LOGGER.info("Output File: {}", command.getOutputFile());
 
         try (final InputStream inputStream = streamFactory.newInputStream();
              final OutputStream outputStream = streamFactory.newOutputStream()) {
@@ -83,10 +84,12 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
             return sanitizerPrototype;
         }
 
+        LOGGER.info(""); // empty line
         LOGGER.info("Pre-processing ...");
         LOGGER.info("    String fields to exclude from sanitization: {}", String.join(",", command.getExcludeStringFields()));
         LOGGER.info("    Force match String.coder: {}", command.isForceMatchStringCoder());
-        LOGGER.info("Input File: {}", command.getInputFile());
+
+        final Instant preprocessingStart = Instant.now();
 
         sanitizerPrototype.setPreprocessingOnly(true);
         try (final InputStream inputStream = streamFactory.newInputStream()) {
@@ -94,6 +97,8 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         } finally {
             sanitizerPrototype.setPreprocessingOnly(false);
         }
+        LOGGER.info("Finished pre-processing in {}", getFriendlyDuration(preprocessingStart));
+        LOGGER.info(""); // empty line
 
         return sanitizerPrototype;
     }
@@ -103,7 +108,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
                           final OutputStream outputStream) throws IOException {
         sanitizer.setInputStream(inputStream);
         sanitizer.setOutputStream(outputStream);
-        sanitizer.setProgressMonitor(numBytesProcessedMonitor(command.getBufferSize(), LOGGER));
+        sanitizer.setProgressMonitor(numBytesProcessedMonitor(streamFactory.getInputSizeBytes(), LOGGER));
         sanitizer.setSanitizeCommand(command);
 
         sanitizer.sanitize();

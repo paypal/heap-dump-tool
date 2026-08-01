@@ -12,8 +12,16 @@ public class DateTimeTool {
         final Instant startSeconds = start.truncatedTo(SECONDS);
         final Instant endSeconds = Instant.now().truncatedTo(SECONDS);
 
-        final Duration duration = Duration.between(startSeconds, endSeconds);
-        return duration.toString()
+        return getFriendlyDuration(Duration.between(startSeconds, endSeconds));
+    }
+
+    /**
+     * Renders a duration the way ISO-8601 writes it, less the {@code PT} prefix and in lower case:
+     * {@code 1m5s}, {@code 45s}, {@code 2h3m4s}.
+     */
+    public static String getFriendlyDuration(final Duration duration) {
+        final Duration truncatedDuration = Duration.ofSeconds(duration.getSeconds());
+        return truncatedDuration.toString()
                        .substring(2)
                        .toLowerCase(ENGLISH);
     }
