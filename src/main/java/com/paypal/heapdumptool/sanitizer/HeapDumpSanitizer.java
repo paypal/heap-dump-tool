@@ -24,7 +24,7 @@ import static org.apache.commons.lang3.BooleanUtils.isFalse;
 /**
  * Heavily based on: <br>
  *
- * <a href="https://html-preview.github.io/?url=https://github.com/JetBrains/jdk8u_jdk/blob/master/src/share/demo/jvmti/hprof/manual.html">
+ * <a href="https://html-preview.github.io/?url=https://github.com/openjdk/jdk8/blob/master/jdk/src/share/demo/jvmti/hprof/manual.html">
  * Heap Dump Binary Format Spec
  * </a> (highly recommended to make sense of the code in any meaningful way)
  * <br>
@@ -256,6 +256,30 @@ public class HeapDumpSanitizer {
         }
     }
 
+    /*
+     * The body of a HEAP DUMP or HEAP DUMP SEGMENT record: a series of sub-records, each with its own
+     * u1 tag and its own layout.
+     *
+     * ROOT UNKNOWN         0xFF  ID object id
+     * ROOT JNI GLOBAL      0x01  ID object id; ID JNI global ref id
+     * ROOT JNI LOCAL       0x02  ID object id; u4 thread serial; u4 frame number (-1 for empty)
+     * ROOT JAVA FRAME      0x03  ID object id; u4 thread serial; u4 frame number (-1 for empty)
+     * ROOT NATIVE STACK    0x04  ID object id; u4 thread serial
+     * ROOT STICKY CLASS    0x05  ID object id
+     * ROOT THREAD BLOCK    0x06  ID object id; u4 thread serial
+     * ROOT MONITOR USED    0x07  ID object id
+     * ROOT THREAD OBJECT   0x08  ID thread object id; u4 thread serial; u4 stack trace serial
+     * CLASS DUMP           0x20  ID class object id; ...
+     * INSTANCE DUMP        0x21  ID object id; ...
+     * OBJECT ARRAY DUMP    0x22  ID array object id; ...
+     * PRIMITIVE ARRAY DUMP 0x23  ID array object id; ...
+     *
+     * Only the last four DUMP types hold the field values and array elements this tool sanitizes.
+     *
+     * An unknown tag throws instead of being skipped over. A sub-record's size is only knowable from
+     * its layout, so there is no length to skip by: a tag this switch does not know means the rest of
+     * the body can no longer be located, and carrying on would write a corrupt dump.
+     */
     private void copyHeapDumpRecord(final Pipe pipe) throws IOException {
         while (true) {
             final int tag = pipe.pipeU1IfPossible();
@@ -266,49 +290,50 @@ public class HeapDumpSanitizer {
 
             final long id = pipe.pipeId();
             switch (tag) {
-                case 0xFF:
+                case 0xFF: // ROOT UNKNOWN
                     break;
 
-                case 0x01:
-                    pipe.pipeId();
+                case 0x01: // ROOT JNI GLOBAL
+                    pipe.pipeId(); // JNI global ref id
                     break;
 
-                case 0x02:
-                case 0x03:
-                    pipe.pipe(4 + 4);
+                case 0x02: // ROOT JNI LOCAL
+                case 0x03: // ROOT JAVA FRAME
+                    pipe.pipe(4 + 4); // thread serial, frame number
                     break;
 
-                case 0x04:
-                    pipe.pipeU4();
+                case 0x04: // ROOT NATIVE STACK
+                    pipe.pipeU4(); // thread serial
                     break;
 
-                case 0x05:
+                case 0x05: // ROOT STICKY CLASS
                     break;
 
-                case 0x06:
-                    pipe.pipeU4();
+                case 0x06: // ROOT THREAD BLOCK
+                    pipe.pipeU4(); // thread serial
                     break;
 
-                case 0x07:
+                case 0x07: // ROOT MONITOR USED
                     break;
 
-                case 0x08:
-                    pipe.pipe(4 + 4);
+                case 0x08: // ROOT THREAD OBJECT
+                    pipe.pipe(4 + 4); // thread serial, stack trace serial
                     break;
 
-                case 0x20:
+                case 0x20: // CLASS DUMP
                     copyHeapDumpClassDump(pipe, id);
                     break;
 
-                case 0x21:
+                case 0x21: // INSTANCE DUMP
                     copyHeapDumpInstanceDump(pipe, id);
                     break;
 
-                case 0x22:
+                case 0x22: // OBJECT ARRAY DUMP
+                    // the array object id is not needed: elements are references, never sanitized
                     copyHeapDumpObjectArrayDump(pipe);
                     break;
 
-                case 0x23:
+                case 0x23: // PRIMITIVE ARRAY DUMP
                     copyHeapDumpPrimitiveArrayDump(pipe, id);
                     break;
 

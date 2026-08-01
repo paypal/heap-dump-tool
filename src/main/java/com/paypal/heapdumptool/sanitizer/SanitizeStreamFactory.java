@@ -75,14 +75,6 @@ public class SanitizeStreamFactory {
         return Strings.CS.equalsAny(name, "-", "stdin", "0");
     }
 
-    /**
-     * The number of bytes the input will yield, for progress reporting, or
-     * {@link ProgressMonitor#UNKNOWN_TOTAL} if that cannot be known.
-     *
-     * <p>Unknowable for stdin, which has no length. With {@code --tar-input} the file size is the
-     * archive's, a few hundred header bytes larger than the dump inside; that is close enough for a
-     * progress line and the ETA calculation clamps the tail.</p>
-     */
     public long getInputSizeBytes() {
         if (isStdinInput()) {
             return ProgressMonitor.UNKNOWN_TOTAL;
