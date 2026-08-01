@@ -13,7 +13,7 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 
-import static com.paypal.heapdumptool.sanitizer.DataSize.ofBytes;
+import static com.paypal.heapdumptool.utils.DataSize.ofBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.atLeastOnce;

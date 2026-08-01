@@ -16,6 +16,8 @@
 
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.utils.DataSize;
+import com.paypal.heapdumptool.utils.DataUnit;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

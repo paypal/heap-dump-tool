@@ -1,6 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.cli.CliCommand;
+import com.paypal.heapdumptool.utils.DataSize;
 import org.apache.commons.lang3.StringUtils;
 import picocli.CommandLine.Mixin;
 import picocli.CommandLine.Option;
@@ -14,7 +15,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static com.paypal.heapdumptool.sanitizer.DataSize.ofMegabytes;
+import static com.paypal.heapdumptool.utils.DataSize.ofMegabytes;
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 import static org.apache.commons.lang3.builder.ToStringStyle.MULTI_LINE_STYLE;
 import static picocli.CommandLine.Help.Visibility.ALWAYS;

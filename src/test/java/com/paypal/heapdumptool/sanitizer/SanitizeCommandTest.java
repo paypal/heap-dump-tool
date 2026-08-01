@@ -1,10 +1,11 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.utils.DataSize;
 import org.junit.jupiter.api.Test;
 import org.meanbean.test.BeanVerifier;
 import picocli.CommandLine;
 
-import static com.paypal.heapdumptool.sanitizer.DataSize.ofMegabytes;
+import static com.paypal.heapdumptool.utils.DataSize.ofMegabytes;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

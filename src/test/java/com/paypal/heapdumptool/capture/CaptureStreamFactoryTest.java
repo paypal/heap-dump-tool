@@ -15,7 +15,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.concurrent.LinkedBlockingQueue;
 
-import static com.paypal.heapdumptool.sanitizer.DataSize.ofBytes;
+import static com.paypal.heapdumptool.utils.DataSize.ofBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class CaptureStreamFactoryTest {

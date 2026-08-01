@@ -1,5 +1,6 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.utils.DataSize;
 import com.paypal.heapdumptool.utils.ProgressMonitor;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.io.input.BufferedFileChannelInputStream;

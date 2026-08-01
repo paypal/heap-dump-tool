@@ -3,7 +3,7 @@ package com.paypal.heapdumptool;
 import com.paypal.heapdumptool.capture.CaptureCommand;
 import com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation;
 import com.paypal.heapdumptool.hserr.SanitizeHserrCommand;
-import com.paypal.heapdumptool.sanitizer.DataSize;
+import com.paypal.heapdumptool.utils.DataSize;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommand;
 import com.paypal.heapdumptool.utils.InternalLogger;
 import org.apache.commons.text.StringSubstitutor;

@@ -5,7 +5,7 @@ import com.paypal.heapdumptool.Application;
 import com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation;
 import com.paypal.heapdumptool.fixture.ConstructorTester;
 import com.paypal.heapdumptool.fixture.ResourceTool;
-import com.paypal.heapdumptool.sanitizer.DataSize;
+import com.paypal.heapdumptool.utils.DataSize;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RuntimeEnvironment;
 import org.junit.jupiter.api.AfterEach;

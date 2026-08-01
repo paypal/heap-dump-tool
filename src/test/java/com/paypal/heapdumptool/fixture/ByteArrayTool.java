@@ -1,6 +1,6 @@
 package com.paypal.heapdumptool.fixture;
 
-import com.paypal.heapdumptool.sanitizer.DataSize;
+import com.paypal.heapdumptool.utils.DataSize;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
