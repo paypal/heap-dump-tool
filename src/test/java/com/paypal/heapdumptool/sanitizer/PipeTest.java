@@ -326,6 +326,69 @@ public class PipeTest {
         assertThat(readOnly.readU1()).isEqualTo('w');
     }
 
+    /**
+     * The read-only pass exists to seek over the regions it does not inspect, so it has to actually
+     * call skip(). The tests around this one all assert on the bytes that come out, which a pass that
+     * read every byte through read() satisfies just as well -- so none of them can tell a working seek
+     * from a dead one, and the optimisation can be switched off without a red test. This one asserts on
+     * the call itself.
+     */
+    @Test
+    @DisplayName("testReadOnlyPipeSeeksRatherThanReading. the seek must be used, not merely be correct")
+    public void testReadOnlyPipeSeeksRatherThanReading() throws IOException {
+        final AtomicLong skipCalls = new AtomicLong();
+        final AtomicLong readCalls = new AtomicLong();
+        final InputStream counting = new FilterInputStream(byteStreamOf(data)) {
+            @Override
+            public long skip(final long n) throws IOException {
+                skipCalls.incrementAndGet();
+                return super.skip(n);
+            }
+
+            @Override
+            public int read(final byte[] b, final int off, final int len) throws IOException {
+                readCalls.incrementAndGet();
+                return super.read(b, off, len);
+            }
+        };
+        final Pipe readOnly = Pipe.readOnlyPipe(counting, new AtomicLong()::set);
+
+        readOnly.pipe(6);
+
+        assertThat(skipCalls).hasValue(1);
+        assertThat(readCalls)
+                .as("a seekable stream must not be walked through read()")
+                .hasValue(0);
+        assertThat(readOnly.readU1()).isEqualTo('w');
+    }
+
+    /**
+     * The fallback is sticky: a stream whose skip() throws keeps throwing, and pipe() is called at
+     * least once per record, so retrying the seek per record would turn one failure into millions of
+     * exception constructions.
+     */
+    @Test
+    @DisplayName("testSkipIsNotRetriedAfterItThrows. one failed seek must not be re-attempted per record")
+    public void testSkipIsNotRetriedAfterItThrows() throws IOException {
+        final AtomicLong skipCalls = new AtomicLong();
+        final InputStream unseekable = new FilterInputStream(byteStreamOf(data)) {
+            @Override
+            public long skip(final long n) throws IOException {
+                skipCalls.incrementAndGet();
+                throw new IOException("Illegal seek");
+            }
+        };
+        final Pipe readOnly = Pipe.readOnlyPipe(unseekable, new AtomicLong()::set);
+
+        readOnly.pipe(6);
+        readOnly.pipe(5);
+
+        assertThat(skipCalls)
+                .as("the first throw settles it; later records go straight to read()")
+                .hasValue(1);
+        assertThat(readOnly.readU1()).isEqualTo('\0');
+    }
+
     @Test
     @DisplayName("testReadOnlyPipeAtEofStopsShort. seeking past EOF must stop, matching copyLarge")
     public void testReadOnlyPipeAtEofStopsShort() throws IOException {
