@@ -8,6 +8,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -802,6 +803,124 @@ class HeapDumpSanitizerSyntheticTest {
         }
     }
 
+    @Test
+    @DisplayName("testPreprocessingOnlyProducesNoOutput. the metadata pass must consume the dump and write nothing")
+    void testPreprocessingOnlyProducesNoOutput() throws IOException {
+        final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
+        final ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
+
+        final SanitizeCommand command = new SanitizeCommand();
+        new CommandLine(command)
+                .registerConverter(DataSize.class, DataSize::parse)
+                .parseArgs("in.hprof", "out.hprof");
+
+        final HeapDumpSanitizer sanitizer = new HeapDumpSanitizer();
+        sanitizer.setPreprocessingOnly(true);
+        sanitizer.setInputStream(new ByteArrayInputStream(fixture.input));
+        sanitizer.setOutputStream(outputBytes);
+        sanitizer.setProgressMonitor(numBytesProcessed -> {
+            // no op
+        });
+        sanitizer.setSanitizeCommand(command);
+
+        assertThatCode(sanitizer::sanitize).doesNotThrowAnyException();
+        assertThat(outputBytes.size())
+                .as("the metadata pass writes nothing, even when handed an output stream")
+                .isZero();
+    }
+
+    /**
+     * The writing pass keeps only the strings the metadata pass read back, so a class name that pass
+     * needs must survive the pruning. The -f coder rewrite is the sharpest case: it fires only for
+     * instances whose class name equals java.lang.String, a comparison made during the writing pass, so
+     * losing that one string silently turns the rewrite off and leaves a coder inconsistent with the
+     * byte[] beside it -- unreadable strings in MAT, not a failed run.
+     *
+     * <p>Drives both passes over a single sanitizer the way SanitizeCommandProcessor does, because the
+     * pruning happens between them, and pads the dump with strings nothing reads so the pruning has
+     * something to remove.</p>
+     */
+    @Test
+    @DisplayName("testStringsNeededByTheWritingPassSurvivePreprocessing. pruning must not drop a class name -f needs")
+    void testStringsNeededByTheWritingPassSurvivePreprocessing() throws IOException {
+        final long stringClassId = 900;
+        final long stringObjectId = 0x9100;
+        final long valueArrayId = 0x9200;
+
+        final Hprof input = new Hprof().header();
+        input.stringInUtf8(20, String.class.getName());
+        input.stringInUtf8(21, "value");
+        input.stringInUtf8(22, "coder");
+        // strings nothing ever reads back: these are what the pruning is meant to drop
+        for (int i = 0; i < 50; i++) {
+            input.stringInUtf8(100 + i, "unreferenced-heap-string-" + i);
+        }
+        input.loadClass(1, stringClassId, 20);
+
+        final Hprof body = new Hprof();
+        body.classDump(stringClassId, 0, new int[]{21, 22},
+                new BasicType[]{BasicType.OBJECT, BasicType.BYTE});
+        // "hi" as UTF16-BE, i.e. a genuine coder==1 payload
+        body.primitiveArrayDump(valueArrayId, BasicType.BYTE, new byte[]{0, 'h', 0, 'i'});
+
+        final Hprof instance = new Hprof();
+        instance.id(valueArrayId);
+        final int relativeCoderOffset = instance.offset();
+        instance.u1(1);
+        final int instanceOffset = body.instanceDump(stringObjectId, stringClassId, instance.toByteArray());
+        final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
+        final byte[] inputBytes = input.toByteArray();
+
+        final SanitizeCommand command = new SanitizeCommand();
+        new CommandLine(command)
+                .registerConverter(DataSize.class, DataSize::parse)
+                .parseArgs("--force-string-coder-match=true", "in.hprof", "out.hprof");
+
+        // one sanitizer across both passes, as SanitizeCommandProcessor does
+        final HeapDumpSanitizer sanitizer = new HeapDumpSanitizer();
+        sanitizer.setProgressMonitor(numBytesProcessed -> {
+            // no op
+        });
+        sanitizer.setSanitizeCommand(command);
+
+        sanitizer.setPreprocessingOnly(true);
+        sanitizer.setInputStream(new ByteArrayInputStream(inputBytes));
+        sanitizer.sanitize();
+        sanitizer.setPreprocessingOnly(false);
+
+        final ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
+        sanitizer.setInputStream(new ByteArrayInputStream(inputBytes));
+        sanitizer.setOutputStream(outputBytes);
+        sanitizer.sanitize();
+
+        final byte[] output = outputBytes.toByteArray();
+        assertThat(output.length).isEqualTo(inputBytes.length);
+        assertThat(output[base + instanceOffset + relativeCoderOffset])
+                .as("java.lang.String survived pruning, so -f still recognized this instance and forced LATIN1")
+                .isEqualTo((byte) 0);
+    }
+
+    @Test
+    @DisplayName("testObjectArrayElementsArePreserved. object references are never sanitized")
+    void testObjectArrayElementsArePreserved() throws IOException {
+        final long[] elementIds = {0x1111L, 0x2222L, 0x3333L, 0x4444L};
+
+        final Hprof hprof = new Hprof().header();
+        final Hprof body = new Hprof();
+        final int relativeOffset = body.objectArrayDump(0x7000L, 0x7100L, elementIds);
+        final int base = hprof.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
+        final byte[] input = hprof.toByteArray();
+
+        final byte[] output = sanitize(input);
+
+        final ByteBuffer elements = ByteBuffer.wrap(output, base + relativeOffset, elementIds.length * ID_SIZE);
+        for (final long elementId : elementIds) {
+            assertThat(elements.getLong())
+                    .as("object array elements must survive sanitization byte for byte")
+                    .isEqualTo(elementId);
+        }
+    }
+
     private byte[] sanitize(final byte[] input, final String... options) throws IOException {
         final SanitizeCommand command = new SanitizeCommand();
         final List<String> argv = new ArrayList<>(asList(options));
@@ -1015,6 +1134,23 @@ class HeapDumpSanitizerSyntheticTest {
             final int dataOffset = offset();
             out.write(data);
             return dataOffset;
+        }
+
+        /**
+         * OBJECT ARRAY DUMP 0x22: array object id, u4 stack trace serial, u4 number of elements,
+         * ID array class id, then one ID per element. Returns the offset of the first element.
+         */
+        int objectArrayDump(final long arrayObjectId, final long arrayClassId, final long... elementIds) throws IOException {
+            out.writeByte(0x22);
+            out.writeLong(arrayObjectId);
+            out.writeInt(0);
+            out.writeInt(elementIds.length);
+            out.writeLong(arrayClassId);
+            final int offset = offset();
+            for (final long elementId : elementIds) {
+                out.writeLong(elementId);
+            }
+            return offset;
         }
     }
 }

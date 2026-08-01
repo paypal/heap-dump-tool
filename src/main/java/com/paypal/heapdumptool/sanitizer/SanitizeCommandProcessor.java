@@ -2,7 +2,6 @@ package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.cli.CliCommandProcessor;
 import com.paypal.heapdumptool.utils.InternalLogger;
-import org.apache.commons.io.output.NullOutputStream;
 import org.apache.commons.lang3.Validate;
 
 import java.io.IOException;
@@ -89,11 +88,13 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         LOGGER.info("    Force match String.coder: {}", command.isForceMatchStringCoder());
         LOGGER.info("Input File: {}", command.getInputFile());
 
-        try (final InputStream inputStream = streamFactory.newInputStream();
-             final OutputStream outputStream = NullOutputStream.INSTANCE) {
-
-            sanitize(sanitizerPrototype, inputStream, outputStream);
+        sanitizerPrototype.setPreprocessingOnly(true);
+        try (final InputStream inputStream = streamFactory.newInputStream()) {
+            sanitize(sanitizerPrototype, inputStream, null);
+        } finally {
+            sanitizerPrototype.setPreprocessingOnly(false);
         }
+
         return sanitizerPrototype;
     }
 

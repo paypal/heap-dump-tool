@@ -5,7 +5,10 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.EOFException;
+import java.io.FilterInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -230,6 +233,250 @@ public class PipeTest {
                 .hasValue(data.length());
     }
 
+    @Test
+    @DisplayName("testReadOnlyPipeReadsTheSameValues. read-only mode must parse identically to a writing pipe")
+    public void testReadOnlyPipeReadsTheSameValues() throws IOException {
+        final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), new AtomicLong()::set);
+        readOnly.setIdSize(4);
+
+        assertThat(readOnly.pipeU1()).isEqualTo('h');
+        assertThat(readOnly.pipeU2()).isEqualTo(pipeU2Of("el"));
+        assertThat(readOnly.pipeId()).isEqualTo(pipeId4Of("lo w"));
+        assertThat(readOnly.pipeNullTerminatedString()).isEqualTo("orld\0");
+    }
+
+    @Test
+    @DisplayName("testReadOnlyPipeWritesNothing. every write method is a no-op with no output attached")
+    public void testReadOnlyPipeWritesNothing() throws IOException {
+        final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), new AtomicLong()::set);
+
+        // none of these may throw, and there is no output to observe
+        readOnly.writeU1('z');
+        readOnly.write(bytesOf("abc"));
+        readOnly.write(bytesOf("abc"), 0, 3);
+        readOnly.copyFrom(byteStreamOf("injected"), "injected".length());
+
+        // the input is still positioned at the start: writes must not consume input
+        assertThat(readOnly.readU1()).isEqualTo('h');
+    }
+
+    @Test
+    @DisplayName("testReadOnlyBoundedChildIsAlsoReadOnly. the mode propagates to bounded children")
+    public void testReadOnlyBoundedChildIsAlsoReadOnly() throws IOException {
+        final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), new AtomicLong()::set);
+        readOnly.pipeU1();
+
+        final Pipe child = readOnly.newInputBoundedPipe(4);
+        child.writeU1('z');
+        assertThat(child.pipeNullTerminatedString()).isEqualTo("ello");
+
+        // parent continues where the child stopped
+        assertThat(readOnly.pipeNullTerminatedString()).isEqualTo(" world\0");
+    }
+
+    @Test
+    @DisplayName("testReadOnlyPipeAdvancesInputExactly. a seek must consume exactly count bytes")
+    public void testReadOnlyPipeAdvancesInputExactly() throws IOException {
+        final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), new AtomicLong()::set);
+
+        readOnly.pipe(6);
+        assertThat(readOnly.readU1()).isEqualTo('w');
+    }
+
+    @Test
+    @DisplayName("testReadOnlyBoundedChildCannotSeekPastItsBound. a child seek must not steal parent bytes")
+    public void testReadOnlyBoundedChildCannotSeekPastItsBound() throws IOException {
+        final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), new AtomicLong()::set);
+
+        final Pipe child = readOnly.newInputBoundedPipe(5);
+        child.pipe(100);
+        assertThat(child.readU1()).isEqualTo(-1);
+
+        // the parent's next byte is the 6th, so the child consumed exactly 5
+        assertThat(readOnly.readU1()).isEqualTo(' ');
+    }
+
+    @Test
+    @DisplayName("testReadOnlyPipeFallsBackWhenSkipThrows. a non-seekable stream must still read correctly")
+    public void testReadOnlyPipeFallsBackWhenSkipThrows() throws IOException {
+        final InputStream unseekable = new FilterInputStream(byteStreamOf(data)) {
+            @Override
+            public long skip(final long n) throws IOException {
+                throw new IOException("Illegal seek");
+            }
+        };
+        final Pipe readOnly = Pipe.readOnlyPipe(unseekable, new AtomicLong()::set);
+
+        readOnly.pipe(6);
+        assertThat(readOnly.readU1()).isEqualTo('w');
+    }
+
+    @Test
+    @DisplayName("testReadOnlyPipeFallsBackWhenSkipReturnsZero. skip returning 0 short of EOF must not spin")
+    public void testReadOnlyPipeFallsBackWhenSkipReturnsZero() throws IOException {
+        final InputStream lazySkip = new FilterInputStream(byteStreamOf(data)) {
+            @Override
+            public long skip(final long n) {
+                return 0;
+            }
+        };
+        final Pipe readOnly = Pipe.readOnlyPipe(lazySkip, new AtomicLong()::set);
+
+        readOnly.pipe(6);
+        assertThat(readOnly.readU1()).isEqualTo('w');
+    }
+
+    @Test
+    @DisplayName("testReadOnlyPipeAtEofStopsShort. seeking past EOF must stop, matching copyLarge")
+    public void testReadOnlyPipeAtEofStopsShort() throws IOException {
+        final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), new AtomicLong()::set);
+
+        readOnly.pipe(data.length() + 100);
+        assertThat(readOnly.readU1()).isEqualTo(-1);
+    }
+
+    @Test
+    @DisplayName("testReadOnlyProgressMonitorCountsConsumedBytes. progress must survive having no output")
+    public void testReadOnlyProgressMonitorCountsConsumedBytes() throws IOException {
+        final AtomicLong consumed = new AtomicLong();
+        final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), consumed::set);
+
+        readOnly.pipe(6);
+        assertThat(consumed).hasValue(6);
+
+        final Pipe child = readOnly.newInputBoundedPipe(5);
+        child.pipe(5);
+        assertThat(consumed)
+                .as("a bounded child contributes to the parent's running total")
+                .hasValue(11);
+    }
+
+    @Test
+    @DisplayName("testPipeStringReplacingReadsExactlyNumBytes. must not read past the length it was given")
+    public void testPipeStringReplacingReadsExactlyNumBytes() throws IOException {
+        assertThat(pipe.pipeStringReplacing(5, '/', '.'))
+                .isEqualTo("hello");
+
+        assertThat(outputString())
+                .as("the bytes are written through unchanged")
+                .isEqualTo("hello");
+
+        assertThat(inputBytes.read())
+                .as("the input is left positioned right after the string")
+                .isEqualTo(' ');
+    }
+
+    @Test
+    @DisplayName("testPipeExactlyTransfersWithoutDecoding. the no-String path must move the same bytes")
+    public void testPipeExactlyTransfersWithoutDecoding() throws IOException {
+        pipe.pipeExactly(5);
+
+        assertThat(outputString())
+                .isEqualTo("hello");
+        assertThat(inputBytes.read())
+                .isEqualTo(' ');
+    }
+
+    /**
+     * The substitution rewrites the read buffer in place, so it has to happen strictly after the write.
+     * Otherwise the sanitized dump would carry class names with dots where the format requires slashes.
+     */
+    @Test
+    @DisplayName("testPipeStringReplacingDoesNotAlterOutput. only the returned value is converted")
+    public void testPipeStringReplacingDoesNotAlterOutput() throws IOException {
+        final String path = "java/lang/String";
+        final Pipe slashes = new Pipe(byteStreamOf(path), outputBytes, monitor::set);
+
+        assertThat(slashes.pipeStringReplacing(path.length(), '/', '.'))
+                .isEqualTo("java.lang.String");
+        assertThat(outputString())
+                .as("the dump keeps the slashes it declared")
+                .isEqualTo(path);
+    }
+
+    /**
+     * copyBuffer is 8 KB and is reused across records, so both sides of that boundary must decode
+     * exactly, and a reused buffer must not leak the previous record's tail into a shorter one.
+     */
+    @Test
+    @DisplayName("testPipeStringReplacingHandlesRecordsLongerThanTheBuffer. over 8 KB takes its own array")
+    public void testPipeStringReplacingHandlesRecordsLongerThanTheBuffer() throws IOException {
+        final StringBuilder longString = new StringBuilder();
+        for (int i = 0; longString.length() < 3 * 8192; i++) {
+            longString.append("com/example/Type").append(i).append('/');
+        }
+        final String first = longString.toString();
+        final String second = "a/b";
+
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+        final Pipe bufferPipe = new Pipe(byteStreamOf(first + second), output, new AtomicLong()::set);
+
+        assertThat(bufferPipe.pipeStringReplacing(first.length(), '/', '.'))
+                .isEqualTo(first.replace('/', '.'));
+        assertThat(bufferPipe.pipeStringReplacing(second.length(), '/', '.'))
+                .as("a short record after a long one must not pick up leftover bytes")
+                .isEqualTo("a.b");
+
+        assertThat(output.toString("UTF-8")).isEqualTo(first + second);
+    }
+
+    /**
+     * The in-place byte substitution is only equivalent to String.replace because a byte below 0x80
+     * cannot be part of a multi-byte UTF-8 sequence. A non-ASCII payload must survive it untouched.
+     */
+    @Test
+    @DisplayName("testPipeStringReplacingLeavesMultiByteCharactersIntact. byte-level edit must be UTF-8 safe")
+    public void testPipeStringReplacingLeavesMultiByteCharactersIntact() throws IOException {
+        final String unicode = "a/é中😀/b";
+        final byte[] bytes = bytesOf(unicode);
+
+        final ByteArrayOutputStream output = new ByteArrayOutputStream();
+        final Pipe pipe = new Pipe(new ByteArrayInputStream(bytes), output, new AtomicLong()::set);
+
+        assertThat(pipe.pipeStringReplacing(bytes.length, '/', '.'))
+                .isEqualTo("a.é中😀.b");
+        assertThat(output.toByteArray()).containsExactly(bytes);
+    }
+
+    @Test
+    @DisplayName("testPipeStringReplacingRejectsNonAscii. a non-ASCII match cannot be done byte-wise")
+    public void testPipeStringReplacingRejectsNonAscii() {
+        assertThatThrownBy(() -> pipe.pipeStringReplacing(3, 'é', '.'))
+                .isInstanceOf(IllegalArgumentException.class);
+
+        assertThatThrownBy(() -> pipe.pipeStringReplacing(3, '/', 'é'))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("testPipeExactlyOnTruncatedRecordThrows. a dump ending mid-string is corrupt, not a short string")
+    public void testPipeExactlyOnTruncatedRecordThrows() {
+        assertThatThrownBy(() -> pipe.pipeExactly(data.length() + 10))
+                .isInstanceOf(EOFException.class);
+
+        assertThatThrownBy(() -> new Pipe(byteStreamOf(data), outputBytes, monitor::set)
+                .pipeStringReplacing(data.length() + 10, '/', '.'))
+                .isInstanceOf(EOFException.class);
+    }
+
+    @Test
+    @DisplayName("testReadOnlyPipeStringWritesNothing. read-only mode still decodes but emits nothing")
+    public void testReadOnlyPipeStringWritesNothing() throws IOException {
+        final AtomicLong consumed = new AtomicLong();
+        final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), consumed::set);
+
+        assertThat(readOnly.pipeStringReplacing(5, '/', '.'))
+                .isEqualTo("hello");
+        assertThat(consumed)
+                .as("string bytes count toward progress, since there is no output to count")
+                .hasValue(5);
+
+        readOnly.pipeExactly(6);
+        assertThat(consumed)
+                .as("the no-String path reports progress too")
+                .hasValue(11);
+    }
+
     private void verifyEoF() throws IOException {
         assertThat(pipe.readU1())
                 .isEqualTo(-1);
@@ -250,5 +497,17 @@ public class PipeTest {
 
     private byte[] bytesOf(final String str) {
         return str.getBytes(UTF_8);
+    }
+
+    private int pipeU2Of(final String twoChars) {
+        return (short) ((twoChars.charAt(0) << 8) | twoChars.charAt(1));
+    }
+
+    private long pipeId4Of(final String fourChars) {
+        long value = 0;
+        for (int i = 0; i < 4; i++) {
+            value = (value << 8) | fourChars.charAt(i);
+        }
+        return value;
     }
 }
