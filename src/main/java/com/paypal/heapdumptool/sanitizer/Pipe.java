@@ -47,7 +47,7 @@ public class Pipe {
 
     private final ProgressMonitor monitor;
 
-    private boolean skipUnsupported;
+    private boolean skipSupported = true;
 
     private Integer idSize;
 
@@ -222,13 +222,13 @@ public class Pipe {
     }
 
     private long trySkip(final long count) throws IOException {
-        if (!skipUnsupported) {
+        if (!skipSupported) {
             return 0;
         }
         try {
             return input.skip(count);
         } catch (final IOException e) {
-            skipUnsupported = true;
+            skipSupported = false;
             return 0;
         }
     }
