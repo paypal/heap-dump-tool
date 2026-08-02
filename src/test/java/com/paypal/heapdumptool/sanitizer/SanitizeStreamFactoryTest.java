@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.zip.ZipOutputStream;
 
-import static com.paypal.heapdumptool.sanitizer.DataSize.ofBytes;
+import static com.paypal.heapdumptool.utils.DataSize.ofBytes;
 import static java.nio.file.StandardOpenOption.TRUNCATE_EXISTING;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;

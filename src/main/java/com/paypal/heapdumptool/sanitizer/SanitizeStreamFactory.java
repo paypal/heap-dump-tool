@@ -1,5 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.utils.DataSize;
+import com.paypal.heapdumptool.utils.ProgressMonitor;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.io.input.BufferedFileChannelInputStream;
 import org.apache.commons.lang3.Strings;
@@ -71,6 +73,18 @@ public class SanitizeStreamFactory {
     public boolean isStdinInput() {
         final String name = command.getInputFile().getFileName().toString();
         return Strings.CS.equalsAny(name, "-", "stdin", "0");
+    }
+
+    public long getInputSizeBytes() {
+        if (isStdinInput()) {
+            return ProgressMonitor.UNKNOWN_TOTAL;
+        }
+        try {
+            return Files.size(command.getInputFile());
+        } catch (final IOException e) {
+            // progress reporting is not worth failing a run over; the size is simply not shown
+            return ProgressMonitor.UNKNOWN_TOTAL;
+        }
     }
 
     private static SanitizeCommand validate(final SanitizeCommand command) {

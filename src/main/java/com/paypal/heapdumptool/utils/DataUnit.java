@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.utils;
 
 /**
  * A standard set of {@link DataSize} units.

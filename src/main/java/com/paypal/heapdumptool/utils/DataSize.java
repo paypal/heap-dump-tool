@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.utils;
 
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.Validate;

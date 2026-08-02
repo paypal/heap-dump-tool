@@ -5,6 +5,7 @@ import com.paypal.heapdumptool.fixture.ResourceTool;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyInstanceFields;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyIntFields;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyStaticFields;
+import com.paypal.heapdumptool.utils.DataSize;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

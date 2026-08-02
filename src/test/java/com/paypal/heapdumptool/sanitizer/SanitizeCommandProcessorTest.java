@@ -13,12 +13,13 @@ import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 
-import static com.paypal.heapdumptool.sanitizer.DataSize.ofBytes;
+import static com.paypal.heapdumptool.utils.DataSize.ofBytes;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.times;
@@ -101,6 +102,40 @@ class SanitizeCommandProcessorTest {
 
     private void prepare(final HeapDumpSanitizer mock, final MockedConstruction.Context context) throws Throwable {
         doNothing().when(mock).sanitize();
+    }
+
+    /**
+     * The metadata pass is minutes of a large run with nothing after it but more progress lines, so its
+     * end is logged the way the run's is. Only on success: a pass that threw did not finish.
+     */
+    @Test
+    @DisplayName("testPreprocessingDurationIsLogged. the pass that precedes the run reports its own time")
+    void testPreprocessingDurationIsLogged(final CapturedOutput output) throws Exception {
+        final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
+
+        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+            processor.process();
+        }
+
+        assertThat(output.getAll())
+                .contains("Finished pre-processing in ");
+    }
+
+    @Test
+    @DisplayName("testFailedPreprocessingIsNotReportedAsFinished. a thrown pass logs no completion")
+    void testFailedPreprocessingIsNotReportedAsFinished(final CapturedOutput output) {
+        final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
+
+        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(
+                HeapDumpSanitizer.class,
+                (mock, context) -> doThrow(new IOException("truncated dump")).when(mock).sanitize())) {
+
+            assertThatThrownBy(processor::process)
+                    .isInstanceOf(IOException.class);
+        }
+
+        assertThat(output.getAll())
+                .doesNotContain("Finished pre-processing in ");
     }
 
     @Test

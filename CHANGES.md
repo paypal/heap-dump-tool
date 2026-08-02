@@ -26,6 +26,7 @@
 - Reduce allocation by roughly 90% (about 96 GB down to under 10 GB on a 1.2 GB dump) and wall clock by about 35%.
 - Speed up the pre-processing pass that runs. On a 1.2 GB dump the pass drops from 20-22s to 12-14s (~40% faster) and
   the whole run from 43-46s to 35-37s (roughly 20%).
+- Progress is now reported roughly every 5 seconds like `Processed 484.32 MB / 1.11 GB (ETA 12s)`
 
 ## 1.3.4
 - When `--sanitize-byte-char-arrays-only=false` is set, retain refs to objects.

@@ -12,8 +12,12 @@ public class DateTimeTool {
         final Instant startSeconds = start.truncatedTo(SECONDS);
         final Instant endSeconds = Instant.now().truncatedTo(SECONDS);
 
-        final Duration duration = Duration.between(startSeconds, endSeconds);
-        return duration.toString()
+        return getFriendlyDuration(Duration.between(startSeconds, endSeconds));
+    }
+
+    public static String getFriendlyDuration(final Duration duration) {
+        final Duration truncatedDuration = Duration.ofSeconds(duration.getSeconds());
+        return truncatedDuration.toString()
                        .substring(2)
                        .toLowerCase(ENGLISH);
     }

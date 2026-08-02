@@ -1,7 +1,7 @@
 package com.paypal.heapdumptool.capture;
 
 import com.paypal.heapdumptool.sanitizer.BasicType;
-import com.paypal.heapdumptool.sanitizer.DataSize;
+import com.paypal.heapdumptool.utils.DataSize;
 import com.paypal.heapdumptool.sanitizer.SanitizationPolicy;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommand;
 import org.junit.jupiter.api.Test;

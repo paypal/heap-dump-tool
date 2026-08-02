@@ -3,7 +3,7 @@ package com.paypal.heapdumptool;
 import com.paypal.heapdumptool.capture.CaptureCommand;
 import com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation;
 import com.paypal.heapdumptool.hserr.SanitizeHserrCommand;
-import com.paypal.heapdumptool.sanitizer.DataSize;
+import com.paypal.heapdumptool.utils.DataSize;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommand;
 import com.paypal.heapdumptool.utils.InternalLogger;
 import org.apache.commons.text.StringSubstitutor;
@@ -75,9 +75,7 @@ public class Application implements IVersionProvider {
         gitProperties.load(new ByteArrayInputStream(bytes));
         gitProperties.put("appId", APP_ID);
 
-        final String versionInfo = StringSubstitutor.replace(
-                "${appId} (${git.build.version} ${git.commit.id.abbrev}, ${git.commit.time})",
-                gitProperties);
+        final String versionInfo = StringSubstitutor.replace("${appId} ${git.build.version}", gitProperties);
         return new String[]{versionInfo};
     }
 
