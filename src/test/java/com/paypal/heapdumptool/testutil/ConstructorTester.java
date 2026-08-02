@@ -1,4 +1,4 @@
-package com.paypal.heapdumptool.fixture;
+package com.paypal.heapdumptool.testutil;
 
 import java.lang.reflect.Constructor;
 

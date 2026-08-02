@@ -1,6 +1,6 @@
 package com.paypal.heapdumptool.cli;
 
-import com.paypal.heapdumptool.fixture.ConstructorTester;
+import com.paypal.heapdumptool.testutil.ConstructorTester;
 import org.apache.commons.lang3.reflect.ConstructorUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -8,7 +8,7 @@ import org.mockito.MockedStatic;
 
 import java.lang.reflect.InvocationTargetException;
 
-import static com.paypal.heapdumptool.fixture.MockitoTool.genericMock;
+import static com.paypal.heapdumptool.testutil.MockitoTool.genericMock;
 import static org.apache.commons.lang3.reflect.ConstructorUtils.invokeConstructor;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;

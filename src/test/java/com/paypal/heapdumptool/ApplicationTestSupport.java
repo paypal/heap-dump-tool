@@ -9,7 +9,7 @@ import picocli.CommandLine;
 import picocli.CommandLine.ParseResult;
 
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.PRIVILEGED_ALREADY;
-import static com.paypal.heapdumptool.fixture.MockitoTool.voidAnswer;
+import static com.paypal.heapdumptool.testutil.MockitoTool.voidAnswer;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;

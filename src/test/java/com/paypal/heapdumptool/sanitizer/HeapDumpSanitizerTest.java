@@ -1,7 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.fixture.HeapDumper;
-import com.paypal.heapdumptool.fixture.ResourceTool;
+import com.paypal.heapdumptool.testutil.ResourceTool;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyInstanceFields;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyIntFields;
 import com.paypal.heapdumptool.sanitizer.example.ClassWithManyStaticFields;
@@ -32,10 +32,10 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import static com.paypal.heapdumptool.ApplicationTestSupport.runApplicationPrivileged;
-import static com.paypal.heapdumptool.fixture.ByteArrayTool.countOfSequence;
-import static com.paypal.heapdumptool.fixture.ByteArrayTool.lengthen;
-import static com.paypal.heapdumptool.fixture.ByteArrayTool.nCopiesIntToBytes;
-import static com.paypal.heapdumptool.fixture.ByteArrayTool.nCopiesLongToBytes;
+import static com.paypal.heapdumptool.testutil.ByteArrayTool.countOfSequence;
+import static com.paypal.heapdumptool.testutil.ByteArrayTool.lengthen;
+import static com.paypal.heapdumptool.testutil.ByteArrayTool.nCopiesIntToBytes;
+import static com.paypal.heapdumptool.testutil.ByteArrayTool.nCopiesLongToBytes;
 import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.charset.StandardCharsets.UTF_16BE;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -360,8 +360,17 @@ class HeapDumpSanitizerTest {
                 .containsSequence(expected);
     }
 
-    @Test
-    void testThreadNameExcludedFromSanitization() throws Exception {
+    /**
+     * Parameterized over {@code -f} because the two options are independent: {@code -e} selects
+     * fields to preserve, {@code -f} controls how {@code String.coder} is rewritten. They were
+     * coupled through the instance-id -> backing-array-id bridge, which only the String field walk
+     * performs, and that walk used to run only under {@code -f=true}. So {@code -f=false} silently
+     * destroyed every value {@code -e} named, with no warning and a success exit code. The
+     * {@code -f=true} case alone cannot catch that; only the intersection can.
+     */
+    @ParameterizedTest
+    @CsvSource(value = {"--force-string-coder-match=true", "--force-string-coder-match=false"})
+    void testThreadNameExcludedFromSanitization(final String cliArg) throws Exception {
         // "xN-classified-value" with each letter incremented by 1
         final String x2ClassifiedValue = "y3.dmbttjgjfe.wbmvf";
         final String x5ClassifiedValue = "y6.dmbttjgjfe.wbmvf";
@@ -371,7 +380,7 @@ class HeapDumpSanitizerTest {
         thread.setName(adjustLetters(x2ClassifiedValue));
 
         final Charset charset = isJavaVersionAtMost(JAVA_1_8) ? UTF_16BE : UTF_8;
-        final byte[] sanitizedHeapDump = loadSanitizedHeapDump();
+        final byte[] sanitizedHeapDump = loadSanitizedHeapDump(cliArg);
         assertThat(sanitizedHeapDump)
                 .withFailMessage("threadGroupName " + threadGroup.getName())
                 .containsSequence(butLast(threadGroup.getName()).getBytes(charset))

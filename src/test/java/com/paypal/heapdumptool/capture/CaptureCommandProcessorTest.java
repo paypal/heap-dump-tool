@@ -1,6 +1,6 @@
 package com.paypal.heapdumptool.capture;
 
-import com.paypal.heapdumptool.fixture.ResourceTool;
+import com.paypal.heapdumptool.testutil.ResourceTool;
 import com.paypal.heapdumptool.sanitizer.SanitizeCommandProcessor;
 import com.paypal.heapdumptool.utils.ProcessTool;
 import com.paypal.heapdumptool.utils.ProcessTool.ProcessResult;

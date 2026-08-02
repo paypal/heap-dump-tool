@@ -1,6 +1,6 @@
 package com.paypal.heapdumptool.utils;
 
-import com.paypal.heapdumptool.fixture.ConstructorTester;
+import com.paypal.heapdumptool.testutil.ConstructorTester;
 import org.junit.jupiter.api.DynamicTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestFactory;

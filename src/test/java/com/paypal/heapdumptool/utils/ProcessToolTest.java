@@ -1,6 +1,6 @@
 package com.paypal.heapdumptool.utils;
 
-import com.paypal.heapdumptool.fixture.ConstructorTester;
+import com.paypal.heapdumptool.testutil.ConstructorTester;
 import com.paypal.heapdumptool.utils.ProcessTool.ProcessResult;
 import org.apache.commons.io.input.BrokenInputStream;
 import org.junit.jupiter.api.Test;

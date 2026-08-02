@@ -19,7 +19,7 @@ import static com.paypal.heapdumptool.ApplicationTestSupport.runApplication;
 import static com.paypal.heapdumptool.ApplicationTestSupport.runApplicationPrivileged;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.REQUIRED_AND_PROMPTED;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.escalatePrivilegesIfNeeded;
-import static com.paypal.heapdumptool.fixture.ResourceTool.contentOf;
+import static com.paypal.heapdumptool.testutil.ResourceTool.contentOf;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;

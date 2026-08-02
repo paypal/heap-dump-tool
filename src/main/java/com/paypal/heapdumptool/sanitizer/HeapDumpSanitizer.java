@@ -74,6 +74,12 @@ public class HeapDumpSanitizer {
      */
     private SanitizationPolicy sanitizationPolicy;
 
+    /*
+     * Also resolved once per run, for the same reason: getExcludeStringFields() is memoized but the
+     * emptiness question is asked once per instance dump and once per class dump.
+     */
+    private boolean hasExcludeStringFields;
+
     private final Map<Long, String> stringIdToStringMap = new HashMap<>();
     private final Map<Long, Long> classObjectIdToStringIdMap = new HashMap<>();
 
@@ -156,6 +162,7 @@ public class HeapDumpSanitizer {
 
     public void sanitize() throws IOException {
         sanitizationPolicy = sanitizeCommand.getSanitizationPolicy();
+        hasExcludeStringFields = !sanitizeCommand.getExcludeStringFields().isEmpty();
 
         final Pipe pipe = preprocessingOnly
                           ? Pipe.readOnlyPipe(inputStream, progressMonitor)
@@ -448,12 +455,21 @@ public class HeapDumpSanitizer {
              */
             pipe.pipe(numBytes);
 
-        } else if (sanitizeCommand.isForceMatchStringCoder() && className.equals(String.class.getName())) {
+        } else if ((sanitizeCommand.isForceMatchStringCoder() || hasExcludeStringFields)
+                && className.equals(String.class.getName())) {
+            /*
+             * Not gated on -f alone. -e selects fields to preserve and -f controls how coder is
+             * rewritten, so they must stay independent -- but only this walk reads String.value,
+             * which is the sole bridge from an excluded String's instance id to its backing array
+             * id. Gating the walk on -f let -f=false silently disable -e: the bridge never ran,
+             * excludeStringValueArrayObjectIds stayed empty, and every excluded String's payload
+             * was replaced anyway. pipeStringCoder keeps -f's own observable behavior.
+             */
             copyStringsInstanceFields(pipe, classObjectId, objectId, numBytes);
 
         } else if (isAssignableClassWithExcludeStringField(classObjectId)
                 || sanitizationPolicy.isAnyFieldSanitized()) {
-            copyInstanceAndSanitizeSomeFields(pipe, classObjectId, objectId, numBytes);
+            copyInstanceAndSanitizeSomeFields(pipe, classObjectId, numBytes);
 
         } else {
             // nothing to sanitize in the instance dump; arrays are handled in the array dump section
@@ -476,14 +492,35 @@ public class HeapDumpSanitizer {
                                            long numBytes) throws IOException {
         // never null: copyHeapDumpInstanceDump checks the layout before choosing this branch
         final ClassObject classObject = classObjectIdToClassObjectMap.get(classObjectId);
+
+        /*
+         * This String's backing array id, once the value field has been read. Tracked so the coder
+         * decision can be made from the ARRAY's preservation state rather than this instance's id:
+         * two Strings can share one backing byte[] (new String(String), substring(0) and the other
+         * zero-copy paths all alias it), so a String that is not itself named by -e can still sit
+         * over an array that -e preserved on another String's behalf.
+         */
+        long valueArrayObjectId = -1;
+        boolean sawValueField = false;
+
         for (final Field field : classObject.fields) {
             final int fieldSize = field.type.getValueSize(pipe.getIdSize());
 
-            if (STRING_CODER_FIELD.equals(field.name)) {
-                pipeStringCoder(pipe, objectId);
+            if (field.type == BasicType.BYTE && STRING_CODER_FIELD.equals(field.name)) {
+                /*
+                 * An unread value field means the layout puts coder first, so the backing array is
+                 * not yet known. Treat it as preserved: piping a coder through is the conservative
+                 * error (at worst a replaced payload renders as escapes rather than '*'), whereas
+                 * forcing 0 over a surviving UTF-16 array corrupts a value -e was asked to keep.
+                 */
+                final boolean backingArrayPreserved = !sawValueField
+                        || excludeStringValueArrayObjectIds.contains(valueArrayObjectId);
+                pipeStringCoder(pipe, backingArrayPreserved);
 
-            } else if (STRING_VALUE_FIELD.equals(field.name)) {
+            } else if (field.type == BasicType.OBJECT && STRING_VALUE_FIELD.equals(field.name)) {
                 final long id = pipe.pipeId();
+                valueArrayObjectId = id;
+                sawValueField = true;
                 if (excludeStringObjectIds.contains(objectId)) {
                     excludeStringValueArrayObjectIds.add(id);
                 }
@@ -502,28 +539,30 @@ public class HeapDumpSanitizer {
     }
 
     /*
-     * Forces the coder to LATIN1 if and only if THIS String's backing byte[] is actually being
-     * overwritten with a single-byte replacement, which every byte[] replacement is. Then any
+     * Forces the coder to LATIN1 if and only if the backing byte[] this String reads is actually
+     * being overwritten with a single-byte replacement, which every byte[] replacement is. Then any
      * surviving coder==1 would claim the replaced bytes are UTF-16 code units and render as garbage,
      * so 0 is the truthful value. That is:
      *
      *     --force-string-coder-match=true
      *  && byte arrays are in scope (not excluded by --target)
-     *  && this String is not itself excluded by --exclude-string-fields
+     *  && the backing array is not preserved by --exclude-string-fields
      *
-     * The last condition is per-object, not global: --exclude-string-fields preserves the backing
-     * array of the specific Strings it names (via excludeStringValueArrayObjectIds, checked in
-     * shouldApplyArraySanitization) while every other byte[] in the dump is still replaced. Forcing 0
-     * over such a surviving UTF-16 array reinterprets each code unit as two LATIN1 characters, i.e.
-     * mojibake at double length. It matters by default, because -e defaults to the thread and thread
-     * group name fields.
+     * The last condition is keyed by the BACKING ARRAY, not by this String's own object id, because
+     * the two are not interchangeable: on JDK 9+ several String instances can share one backing
+     * byte[] -- new String(String), substring(0) and the other zero-copy paths all alias it -- so a
+     * String that -e never named can still read an array that -e preserved on another String's
+     * behalf. Keying on the instance id forced 0 over such a surviving UTF-16 array, reinterpreting
+     * each code unit as two LATIN1 characters: mojibake at double length, in a String whose bytes
+     * were in fact preserved. Array preservation is decided in shouldApplyArraySanitization from the
+     * same excludeStringValueArrayObjectIds set, so the two answers now agree by construction.
      *
      * In every other case the original coder is piped through unchanged.
      */
-    private void pipeStringCoder(final Pipe pipe, final long objectId) throws IOException {
+    private void pipeStringCoder(final Pipe pipe, final boolean backingArrayPreserved) throws IOException {
         final boolean forceLatin1 = sanitizeCommand.isForceMatchStringCoder()
                 && sanitizationPolicy.sanitizeArray(BasicType.BYTE)
-                && !excludeStringObjectIds.contains(objectId);
+                && !backingArrayPreserved;
         if (forceLatin1) {
             pipe.readU1();
             pipe.writeU1(0);
@@ -576,23 +615,37 @@ public class HeapDumpSanitizer {
 
     private void copyInstanceAndSanitizeSomeFields(final Pipe pipe,
                                                    final long classObjectId,
-                                                   final long objectId,
                                                    final long numBytes) throws IOException {
         final Collection<String> excludeStringFields = getExcludeStringFieldsInClassHierarchy(classObjectId);
-        // reached for java.lang.String only when --force-string-coder-match=false
+        // reached for java.lang.String only when -f=false AND -e names nothing, i.e. when there is
+        // no coder to force and no exclusion to bridge; copyStringsInstanceFields handles the rest
         final boolean isStringClass = isStringClass(classObjectId);
         long numBytesRemaining = numBytes;
         for (ClassObject c = classHierarchyStart(classObjectId); c != null; c = superClassOf(c)) {
             for (final Field field : c.fields) {
                 final int fieldSize = field.type.getValueSize(pipe.getIdSize());
 
-                if (excludeStringFields.contains(field.name)) {
+                if (field.type == BasicType.OBJECT && excludeStringFields.contains(field.name)) {
+                    /*
+                     * Only a reference field can name a String whose payload is preserved, and the
+                     * type check is what keeps the walk aligned. pipeId() always reads getIdSize()
+                     * bytes while the ledger below subtracts the field's real width, so taking this
+                     * arm for a narrower field -- -e=java.lang.String#coder, or any byte/int/char
+                     * field -- over-read the difference, mis-sliced every following field, lost the
+                     * sub-record boundary and aborted the run on a garbage tag, leaving a truncated
+                     * output. A non-reference -e target is treated like any other field instead.
+                     */
                     final long id = pipe.pipeId();
                     excludeStringObjectIds.add(id);
 
-                } else if (isStringClass && STRING_CODER_FIELD.equals(field.name)) {
-                    // never a generic BYTE field: see pipeStringCoder
-                    pipeStringCoder(pipe, objectId);
+                } else if (isStringClass && field.type == BasicType.BYTE && STRING_CODER_FIELD.equals(field.name)) {
+                    /*
+                     * Never a generic BYTE field: see pipeStringCoder. This walk does not read
+                     * String.value, so the backing array is unknown; -f=false reaches here with
+                     * nothing to force anyway, and any other route treats the array as preserved
+                     * and pipes the original coder through.
+                     */
+                    pipeStringCoder(pipe, true);
 
                 } else if (shouldSanitizeField(field.type.getU1Code())) {
                     applySanitization(pipe, field.type, fieldSize);

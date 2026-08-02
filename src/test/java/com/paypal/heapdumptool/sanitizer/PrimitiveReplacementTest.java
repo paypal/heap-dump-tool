@@ -302,6 +302,6 @@ class PrimitiveReplacementTest {
 
     @Test
     void testConstructorIsPrivate() throws Exception {
-        com.paypal.heapdumptool.fixture.ConstructorTester.test(PrimitiveReplacement.class);
+        com.paypal.heapdumptool.testutil.ConstructorTester.test(PrimitiveReplacement.class);
     }
 }
