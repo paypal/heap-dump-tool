@@ -11,8 +11,8 @@ package com.paypal.heapdumptool.sanitizer;
  *
  * <p>The values are spread by 10 so an option can be inserted into a group without renumbering.
  * A subcommand's own option takes a value from the group it belongs to when it has one -- {@code -z}
- * of {@code sanitize} sits in the I/O group beside {@code --tar-input} -- and otherwise continues
- * past every shared value from {@link #CAPTURE_COMMAND_BASE}.</p>
+ * of {@code sanitize} sits with the deprecated flags -- and otherwise continues past every shared
+ * value from {@link #CAPTURE_COMMAND_BASE}.</p>
  */
 public final class OptionOrder {
 
@@ -25,8 +25,6 @@ public final class OptionOrder {
     public static final int FORCE_STRING_CODER_MATCH = 40;
 
     // input and output
-    public static final int TAR_INPUT = 50;
-    public static final int ZIP_OUTPUT = 55;
     public static final int BUFFER_SIZE = 60;
 
     // plumbing
@@ -36,6 +34,8 @@ public final class OptionOrder {
     public static final int LEGACY_BYTE_CHAR_ARRAYS_ONLY = 80;
     public static final int LEGACY_TEXT = 90;
     public static final int LEGACY_TEXT_CHARSET = 100;
+    public static final int LEGACY_TAR_INPUT = 110;
+    public static final int LEGACY_ZIP_OUTPUT = 120;
 
     /**
      * First order value available to the {@code capture} subcommand's own options.

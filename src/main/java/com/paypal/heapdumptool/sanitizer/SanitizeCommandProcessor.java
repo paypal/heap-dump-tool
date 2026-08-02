@@ -87,7 +87,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         LOGGER.info(""); // empty line
         LOGGER.info("Pre-processing ...");
         LOGGER.info("    String fields to exclude from sanitization: {}", String.join(",", command.getExcludeStringFields()));
-        LOGGER.info("    Force match String.coder: {}", command.isForceMatchStringCoder());
+        LOGGER.info("    Force match JEP-254 String.coder: {}", command.isForceMatchStringCoder());
 
         final Instant preprocessingStart = Instant.now();
 

@@ -78,7 +78,7 @@ public class ApplicationTest {
         assertThat(exitCode).isEqualTo(CommandLine.ExitCode.USAGE);
         assertThat(output.getErr())
                 .contains("Unknown option: '--targ=all'")
-                .contains("Possible solutions: --tar-input, --target")
+                .contains("Possible solutions: --target, --tar-input")
                 .doesNotContain("\tat com.paypal.heapdumptool"); // no stack trace
     }
 
