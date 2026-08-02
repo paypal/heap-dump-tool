@@ -96,11 +96,11 @@ public class CaptureCommandProcessor implements CliCommandProcessor {
                 + ".zip";
         final Path destFilePath = Paths.get(destFile);
 
+        // the .zip extension is what asks for zip output; nothing else has to be set
         final SanitizeCommand sanitizeCommand = new SanitizeCommand();
         sanitizeCommand.copyFrom(this.command);
         sanitizeCommand.setInputFile(inputFile);
         sanitizeCommand.setOutputFile(destFilePath);
-        sanitizeCommand.setZipOutput(true);
 
         try (final CaptureStreamFactory captureStreamFactory = new CaptureStreamFactory(sanitizeCommand)) {
             final SanitizeCommandProcessor processor = SanitizeCommandProcessor.newInstance(sanitizeCommand, captureStreamFactory);

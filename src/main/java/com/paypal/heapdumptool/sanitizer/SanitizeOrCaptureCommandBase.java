@@ -31,11 +31,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
             description = "docker registry hostname for bootstrapping heap-dump-tool docker image")
     private String dockerRegistry;
 
-    @Option(names = {"-a", "--tar-input"}, paramLabel = "<true|false>",
-            order = OptionOrder.TAR_INPUT,
-            description = "Treat input as tar archive", arity = "1")
-    private boolean tarInput;
-
     @Option(names = {"-e", "--exclude-string-fields"},
             order = OptionOrder.EXCLUDE_STRING_FIELDS,
             description = "String fields to exclude from sanitization. Value in com.example.MyClass#fieldName format",
@@ -94,6 +89,16 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         sanitizeOptions.recordLegacyTextCharset(charset);
     }
 
+    @Option(names = {"-a", "--tar-input"},
+            order = OptionOrder.LEGACY_TAR_INPUT,
+            arity = "1",
+            paramLabel = "<true|false>",
+            description = "Deprecated and ignored. A tar or zip input is now detected and unwrapped automatically")
+    void setLegacyTarInput(final boolean tarInput) {
+        // deliberately not stored: the input format is sniffed from the bytes, so the value is ignored
+        sanitizeOptions.recordLegacyTarInput(tarInput);
+    }
+
     public SanitizeOptions getSanitizeOptions() {
         return sanitizeOptions;
     }
@@ -115,7 +120,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         this.forceMatchStringCoder = other.forceMatchStringCoder;
         this.excludeStringFields = other.excludeStringFields;
         invalidateExcludeStringFieldCaches();
-        this.tarInput = other.tarInput;
         this.sanitizeOptions.copyFrom(other.sanitizeOptions);
     }
 
@@ -125,14 +129,6 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
 
     public void setBufferSize(final DataSize bufferSize) {
         this.bufferSize = bufferSize;
-    }
-
-    public boolean isTarInput() {
-        return tarInput;
-    }
-
-    public void setTarInput(final boolean tarInput) {
-        this.tarInput = tarInput;
     }
 
     public boolean isForceMatchStringCoder() {

@@ -117,6 +117,18 @@ public class SanitizeOptions {
                         + " primitive, so no charset is involved. Got: " + charset)));
     }
 
+    void recordLegacyTarInput(final boolean tarInput) {
+        directives.add(new Directive(builder -> builder.addWarning(
+                "--tar-input is deprecated and ignored. A tar or zip input is detected from its"
+                        + " contents and unwrapped either way. Got: " + tarInput)));
+    }
+
+    void recordLegacyZipOutput() {
+        directives.add(new Directive(builder -> builder.addWarning(
+                "--zip-output is deprecated. Name the output file <outputFile>.zip instead, which also"
+                        + " makes the output's format evident from its name")));
+    }
+
     // ---------- resolution ----------
 
     /**

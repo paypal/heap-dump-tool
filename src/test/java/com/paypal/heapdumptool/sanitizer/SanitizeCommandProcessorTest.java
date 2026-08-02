@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static com.paypal.heapdumptool.utils.DataSize.ofBytes;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -34,6 +35,7 @@ class SanitizeCommandProcessorTest {
 
     private final SanitizeCommand command = new SanitizeCommand();
 
+    @SuppressWarnings("resource")
     @BeforeEach
     void beforeEach() throws IOException {
         doNothing().when(sanitizer).sanitize();
@@ -75,6 +77,7 @@ class SanitizeCommandProcessorTest {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
         try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+            Objects.requireNonNull(mocked);
             processor.process();
         }
 
@@ -91,6 +94,7 @@ class SanitizeCommandProcessorTest {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
         try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+            Objects.requireNonNull(mocked);
             processor.process();
         }
 
@@ -114,6 +118,7 @@ class SanitizeCommandProcessorTest {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
         try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+            Objects.requireNonNull(mocked);
             processor.process();
         }
 
@@ -126,16 +131,18 @@ class SanitizeCommandProcessorTest {
     void testFailedPreprocessingIsNotReportedAsFinished(final CapturedOutput output) {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
-        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(
-                HeapDumpSanitizer.class,
-                (mock, context) -> doThrow(new IOException("truncated dump")).when(mock).sanitize())) {
-
+        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepareBroken)) {
+            Objects.requireNonNull(mocked);
             assertThatThrownBy(processor::process)
                     .isInstanceOf(IOException.class);
         }
 
         assertThat(output.getAll())
                 .doesNotContain("Finished pre-processing in ");
+    }
+
+    private void prepareBroken(final HeapDumpSanitizer mock, final MockedConstruction.Context context) throws Throwable {
+        doThrow(new IOException("truncated dump")).when(mock).sanitize();
     }
 
     @Test

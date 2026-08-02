@@ -146,8 +146,10 @@ Additional usage for sub-commands can be found by running `help {sub-command}`. 
 $ java -jar heap-dump-tool.jar help sanitize
 Usage: heap-dump-tool sanitize [OPTIONS] <inputFile> <outputFile>
 Sanitize a heap dump by replacing primitive field and array contents
-      <inputFile>            Input heap dump .hprof. File or stdin
+      <inputFile>            Input heap dump. File or stdin
+                             .zip, .tar, .tar.gz, .tgz, .gz files also supported
       <outputFile>           Output heap dump .hprof file
+                             .zip, .tar, .tar.gz, .tgz, .gz files also supported
       --target=<selectors>   What to sanitize: a comma-separated list applied left to right. Default: all
                              Selectors: all, none, <type>, <type>-fields, <type>-arrays, fields, arrays. <type> alone
                                means type's primitive fields and array fields; 'fields' or 'arrays' means type's
@@ -165,10 +167,6 @@ Sanitize a heap dump by replacing primitive field and array contents
                              Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools
                                render them correctly
                                Default: true
-  -a, --tar-input=<true|false>
-                             Treat input as tar archive
-  -z, --zip-output           Write zipped output
-                               Default: false
   -b, --buffer-size=<bufferSize>
                              Buffer size for reading and writing
                                Default: 100MB
@@ -179,13 +177,25 @@ Sanitize a heap dump by replacing primitive field and array contents
   -t, --text=<text>          Deprecated. Use --replacement=all=<value> instead. Supports a single ASCII character only
   -T, --text-charset=<charset>
                              Deprecated and ignored. Replacement values are now typed per primitive
+  -a, --tar-input=<true|false>
+                             Deprecated and ignored. A tar or zip input is now detected and unwrapped automatically
+  -z, --zip-output           Deprecated. Name the output file <outputFile>.zip instead
 ```
 
 ### Explanation of options
 
+* `<inputFile>`
+  * Heap dump input file. The file can also be inside a tar, tar.gz, gz, or zip file; File format is automatically
+    detected from its contents.
+  * Input file can be `-` or `stdin` to read from standard input; can be useful for piping from k8s `kubectl cp`.
+    Due to tar limitations, plain or gzipped input stream cannot be sanitized to a `.tar` output.
+
+* `<outputFile>`
+  * Sanitized heap dump output file. To archive or compress the file, suffix filename with .zip, .tar, .tar.gz, .tgz, or
+    .gz.
+
 * `-a, --tar-input=<true|false>`
-  * Meant for use with `-` or `stdin` as inputFile when piping heap dump from k8s `kubectl cp` command which produces tar
-    archive.
+  * Deprecated and ignored. A tar input is now detected automatically, as described under `<inputFile>`.
 
 * `-b, --buffer-size=<bufferSize>`
   * Higher buffer size should improve performance when reading and writing large heap dump files at the cost of higher
@@ -256,7 +266,7 @@ Sanitize a heap dump by replacing primitive field and array contents
   ```
 
 * `-z, --zip-output` 
-  * When set, output heap dump is compressed in zip format.
+  * Deprecated. Name the output file `.zip` instead, as described under `<outputFile>`.
 
 ### CLI FAQ
 

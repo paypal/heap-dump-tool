@@ -7,8 +7,6 @@ import picocli.CommandLine.Parameters;
 
 import java.nio.file.Path;
 
-import static picocli.CommandLine.Help.Visibility.ALWAYS;
-
 // sortOptions = false: options are listed in the @Option(order = ...) sequence rather than
 // alphabetically, so what to sanitize comes before how, and the deprecated flags sink to the bottom.
 // Order values are shared with SanitizeOrCaptureCommandBase and the SanitizeOptions mixin.
@@ -18,16 +16,27 @@ public class SanitizeCommand extends SanitizeOrCaptureCommandBase implements Cli
 
     // to allow field injection from picocli, these variables can't be final
 
-    @Parameters(index = "0", description = "Input heap dump .hprof. File or stdin")
+    @Parameters(index = "0", description = {
+            "Input heap dump. File or stdin",
+            ".zip, .tar, .tar.gz, .tgz, .gz files also supported"
+    })
     private Path inputFile;
 
-    @Parameters(index = "1", description = "Output heap dump .hprof file")
+    @Parameters(index = "1", description = {
+            "Output heap dump .hprof file",
+            ".zip, .tar, .tar.gz, .tgz, .gz files also supported"
+    })
     private Path outputFile;
 
-    @Option(names = {"-z", "--zip-output"},
-            order = OptionOrder.ZIP_OUTPUT,
-            description = "Write zipped output", showDefaultValue = ALWAYS)
     private boolean zipOutput;
+
+    @Option(names = {"-z", "--zip-output"},
+            order = OptionOrder.LEGACY_ZIP_OUTPUT,
+            description = "Deprecated. Name the output file <outputFile>.zip instead")
+    void setLegacyZipOutput(final boolean zipOutput) {
+        this.zipOutput = zipOutput;
+        getSanitizeOptions().recordLegacyZipOutput();
+    }
 
     @Override
     public Class<SanitizeCommandProcessor> getProcessorClass() {
