@@ -1,6 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -30,6 +31,13 @@ public class SanitizationPolicy {
             BasicType.FLOAT,
             BasicType.DOUBLE
     );
+
+    /**
+     * The defaults written the short way, as {@code --replacement}'s own help text states them: every
+     * type zeroed, then the three that are not. Equivalent to spelling all eight out, since
+     * {@code all=0} zeroes each and the later entries override -- {@code char=*} being code point 42.
+     */
+    static final String DEFAULT_REPLACEMENTS = "all=0,byte=42,char=*,boolean=false";
 
     private final Map<BasicType, Boolean> sanitizeField;
     private final Map<BasicType, Boolean> sanitizeArray;
@@ -133,18 +141,39 @@ public class SanitizationPolicy {
     }
 
     /**
-     * The resolved replacement values written as a {@code --replacement} value, one entry per
-     * primitive type. Like {@link #describeTargets()} this round-trips: pasting it back yields the
-     * same values. Every type is listed rather than only those in scope, so the line reads the same
-     * whatever the scope is.
+     * The resolved replacement values written as a {@code --replacement} value. Like
+     * {@link #describeTargets()} this round-trips: pasting it back yields the same values.
+     *
+     * <p>Untouched defaults are reported as {@link #DEFAULT_REPLACEMENTS} -- the four-entry form the
+     * flag's help text uses -- rather than as all eight types spelled out. The two say the same thing,
+     * and the short one says it in the same words the help does, so a default run's log matches what
+     * the user was told the default is. Any change to any type falls back to listing every type, since
+     * that is what makes an altered value legible next to the ones around it.</p>
      */
     public String describeReplacements() {
+        if (isDefaultReplacements()) {
+            return DEFAULT_REPLACEMENTS;
+        }
         final List<String> entries = new ArrayList<>();
         for (final BasicType type : PRIMITIVES) {
             entries.add(SelectorNames.nameOf(type) + "="
                     + PrimitiveReplacement.decode(type, replacement(type)));
         }
         return String.join(",", entries);
+    }
+
+    /*
+     * Compared as bytes rather than by tracking whether a --replacement flag was passed, so that a
+     * flag which happens to restate a default -- --replacement=byte=42, or all=0 over an already
+     * zeroed type -- reads as the default it resolved to.
+     */
+    private boolean isDefaultReplacements() {
+        for (final BasicType type : PRIMITIVES) {
+            if (!Arrays.equals(replacement(type), PrimitiveReplacement.defaultFor(type))) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override
