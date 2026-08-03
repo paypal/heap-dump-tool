@@ -81,10 +81,10 @@ class SanitizeCommandProcessorTest {
             processor.process();
         }
 
+        // the defaults in the short form the --replacement help text states them in
         assertThat(output.getAll())
                 .contains("Sanitization targets: --target=all")
-                .contains("Replacement values: --replacement="
-                                  + "boolean=false,char=*,float=0.0,double=0.0,byte=42,short=0,int=0,long=0");
+                .contains("Replacement values: --replacement=all=0,byte=42,char=*,boolean=false");
     }
 
     @Test

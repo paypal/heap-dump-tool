@@ -256,15 +256,67 @@ class SanitizationPolicyTest {
 
     @Test
     void testDescribeReplacementsListsEveryType() {
-        assertThat(SanitizationPolicy.builder().build().describeReplacements())
-                .isEqualTo("boolean=false,char=*,float=0.0,double=0.0,byte=42,short=0,int=0,long=0");
-
         assertThat(SanitizationPolicy.builder()
                            .setAllReplacements("0")
                            .setReplacement(BasicType.INT, PrimitiveReplacement.encode(BasicType.INT, "7"))
                            .build()
                            .describeReplacements())
                 .isEqualTo("boolean=false,char=\\0,float=0.0,double=0.0,byte=0,short=0,int=7,long=0");
+    }
+
+    /**
+     * The default run is the common one, so its line says what {@code --replacement}'s help says the
+     * default is, rather than the eight-entry expansion that means the same thing.
+     */
+    @Test
+    void testDescribeReplacementsShortensUntouchedDefaults() {
+        assertThat(SanitizationPolicy.builder().build().describeReplacements())
+                .isEqualTo("all=0,byte=42,char=*,boolean=false");
+    }
+
+    /**
+     * Resolved bytes decide it, not whether a flag was passed: a flag that restates a default has
+     * changed nothing, and the line should say so.
+     */
+    @Test
+    void testDescribeReplacementsShortensDefaultsRestatedByFlag() {
+        final SanitizationPolicy.Builder builder = SanitizationPolicy.builder();
+        ReplacementSpec.applyTo("byte=42,char=*", builder);
+
+        assertThat(builder.build().describeReplacements())
+                .isEqualTo("all=0,byte=42,char=*,boolean=false");
+    }
+
+    /**
+     * One altered type drops the shorthand for the full list, which is what makes the changed value
+     * legible beside the untouched ones.
+     */
+    @Test
+    void testDescribeReplacementsListsEveryTypeOnceOneDiffers() {
+        assertThat(SanitizationPolicy.builder()
+                           .setReplacement(BasicType.BYTE, PrimitiveReplacement.encode(BasicType.BYTE, "7"))
+                           .build()
+                           .describeReplacements())
+                .isEqualTo("boolean=false,char=*,float=0.0,double=0.0,byte=7,short=0,int=0,long=0");
+    }
+
+    /**
+     * The shorthand is advertised as pasteable too, so it must parse back to the very bytes it stands
+     * for -- {@code all=0} zeroing every type, then three entries overriding.
+     */
+    @Test
+    void testDefaultShorthandParsesBackToTheDefaults() {
+        final SanitizationPolicy.Builder builder = SanitizationPolicy.builder()
+                .setAllReplacements("9");
+        ReplacementSpec.applyTo(SanitizationPolicy.DEFAULT_REPLACEMENTS, builder);
+        final SanitizationPolicy reparsed = builder.build();
+
+        for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
+            assertThat(reparsed.replacement(type))
+                    .as("replacement " + type)
+                    .isEqualTo(PrimitiveReplacement.defaultFor(type));
+        }
+        assertThat(reparsed.describeReplacements()).isEqualTo(SanitizationPolicy.DEFAULT_REPLACEMENTS);
     }
 
     /**

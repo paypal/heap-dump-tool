@@ -70,7 +70,8 @@ public class SanitizeOptions {
             description = {
                     "Replacement values for sanitization: comma-separated <type>=<value> entries"
                             + " applied left to right.",
-                    "Defaults: all=0,byte=42,char=*,boolean=false"
+                    // the same constant the resolved policy reports, so help and log cannot drift
+                    "Defaults: " + SanitizationPolicy.DEFAULT_REPLACEMENTS
             })
     void replacement(final String value) {
         ReplacementSpec.validate(value);
