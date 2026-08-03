@@ -1,5 +1,10 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import java.io.IOException;
+import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -7,12 +12,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.MockedConstruction;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-
-import java.io.IOException;
-import java.nio.file.Paths;
-import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
 
 import static com.paypal.heapdumptool.utils.DataSize.ofBytes;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,7 +59,8 @@ class SanitizeCommandProcessorTest {
     void testProcess() throws Exception {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
-        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+        try (final MockedConstruction<HeapDumpSanitizer> mocked =
+                mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
             processor.process();
             for (final HeapDumpSanitizer sanitizer : mocked.constructed()) {
                 verify(sanitizer, atLeastOnce()).sanitize();
@@ -76,7 +76,8 @@ class SanitizeCommandProcessorTest {
     void testSanitizationPolicyIsLogged(final CapturedOutput output) throws Exception {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
-        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+        try (final MockedConstruction<HeapDumpSanitizer> mocked =
+                mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
             Objects.requireNonNull(mocked);
             processor.process();
         }
@@ -93,7 +94,8 @@ class SanitizeCommandProcessorTest {
         command.getSanitizeOptions().replacement("all=0");
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
-        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+        try (final MockedConstruction<HeapDumpSanitizer> mocked =
+                mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
             Objects.requireNonNull(mocked);
             processor.process();
         }
@@ -101,7 +103,7 @@ class SanitizeCommandProcessorTest {
         assertThat(output.getAll())
                 .contains("Sanitization targets: --target=char-arrays,byte-arrays")
                 .contains("Replacement values: --replacement="
-                                  + "boolean=false,char=\\0,float=0.0,double=0.0,byte=0,short=0,int=0,long=0");
+                        + "boolean=false,char=\\0,float=0.0,double=0.0,byte=0,short=0,int=0,long=0");
     }
 
     private void prepare(final HeapDumpSanitizer mock, final MockedConstruction.Context context) throws Throwable {
@@ -117,13 +119,13 @@ class SanitizeCommandProcessorTest {
     void testPreprocessingDurationIsLogged(final CapturedOutput output) throws Exception {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
-        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+        try (final MockedConstruction<HeapDumpSanitizer> mocked =
+                mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
             Objects.requireNonNull(mocked);
             processor.process();
         }
 
-        assertThat(output.getAll())
-                .contains("Finished pre-processing in ");
+        assertThat(output.getAll()).contains("Finished pre-processing in ");
     }
 
     @Test
@@ -131,17 +133,17 @@ class SanitizeCommandProcessorTest {
     void testFailedPreprocessingIsNotReportedAsFinished(final CapturedOutput output) {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
-        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepareBroken)) {
+        try (final MockedConstruction<HeapDumpSanitizer> mocked =
+                mockConstruction(HeapDumpSanitizer.class, this::prepareBroken)) {
             Objects.requireNonNull(mocked);
-            assertThatThrownBy(processor::process)
-                    .isInstanceOf(IOException.class);
+            assertThatThrownBy(processor::process).isInstanceOf(IOException.class);
         }
 
-        assertThat(output.getAll())
-                .doesNotContain("Finished pre-processing in ");
+        assertThat(output.getAll()).doesNotContain("Finished pre-processing in ");
     }
 
-    private void prepareBroken(final HeapDumpSanitizer mock, final MockedConstruction.Context context) throws Throwable {
+    private void prepareBroken(final HeapDumpSanitizer mock, final MockedConstruction.Context context)
+            throws Throwable {
         doThrow(new IOException("truncated dump")).when(mock).sanitize();
     }
 
@@ -150,7 +152,8 @@ class SanitizeCommandProcessorTest {
     void testPreprocessingOpensNoOutputStream() throws Exception {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 
-        try (final MockedConstruction<HeapDumpSanitizer> mocked = mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
+        try (final MockedConstruction<HeapDumpSanitizer> mocked =
+                mockConstruction(HeapDumpSanitizer.class, this::prepare)) {
             processor.process();
 
             final List<HeapDumpSanitizer> constructed = mocked.constructed();
@@ -163,5 +166,4 @@ class SanitizeCommandProcessorTest {
         verify(streamFactory, times(1)).newOutputStream();
         verify(streamFactory, times(2)).newInputStream();
     }
-
 }
