@@ -20,9 +20,8 @@ class SanitizationPolicyTest {
 
     @Test
     void testSetAllCoversPrimitivesButNotObject() {
-        final SanitizationPolicy policy = SanitizationPolicy.builder()
-                .setAll(true)
-                .build();
+        final SanitizationPolicy policy =
+                SanitizationPolicy.builder().setAll(true).build();
 
         assertThat(policy.sanitizeField(BasicType.OBJECT)).isFalse();
         assertThat(policy.sanitizeArray(BasicType.OBJECT)).isFalse();
@@ -35,9 +34,8 @@ class SanitizationPolicyTest {
 
     @Test
     void testFieldAndArrayAreIndependent() {
-        final SanitizationPolicy policy = SanitizationPolicy.builder()
-                .setArray(BasicType.BYTE, true)
-                .build();
+        final SanitizationPolicy policy =
+                SanitizationPolicy.builder().setArray(BasicType.BYTE, true).build();
 
         assertThat(policy.sanitizeArray(BasicType.BYTE)).isTrue();
         assertThat(policy.sanitizeField(BasicType.BYTE)).isFalse();
@@ -69,9 +67,8 @@ class SanitizationPolicyTest {
 
     @Test
     void testSetAllReplacementsFansOutAcrossTypes() {
-        final SanitizationPolicy policy = SanitizationPolicy.builder()
-                .setAllReplacements("\\42")
-                .build();
+        final SanitizationPolicy policy =
+                SanitizationPolicy.builder().setAllReplacements("\\42").build();
 
         assertThat(policy.replacement(BasicType.BYTE)).containsExactly(42);
         assertThat(policy.replacement(BasicType.CHAR)).containsExactly(0x00, 0x2A);
@@ -112,21 +109,18 @@ class SanitizationPolicyTest {
 
     @Test
     void testDeduplicatedWarningsAreStillUnmodifiable() {
-        final SanitizationPolicy policy = SanitizationPolicy.builder()
-                .addWarning("w")
-                .addWarning("w")
-                .build();
+        final SanitizationPolicy policy =
+                SanitizationPolicy.builder().addWarning("w").addWarning("w").build();
 
         assertThat(policy.getWarnings()).containsExactly("w");
-        assertThatThrownBy(() -> policy.getWarnings().add("x"))
-                .isInstanceOf(UnsupportedOperationException.class);
+        assertThatThrownBy(() -> policy.getWarnings().add("x")).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
     void testWarningsAreUnmodifiable() {
-        final SanitizationPolicy policy = SanitizationPolicy.builder().addWarning("w").build();
-        assertThatThrownBy(() -> policy.getWarnings().add("x"))
-                .isInstanceOf(UnsupportedOperationException.class);
+        final SanitizationPolicy policy =
+                SanitizationPolicy.builder().addWarning("w").build();
+        assertThatThrownBy(() -> policy.getWarnings().add("x")).isInstanceOf(UnsupportedOperationException.class);
     }
 
     @Test
@@ -156,8 +150,8 @@ class SanitizationPolicyTest {
     @Test
     void testEachTypeGetsItsOwnTiledBuffer() {
         final SanitizationPolicy policy = SanitizationPolicy.builder()
-                .setReplacement(BasicType.BYTE, new byte[]{7})
-                .setReplacement(BasicType.SHORT, new byte[]{0, 9})
+                .setReplacement(BasicType.BYTE, new byte[] {7})
+                .setReplacement(BasicType.SHORT, new byte[] {0, 9})
                 .build();
 
         assertThat(policy.replacementOf(BasicType.BYTE).getTiledBuffer())
@@ -187,7 +181,7 @@ class SanitizationPolicyTest {
 
     @Test
     void testSetReplacementCopiesTheCallersArray() {
-        final byte[] mine = new byte[]{7};
+        final byte[] mine = new byte[] {7};
         final SanitizationPolicy policy = SanitizationPolicy.builder()
                 .setReplacement(BasicType.BYTE, mine)
                 .build();
@@ -200,13 +194,13 @@ class SanitizationPolicyTest {
     void testBuilderReuseIsIsolated() {
         final SanitizationPolicy.Builder builder = SanitizationPolicy.builder()
                 .setField(BasicType.BYTE, true)
-                .setReplacement(BasicType.INT, new byte[]{0, 0, 0, 5});
+                .setReplacement(BasicType.INT, new byte[] {0, 0, 0, 5});
 
         final SanitizationPolicy first = builder.build();
 
         // mutate the builder after first build
         builder.setField(BasicType.BYTE, false);
-        builder.setReplacement(BasicType.INT, new byte[]{0, 0, 0, 9});
+        builder.setReplacement(BasicType.INT, new byte[] {0, 0, 0, 9});
 
         final SanitizationPolicy second = builder.build();
 
@@ -221,22 +215,21 @@ class SanitizationPolicyTest {
 
     @Test
     void testDescribeTargets() {
-        assertThat(SanitizationPolicy.builder().build().describeTargets())
-                .isEqualTo("none");
+        assertThat(SanitizationPolicy.builder().build().describeTargets()).isEqualTo("none");
         assertThat(SanitizationPolicy.builder().setAll(true).build().describeTargets())
                 .isEqualTo("all");
         assertThat(SanitizationPolicy.builder()
-                           .setArray(BasicType.BYTE, true)
-                           .setArray(BasicType.CHAR, true)
-                           .build()
-                           .describeTargets())
+                        .setArray(BasicType.BYTE, true)
+                        .setArray(BasicType.CHAR, true)
+                        .build()
+                        .describeTargets())
                 .isEqualTo("char-arrays,byte-arrays");
         assertThat(SanitizationPolicy.builder()
-                           .setField(BasicType.INT, true)
-                           .setArray(BasicType.INT, true)
-                           .setField(BasicType.LONG, true)
-                           .build()
-                           .describeTargets())
+                        .setField(BasicType.INT, true)
+                        .setArray(BasicType.INT, true)
+                        .setField(BasicType.LONG, true)
+                        .build()
+                        .describeTargets())
                 .isEqualTo("int,long-fields");
     }
 
@@ -247,20 +240,20 @@ class SanitizationPolicyTest {
     @Test
     void testDescribeTargetsIsAllOnlyWhenEveryHalfIsSelected() {
         assertThat(SanitizationPolicy.builder()
-                           .setAll(true)
-                           .setField(BasicType.BOOLEAN, false)
-                           .build()
-                           .describeTargets())
+                        .setAll(true)
+                        .setField(BasicType.BOOLEAN, false)
+                        .build()
+                        .describeTargets())
                 .isEqualTo("boolean-arrays,char,float,double,byte,short,int,long");
     }
 
     @Test
     void testDescribeReplacementsListsEveryType() {
         assertThat(SanitizationPolicy.builder()
-                           .setAllReplacements("0")
-                           .setReplacement(BasicType.INT, PrimitiveReplacement.encode(BasicType.INT, "7"))
-                           .build()
-                           .describeReplacements())
+                        .setAllReplacements("0")
+                        .setReplacement(BasicType.INT, PrimitiveReplacement.encode(BasicType.INT, "7"))
+                        .build()
+                        .describeReplacements())
                 .isEqualTo("boolean=false,char=\\0,float=0.0,double=0.0,byte=0,short=0,int=7,long=0");
     }
 
@@ -283,8 +276,7 @@ class SanitizationPolicyTest {
         final SanitizationPolicy.Builder builder = SanitizationPolicy.builder();
         ReplacementSpec.applyTo("byte=42,char=*", builder);
 
-        assertThat(builder.build().describeReplacements())
-                .isEqualTo("all=0,byte=42,char=*,boolean=false");
+        assertThat(builder.build().describeReplacements()).isEqualTo("all=0,byte=42,char=*,boolean=false");
     }
 
     /**
@@ -294,9 +286,9 @@ class SanitizationPolicyTest {
     @Test
     void testDescribeReplacementsListsEveryTypeOnceOneDiffers() {
         assertThat(SanitizationPolicy.builder()
-                           .setReplacement(BasicType.BYTE, PrimitiveReplacement.encode(BasicType.BYTE, "7"))
-                           .build()
-                           .describeReplacements())
+                        .setReplacement(BasicType.BYTE, PrimitiveReplacement.encode(BasicType.BYTE, "7"))
+                        .build()
+                        .describeReplacements())
                 .isEqualTo("boolean=false,char=*,float=0.0,double=0.0,byte=7,short=0,int=0,long=0");
     }
 
@@ -306,8 +298,7 @@ class SanitizationPolicyTest {
      */
     @Test
     void testDefaultShorthandParsesBackToTheDefaults() {
-        final SanitizationPolicy.Builder builder = SanitizationPolicy.builder()
-                .setAllReplacements("9");
+        final SanitizationPolicy.Builder builder = SanitizationPolicy.builder().setAllReplacements("9");
         ReplacementSpec.applyTo(SanitizationPolicy.DEFAULT_REPLACEMENTS, builder);
         final SanitizationPolicy reparsed = builder.build();
 
@@ -352,7 +343,8 @@ class SanitizationPolicyTest {
     @Test
     void testNoneAndAllDescriptionsAreParseable() {
         TargetSelector.validate(SanitizationPolicy.builder().build().describeTargets());
-        TargetSelector.validate(SanitizationPolicy.builder().setAll(true).build().describeTargets());
+        TargetSelector.validate(
+                SanitizationPolicy.builder().setAll(true).build().describeTargets());
     }
 
     @Test

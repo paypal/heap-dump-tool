@@ -29,8 +29,7 @@ public class SanitizationPolicy {
             BasicType.INT,
             BasicType.LONG,
             BasicType.FLOAT,
-            BasicType.DOUBLE
-    );
+            BasicType.DOUBLE);
 
     /**
      * The defaults written the short way, as {@code --replacement}'s own help text states them: every
@@ -156,8 +155,7 @@ public class SanitizationPolicy {
         }
         final List<String> entries = new ArrayList<>();
         for (final BasicType type : PRIMITIVES) {
-            entries.add(SelectorNames.nameOf(type) + "="
-                    + PrimitiveReplacement.decode(type, replacement(type)));
+            entries.add(SelectorNames.nameOf(type) + "=" + PrimitiveReplacement.decode(type, replacement(type)));
         }
         return String.join(",", entries);
     }
@@ -200,7 +198,8 @@ public class SanitizationPolicy {
 
         public Builder setField(final BasicType type, final boolean enabled) {
             if (type == BasicType.OBJECT) {
-                throw new IllegalArgumentException("Cannot sanitize OBJECT references: overwriting object ids corrupts the heap dump");
+                throw new IllegalArgumentException(
+                        "Cannot sanitize OBJECT references: overwriting object ids corrupts the heap dump");
             }
             sanitizeField.put(type, enabled);
             return this;
@@ -208,7 +207,8 @@ public class SanitizationPolicy {
 
         public Builder setArray(final BasicType type, final boolean enabled) {
             if (type == BasicType.OBJECT) {
-                throw new IllegalArgumentException("Cannot sanitize OBJECT references: overwriting object ids corrupts the heap dump");
+                throw new IllegalArgumentException(
+                        "Cannot sanitize OBJECT references: overwriting object ids corrupts the heap dump");
             }
             sanitizeArray.put(type, enabled);
             return this;

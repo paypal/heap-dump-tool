@@ -34,6 +34,11 @@
         <maven-jar-plugin.version>3.4.2</maven-jar-plugin.version>
         <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
         <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
+
+        <!-- Pinned for Java 8 compatibility -->
+        <palantir-java-format.version>1.1.0</palantir-java-format.version>
+        <spotless-maven-plugin.version>2.30.0</spotless-maven-plugin.version>
+
         <!-- JUnit tags to exclude from the test run. Empty runs everything; -DexcludedTestGroups=slow
              skips the real-heap-dump tests (see @Tag("slow") on HeapDumpSanitizerTest). -->
         <excludedTestGroups></excludedTestGroups>
@@ -296,6 +301,39 @@
                     <runOrder>alphabetical</runOrder>
                     <excludedGroups>${excludedTestGroups}</excludedGroups>
                 </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>${spotless-maven-plugin.version}</version>
+                <configuration>
+                    <ratchetFrom>origin/main</ratchetFrom>
+                    <java>
+                        <palantirJavaFormat>
+                            <version>${palantir-java-format.version}</version>
+                        </palantirJavaFormat>
+                        <!-- palantir-java-format leaves import order alone, so it is set here.
+                             Empty groups mean: everything else, then a blank line, then static
+                             imports, which is the order the sources already use. -->
+                        <importOrder>
+                            <order>,\#</order>
+                        </importOrder>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                </configuration>
+                <executions>
+                    <execution>
+                        <!-- validate, so formatting fails the build before it compiles and tests.
+                             ratchetFrom needs the origin/main ref to exist: a clone without it fails
+                             with "No such reference", which is why the CI workflows fetch it. -->
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
 
             <plugin>

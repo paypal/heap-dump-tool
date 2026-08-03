@@ -1,12 +1,9 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import java.util.ArrayList;
+import java.util.List;
 import org.apache.commons.text.StringEscapeUtils;
 import picocli.CommandLine.Option;
-
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Sanitization scope and replacement-value options, shared by the sanitize and capture commands.
@@ -44,15 +41,17 @@ public class SanitizeOptions {
     // Prose rather than an aligned two-column table: picocli re-wraps each description line to the
     // terminal width and indents the continuation, which splits a column layout mid-row. Verified
     // against picocli 4.7.5.
-    @Option(names = "--target", paramLabel = "<selectors>",
+    @Option(
+            names = "--target",
+            paramLabel = "<selectors>",
             order = OptionOrder.TARGET,
             description = {
-                    "What to sanitize: a comma-separated list applied left to right. Default: all",
-                    "Selectors: all, none, <type>, <type>-fields, <type>-arrays, fields, arrays."
-                            + " <type> alone means type's primitive fields and array fields;"
-                            + " 'fields' or 'arrays' means type's primitive fields or array fields only",
-                    "Prefix an entry with '-' to deselect it, e.g. --target=all,-ints",
-                    "<type> is byte, short, int, long, char, float, double or boolean"
+                "What to sanitize: a comma-separated list applied left to right. Default: all",
+                "Selectors: all, none, <type>, <type>-fields, <type>-arrays, fields, arrays."
+                        + " <type> alone means type's primitive fields and array fields;"
+                        + " 'fields' or 'arrays' means type's primitive fields or array fields only",
+                "Prefix an entry with '-' to deselect it, e.g. --target=all,-ints",
+                "<type> is byte, short, int, long, char, float, double or boolean"
             })
     void target(final String value) {
         // Validate eagerly so picocli converts an IllegalArgumentException into a
@@ -65,13 +64,15 @@ public class SanitizeOptions {
         }));
     }
 
-    @Option(names = "--replacement", paramLabel = "<type>=<value>",
+    @Option(
+            names = "--replacement",
+            paramLabel = "<type>=<value>",
             order = OptionOrder.REPLACEMENT,
             description = {
-                    "Replacement values for sanitization: comma-separated <type>=<value> entries"
-                            + " applied left to right.",
-                    // the same constant the resolved policy reports, so help and log cannot drift
-                    "Defaults: " + SanitizationPolicy.DEFAULT_REPLACEMENTS
+                "Replacement values for sanitization: comma-separated <type>=<value> entries"
+                        + " applied left to right.",
+                // the same constant the resolved policy reports, so help and log cannot drift
+                "Defaults: " + SanitizationPolicy.DEFAULT_REPLACEMENTS
             })
     void replacement(final String value) {
         ReplacementSpec.validate(value);
@@ -83,13 +84,9 @@ public class SanitizeOptions {
     void recordLegacyByteCharArraysOnly(final boolean byteCharArraysOnly) {
         directives.add(new Directive(builder -> {
             builder.addWarning("--sanitize-byte-char-arrays-only is deprecated. Use "
-                    + (byteCharArraysOnly
-                    ? "--target=byte-arrays,char-arrays"
-                    : "--target=all"));
+                    + (byteCharArraysOnly ? "--target=byte-arrays,char-arrays" : "--target=all"));
             if (byteCharArraysOnly) {
-                builder.setAll(false)
-                        .setArray(BasicType.BYTE, true)
-                        .setArray(BasicType.CHAR, true);
+                builder.setAll(false).setArray(BasicType.BYTE, true).setArray(BasicType.CHAR, true);
             } else {
                 builder.setAll(true);
             }
@@ -113,14 +110,14 @@ public class SanitizeOptions {
     }
 
     void recordLegacyTextCharset(final String charset) {
-        directives.add(new Directive(builder -> builder.addWarning(
-                "--text-charset is deprecated and ignored. Replacement values are now typed per"
+        directives.add(new Directive(builder ->
+                builder.addWarning("--text-charset is deprecated and ignored. Replacement values are now typed per"
                         + " primitive, so no charset is involved. Got: " + charset)));
     }
 
     void recordLegacyTarInput(final boolean tarInput) {
-        directives.add(new Directive(builder -> builder.addWarning(
-                "--tar-input is deprecated and ignored. A tar or zip input is detected from its"
+        directives.add(new Directive(builder ->
+                builder.addWarning("--tar-input is deprecated and ignored. A tar or zip input is detected from its"
                         + " contents and unwrapped either way. Got: " + tarInput)));
     }
 
@@ -136,8 +133,7 @@ public class SanitizeOptions {
      * Replays every recorded flag, in command-line order, over the default baseline.
      */
     public SanitizationPolicy resolve() {
-        final SanitizationPolicy.Builder builder = SanitizationPolicy.builder()
-                .setAll(true);
+        final SanitizationPolicy.Builder builder = SanitizationPolicy.builder().setAll(true);
 
         for (final Directive directive : directives) {
             directive.applyTo(builder);
