@@ -2,12 +2,11 @@ package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.cli.CliCommandProcessor;
 import com.paypal.heapdumptool.utils.InternalLogger;
-import org.apache.commons.lang3.Validate;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
+import org.apache.commons.lang3.Validate;
 
 import static com.paypal.heapdumptool.utils.DateTimeTool.getFriendlyDuration;
 import static com.paypal.heapdumptool.utils.ProgressMonitor.numBytesProcessedMonitor;
@@ -21,7 +20,8 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
     private final SanitizeStreamFactory streamFactory;
 
     // for mocking
-    public static SanitizeCommandProcessor newInstance(final SanitizeCommand command, final SanitizeStreamFactory streamFactory) {
+    public static SanitizeCommandProcessor newInstance(
+            final SanitizeCommand command, final SanitizeStreamFactory streamFactory) {
         return new SanitizeCommandProcessor(command, streamFactory);
     }
 
@@ -39,7 +39,8 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
     @Override
     public void process() throws Exception {
         if (streamFactory.isStdinInput() && !command.getExcludeStringFields().isEmpty()) {
-            throw new IllegalArgumentException("stdin input and excludeStringFields cannot be both set to true simultaneously");
+            throw new IllegalArgumentException(
+                    "stdin input and excludeStringFields cannot be both set to true simultaneously");
         }
 
         LOGGER.info("Input File: {}", command.getInputFile());
@@ -49,6 +50,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
             LOGGER.info("WARNING: {}", warning);
         }
         logSanitizationPolicy(policy);
+        logSanitizationRules(command.getSanitizationRules());
 
         final Instant now = Instant.now();
 
@@ -56,10 +58,11 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         LOGGER.info("Starting heap dump sanitization ...");
 
         try (final InputStream inputStream = streamFactory.newInputStream();
-             final OutputStream outputStream = streamFactory.newOutputStream()) {
+                final OutputStream outputStream = streamFactory.newOutputStream()) {
 
             sanitize(sanitizer, inputStream, outputStream);
         }
+        warnAboutUnmatchedRules(sanitizer.getSanitizationRules());
         LOGGER.info("Finished heap dump sanitization in {}", getFriendlyDuration(now));
     }
 
@@ -78,6 +81,42 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         LOGGER.info("Replacement values: --replacement={}", policy.describeReplacements());
     }
 
+    /**
+     * Names the registered {@link SanitizationRule}s, if any.
+     *
+     * <p>Deliberately not written as a flag value, unlike the two lines above. Those round-trip --
+     * pasting them back reproduces the run -- and a rule cannot, since it is user code. Printing a
+     * rule list in flag syntax would suggest the log is a complete record of the run when it is
+     * not.</p>
+     */
+    private static void logSanitizationRules(final SanitizationRules rules) {
+        // null-tolerant for the same reason HeapDumpSanitizer.sanitize() is: a stub command answers null
+        if (rules == null || rules.isEmpty()) {
+            return;
+        }
+        LOGGER.info(
+                "Programmatic rules, applied in order before --target: {}", String.join(", ", rules.describeRules()));
+    }
+
+    /**
+     * Warns about rules that never returned a verdict, which is almost always a typo in a class or
+     * field name. Without this, such a run reports a clean success while having done nothing the rule
+     * was added for.
+     *
+     * <p>Logged after the run rather than raised as an error: by the time this is known the output is
+     * already written, and a rule can also legitimately match nothing in one dump of many.</p>
+     */
+    private static void warnAboutUnmatchedRules(final SanitizationRules rules) {
+        if (rules == null) {
+            return;
+        }
+        for (final String rule : rules.describeUnmatchedRules()) {
+            LOGGER.info(
+                    "WARNING: rule {} matched nothing in this dump. Check the class and field names it looks for",
+                    rule);
+        }
+    }
+
     private HeapDumpSanitizer applyPreprocessing() throws IOException {
         final HeapDumpSanitizer sanitizerPrototype = new HeapDumpSanitizer();
         if (command.getExcludeStringFields().isEmpty() && !command.isForceMatchStringCoder()) {
@@ -86,7 +125,9 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
 
         LOGGER.info(""); // empty line
         LOGGER.info("Pre-processing ...");
-        LOGGER.info("    String fields to exclude from sanitization: {}", String.join(",", command.getExcludeStringFields()));
+        LOGGER.info(
+                "    String fields to exclude from sanitization: {}",
+                String.join(",", command.getExcludeStringFields()));
         LOGGER.info("    Force match JEP-254 String.coder: {}", command.isForceMatchStringCoder());
 
         final Instant preprocessingStart = Instant.now();
@@ -103,9 +144,9 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         return sanitizerPrototype;
     }
 
-    private void sanitize(final HeapDumpSanitizer sanitizer,
-                          final InputStream inputStream,
-                          final OutputStream outputStream) throws IOException {
+    private void sanitize(
+            final HeapDumpSanitizer sanitizer, final InputStream inputStream, final OutputStream outputStream)
+            throws IOException {
         sanitizer.setInputStream(inputStream);
         sanitizer.setOutputStream(outputStream);
         sanitizer.setProgressMonitor(numBytesProcessedMonitor(streamFactory.getInputSizeBytes(), LOGGER));
@@ -113,5 +154,4 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
 
         sanitizer.sanitize();
     }
-
 }

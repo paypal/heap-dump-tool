@@ -82,6 +82,22 @@ public class HeapDumpSanitizer {
     private SanitizationPolicy sanitizationPolicy;
 
     /*
+     * The programmatic rule chain, empty on a default run. Resolved once per instance rather than once
+     * per sanitize() call: the chain records which rules have matched, and both passes share this
+     * object, so re-resolving between passes would lose the metadata pass's matches and warn about
+     * rules that did fire. Empty is the common case and short-circuits before any of this costs
+     * anything -- see hasRules.
+     */
+    private SanitizationRules sanitizationRules = SanitizationRules.empty();
+
+    /*
+     * Hoisted out of the field and array decisions for the same reason sanitizationPolicy is: these are
+     * asked once per field of every instance dump. A boolean read beats a List.isEmpty() through two
+     * levels of indirection on that path.
+     */
+    private boolean hasRules;
+
+    /*
      * Also resolved once per run, for the same reason: getExcludeStringFields() is memoized but the
      * emptiness question is asked once per instance dump and once per class dump.
      */
@@ -163,6 +179,14 @@ public class HeapDumpSanitizer {
         this.sanitizeCommand = sanitizeCommand;
     }
 
+    /**
+     * The rule chain this instance used, for the end-of-run zero-match warning. Empty until
+     * {@link #sanitize()} has resolved it.
+     */
+    public SanitizationRules getSanitizationRules() {
+        return sanitizationRules;
+    }
+
     public void setPreprocessingOnly(final boolean preprocessingOnly) {
         this.preprocessingOnly = preprocessingOnly;
         this.sanitizationEnabled = !preprocessingOnly && isFalse(Boolean.getBoolean("disable-sanitization"));
@@ -229,6 +253,22 @@ public class HeapDumpSanitizer {
     public void sanitize() throws IOException {
         sanitizationPolicy = sanitizeCommand.getSanitizationPolicy();
         hasExcludeStringFields = !sanitizeCommand.getExcludeStringFields().isEmpty();
+
+        /*
+         * Resolved once, on the first pass, and then kept: the chain accumulates which rules matched,
+         * so replacing it on the second pass would discard the metadata pass's matches and make the
+         * zero-match warning report rules that did fire.
+         */
+        if (sanitizationRules.isEmpty()) {
+            /*
+             * Null-coalesced rather than assigned straight through: a stub or mock SanitizeCommand
+             * answers null here, and letting that replace the empty chain turns every later
+             * isEmpty() into an NPE -- on the no-rules path, which is the default one.
+             */
+            final SanitizationRules resolved = sanitizeCommand.getSanitizationRules();
+            sanitizationRules = resolved == null ? SanitizationRules.empty() : resolved;
+            hasRules = !sanitizationRules.isEmpty();
+        }
 
         final Pipe pipe = preprocessingOnly
                 ? Pipe.readOnlyPipe(inputStream, progressMonitor)
@@ -433,11 +473,18 @@ public class HeapDumpSanitizer {
             pipeBasicType(pipe, entryType);
         }
 
+        /*
+         * Resolved once for the whole record rather than per field. Only rules can ask for it -- the
+         * flags decide by type alone -- so a default run does not pay for the lookup or for keeping the
+         * class-name string alive.
+         */
+        final String declaringClassName = hasRules ? getClassName(classObjectId) : "";
+
         final int numStaticFields = pipe.pipeU2();
         for (int i = 0; i < numStaticFields; i++) {
-            pipe.pipeId(); // field name id
+            final long fieldNameStringId = pipe.pipeId();
             final int entryType = pipe.pipeU1();
-            pipeStaticField(pipe, entryType);
+            pipeStaticField(pipe, fieldNameStringId, entryType, declaringClassName);
         }
 
         final ClassObject classObject = new ClassObject(classObjectId, superClassObjectId);
@@ -451,7 +498,7 @@ public class HeapDumpSanitizer {
             recordStringIdQuery(fieldNameStringId);
             final String fieldName = stringIdToStringMap.getOrDefault(fieldNameStringId, "");
             final BasicType basicType = requireBasicType(fieldType);
-            classObject.fields.add(new Field(fieldName, basicType));
+            classObject.fields.add(new Field(fieldName, basicType, declaringClassName, false));
         }
     }
 
@@ -467,8 +514,15 @@ public class HeapDumpSanitizer {
         return basicType;
     }
 
+    /*
+     * Rules force this on. Any rule that names a class or field needs the layout to have been recorded,
+     * and a rule chain's targets are opaque from here -- there is no way to ask "does this rule care
+     * about this class?" without consulting it, which is what needs the layout in the first place.
+     */
     private boolean shouldTrackClassMetadata() {
-        return !sanitizeCommand.getExcludeStringFields().isEmpty() || sanitizationPolicy.isAnyFieldSanitized();
+        return !sanitizeCommand.getExcludeStringFields().isEmpty()
+                || sanitizationPolicy.isAnyFieldSanitized()
+                || hasRules;
     }
 
     private boolean isAssignableClassWithExcludeStringField(final long classObjectId) {
@@ -480,10 +534,40 @@ public class HeapDumpSanitizer {
         return false;
     }
 
-    private void pipeStaticField(final Pipe pipe, final int entryType) throws IOException {
+    /*
+     * A static field's name id used to be discarded, since the flags decide by type alone. It is
+     * resolved to a name here only when a rule chain is registered and could ask for it.
+     *
+     * Unlike an instance field there is no per-declaration object to memoize on: static values live in
+     * the class dump itself, are read exactly once per class per pass, and are never revisited. So the
+     * chain is consulted per static field -- at most twice per declaration over a whole run, which is
+     * the same order as the instance-field case, not the per-value case the SPI exists to avoid.
+     */
+    private void pipeStaticField(
+            final Pipe pipe, final long fieldNameStringId, final int entryType, final String declaringClassName)
+            throws IOException {
         final int valueSize = BasicType.findValueSize(entryType, pipe.getIdSize());
+        final BasicType basicType = requireBasicType(entryType);
+
+        if (hasRules) {
+            /*
+             * Recorded in both passes, unlike the name lookup below it. The metadata pass is what decides
+             * which strings the writing pass keeps, and sanitizationEnabled is false for the whole of that
+             * pass -- so recording it under that gate never happened at all, and the writing pass dropped
+             * every static field name before a rule could be asked about one. Since -e defaults to a
+             * non-empty list, that two-pass shape is the default one.
+             */
+            recordStringIdQuery(fieldNameStringId);
+
+            if (sanitizationEnabled) {
+                final String fieldName = stringIdToStringMap.getOrDefault(fieldNameStringId, "");
+                final Field field = new Field(fieldName, basicType, declaringClassName, true);
+                pipeDeclaredField(pipe, field, valueSize);
+                return;
+            }
+        }
+
         if (shouldSanitizeField(entryType)) {
-            final BasicType basicType = requireBasicType(entryType);
             applySanitization(pipe, basicType, valueSize);
         } else {
             pipe.pipe(valueSize);
@@ -532,7 +616,11 @@ public class HeapDumpSanitizer {
              */
             copyStringsInstanceFields(pipe, classObjectId, objectId, numBytes);
 
-        } else if (isAssignableClassWithExcludeStringField(classObjectId) || sanitizationPolicy.isAnyFieldSanitized()) {
+        } else if (isAssignableClassWithExcludeStringField(classObjectId)
+                || sanitizationPolicy.isAnyFieldSanitized()
+                // a rule can sanitize a field --target left out, so --target=none plus a rule still
+                // has to walk the layout rather than pipe the body through
+                || hasRules) {
             copyInstanceAndSanitizeSomeFields(pipe, classObjectId, numBytes);
 
         } else {
@@ -596,11 +684,8 @@ public class HeapDumpSanitizer {
                     excludeStringValueArrayObjectIds.add(id);
                 }
 
-            } else if (shouldSanitizeField(field.type.getU1Code())) {
-                applySanitization(pipe, field.type, fieldSize);
-
             } else {
-                pipe.pipe(fieldSize);
+                pipeDeclaredField(pipe, field, fieldSize);
             }
 
             numBytes -= fieldSize;
@@ -736,11 +821,8 @@ public class HeapDumpSanitizer {
                      */
                     pipeStringCoder(pipe, true);
 
-                } else if (shouldSanitizeField(field.type.getU1Code())) {
-                    applySanitization(pipe, field.type, fieldSize);
-
                 } else {
-                    pipe.pipe(fieldSize);
+                    pipeDeclaredField(pipe, field, fieldSize);
                 }
                 numBytesRemaining -= fieldSize;
             }
@@ -780,6 +862,39 @@ public class HeapDumpSanitizer {
 
         final BasicType basicType = BasicType.byU1Code(fieldType);
         return basicType != null && sanitizationPolicy.sanitizeField(basicType);
+    }
+
+    /*
+     * Pipes one declared field, letting the rule chain override --target for it.
+     *
+     * The rule chain is consulted through Field.resolvedDecision, which asks it once per declaration
+     * and then reuses the verdict for every instance of the class. With no rules registered -- the
+     * default -- this is one boolean test more than the old path, and the decision object is never
+     * touched.
+     *
+     * Returns nothing and always advances the pipe by exactly fieldSize, whichever branch is taken.
+     * That is the invariant the whole file rests on, and keeping it in one place is the point of
+     * routing every walk through here: a rule chooses whether to overwrite and with what, never how
+     * many bytes.
+     */
+    private void pipeDeclaredField(final Pipe pipe, final Field field, final int fieldSize) throws IOException {
+        if (hasRules && sanitizationEnabled) {
+            final Decision decision = field.resolvedDecision(sanitizationRules);
+            if (!decision.isUndecided()) {
+                if (decision.isSanitize()) {
+                    applySanitization(pipe, field.type, fieldSize, decision.tiledReplacement());
+                } else {
+                    pipe.pipe(fieldSize);
+                }
+                return;
+            }
+        }
+
+        if (shouldSanitizeField(field.type.getU1Code())) {
+            applySanitization(pipe, field.type, fieldSize);
+        } else {
+            pipe.pipe(fieldSize);
+        }
     }
 
     /*
@@ -825,11 +940,69 @@ public class HeapDumpSanitizer {
 
         final long numBytes = Math.multiplyExact(numElements, elementSize);
 
+        /*
+         * A rule's verdict cannot be memoized the way a field's is -- there is no per-declaration object
+         * to hang it on and the answer may differ per array -- so the chain is consulted once per array
+         * record. That is the same cost class as the excludeStringValueArrayObjectIds lookup below, and
+         * still one call per record rather than per element.
+         *
+         * -e wins over a rule: excludeStringValueArrayObjectIds is checked first, inside
+         * shouldApplyArraySanitization. A user who both excludes a field and registers a rule that would
+         * overwrite its backing array is contradicting themselves, and preserving is the safe reading.
+         */
+        if (hasRules && sanitizationEnabled && !excludeStringValueArrayObjectIds.contains(objectId)) {
+            final BasicType basicType = BasicType.byU1Code(elementType);
+            if (basicType != null) {
+                final Decision decision =
+                        sanitizationRules.decideArray(new PrimitiveArrayContext(basicType, numElements, numBytes));
+                if (!decision.isUndecided()) {
+                    if (decision.isSanitize()) {
+                        applySanitization(pipe, basicType, numBytes, decision.tiledReplacement());
+                    } else {
+                        pipe.pipe(numBytes);
+                    }
+                    return;
+                }
+            }
+        }
+
         if (shouldApplyArraySanitization(objectId, elementType)) {
             final BasicType basicType = requireBasicType(elementType);
             applySanitization(pipe, basicType, numBytes);
         } else {
             pipe.pipe(numBytes);
+        }
+    }
+
+    /*
+     * Allocated per array record, not per element, and only when a rule chain is registered. A default
+     * run never constructs one.
+     */
+    private static final class PrimitiveArrayContext implements ArrayContext {
+
+        private final BasicType elementType;
+        private final long numElements;
+        private final long numBytes;
+
+        PrimitiveArrayContext(final BasicType elementType, final long numElements, final long numBytes) {
+            this.elementType = elementType;
+            this.numElements = numElements;
+            this.numBytes = numBytes;
+        }
+
+        @Override
+        public BasicType elementType() {
+            return elementType;
+        }
+
+        @Override
+        public long numElements() {
+            return numElements;
+        }
+
+        @Override
+        public long numBytes() {
+            return numBytes;
         }
     }
 
@@ -861,8 +1034,20 @@ public class HeapDumpSanitizer {
      * slot was sanitized, aborting the run mid-stream and leaving a truncated output file behind.
      */
     private void applySanitization(final Pipe pipe, final BasicType type, final long numBytes) throws IOException {
+        applySanitization(pipe, type, numBytes, null);
+    }
+
+    /*
+     * As above, with an optional replacement from a rule's decision in place of the type's configured
+     * one. A rule-supplied replacement is validated to be exactly the type's width when the decision is
+     * made (SanitizationRules.validateWidth), so the tiling argument above holds for it unchanged:
+     * numBytes is still a whole multiple of the replacement length.
+     */
+    private void applySanitization(
+            final Pipe pipe, final BasicType type, final long numBytes, final Replacement override) throws IOException {
         pipe.skipInput(numBytes);
-        final byte[] tiledBuffer = sanitizationPolicy.replacementOf(type).getTiledBuffer();
+        final Replacement replacement = override == null ? sanitizationPolicy.replacementOf(type) : override;
+        final byte[] tiledBuffer = replacement.getTiledBuffer();
 
         long numBytesRemaining = numBytes;
         while (numBytesRemaining > 0) {

@@ -2,10 +2,6 @@ package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.cli.CliCommand;
 import com.paypal.heapdumptool.utils.DataSize;
-import org.apache.commons.lang3.StringUtils;
-import picocli.CommandLine.Mixin;
-import picocli.CommandLine.Option;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -14,6 +10,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import org.apache.commons.lang3.StringUtils;
+import picocli.CommandLine.Mixin;
+import picocli.CommandLine.Option;
 
 import static com.paypal.heapdumptool.utils.DataSize.ofMegabytes;
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
@@ -26,27 +25,32 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
 
     // to allow field injection from picocli, these variables can't be final
 
-    @Option(names = {"-d", DOCKER_REGISTRY_OPTION},
+    @Option(
+            names = {"-d", DOCKER_REGISTRY_OPTION},
             order = OptionOrder.DOCKER_REGISTRY,
             description = "docker registry hostname for bootstrapping heap-dump-tool docker image")
     private String dockerRegistry;
 
-    @Option(names = {"-e", "--exclude-string-fields"},
+    @Option(
+            names = {"-e", "--exclude-string-fields"},
             order = OptionOrder.EXCLUDE_STRING_FIELDS,
             description = "String fields to exclude from sanitization. Value in com.example.MyClass#fieldName format",
             defaultValue = "java.lang.Thread#name,java.lang.ThreadGroup#name",
             showDefaultValue = ALWAYS)
     private List<String> excludeStringFields;
 
-    @Option(names = {"-f", "--force-string-coder-match"},
+    @Option(
+            names = {"-f", "--force-string-coder-match"},
             order = OptionOrder.FORCE_STRING_CODER_MATCH,
-            description = "Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools render them correctly",
+            description =
+                    "Force JEP-254 String.coder field to match their sanitized byte[], so MAT or similar tools render them correctly",
             defaultValue = "true",
             arity = "1",
             paramLabel = "<true|false>",
             showDefaultValue = ALWAYS)
     // Suppose sanitizationText=*. If the coder value is not forced to match, the heap dump analyze tools like Eclipse
-    // MAT might display escaped "\\u2A" (where 2A is ascii value) for Strings with coder==1. By forcing the coder value to
+    // MAT might display escaped "\\u2A" (where 2A is ascii value) for Strings with coder==1. By forcing the coder value
+    // to
     // match, all strings would be displayed as "*"
     private boolean forceMatchStringCoder;
 
@@ -57,12 +61,16 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
 
     private List<String> resolvedExcludeStringFields;
 
-    @Option(names = {"-b", "--buffer-size"},
+    @Option(
+            names = {"-b", "--buffer-size"},
             order = OptionOrder.BUFFER_SIZE,
-            description = "Buffer size for reading and writing", defaultValue = "100MB", showDefaultValue = ALWAYS)
+            description = "Buffer size for reading and writing",
+            defaultValue = "100MB",
+            showDefaultValue = ALWAYS)
     private DataSize bufferSize = ofMegabytes(100);
 
-    @Option(names = {"-s", "--sanitize-byte-char-arrays-only"},
+    @Option(
+            names = {"-s", "--sanitize-byte-char-arrays-only"},
             order = OptionOrder.LEGACY_BYTE_CHAR_ARRAYS_ONLY,
             arity = "1",
             paramLabel = "<true|false>",
@@ -71,16 +79,18 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         sanitizeOptions.recordLegacyByteCharArraysOnly(byteCharArraysOnly);
     }
 
-    @Option(names = {"-t", "--text"},
+    @Option(
+            names = {"-t", "--text"},
             order = OptionOrder.LEGACY_TEXT,
             paramLabel = "<text>",
-            description = "Deprecated. Use --replacement=all=<value> instead. "
-                    + "Supports a single ASCII character only")
+            description =
+                    "Deprecated. Use --replacement=all=<value> instead. " + "Supports a single ASCII character only")
     void setLegacySanitizationText(final String text) {
         sanitizeOptions.recordLegacyText(text);
     }
 
-    @Option(names = {"-T", "--text-charset"},
+    @Option(
+            names = {"-T", "--text-charset"},
             order = OptionOrder.LEGACY_TEXT_CHARSET,
             paramLabel = "<charset>",
             description = "Deprecated and ignored. Replacement values are now typed per primitive")
@@ -89,7 +99,8 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         sanitizeOptions.recordLegacyTextCharset(charset);
     }
 
-    @Option(names = {"-a", "--tar-input"},
+    @Option(
+            names = {"-a", "--tar-input"},
             order = OptionOrder.LEGACY_TAR_INPUT,
             arity = "1",
             paramLabel = "<true|false>",
@@ -112,6 +123,15 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
      */
     public SanitizationPolicy getSanitizationPolicy() {
         return sanitizeOptions.resolve();
+    }
+
+    /**
+     * The programmatic rule chain for this run. Unlike {@link #getSanitizationPolicy()} this must be
+     * resolved once per run and reused, since the chain records which rules matched; see
+     * {@link SanitizeOptions#resolveRules()}.
+     */
+    public SanitizationRules getSanitizationRules() {
+        return sanitizeOptions.resolveRules();
     }
 
     public void copyFrom(final SanitizeOrCaptureCommandBase other) {
@@ -205,6 +225,5 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
         public String toString() {
             return reflectionToString(this, MULTI_LINE_STYLE);
         }
-
     }
 }

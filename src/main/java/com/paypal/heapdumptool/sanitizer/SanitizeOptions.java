@@ -36,6 +36,15 @@ public class SanitizeOptions {
 
     private final List<Directive> directives = new ArrayList<>();
 
+    /*
+     * Kept out of the directive list on purpose. A directive is replayed on every resolve() and the
+     * list is appended to on every picocli parse, which is harmless for idempotent scope mutations but
+     * would duplicate rules -- and a duplicated rule is consulted twice, so a chain's "first verdict
+     * wins" ordering would depend on how many times the command was parsed. Registration is by
+     * identity instead: adding the same rule twice records it once.
+     */
+    private final List<SanitizationRule> rules = new ArrayList<>();
+
     // ---------- scope and replacement values ----------
 
     // Prose rather than an aligned two-column table: picocli re-wraps each description line to the
@@ -127,6 +136,32 @@ public class SanitizeOptions {
                         + " makes the output's format evident from its name")));
     }
 
+    // ---------- programmatic rules ----------
+
+    /**
+     * Registers a rule that decides, per field declaration and per array, what this run overwrites.
+     *
+     * <p>Rules are consulted in registration order and the first non-{@code UNDECIDED} verdict wins;
+     * where every rule abstains, {@code --target} and {@code --replacement} decide as usual. Adding
+     * the same instance more than once has no further effect.</p>
+     *
+     * @see SanitizationRule
+     */
+    public SanitizeOptions addRule(final SanitizationRule rule) {
+        if (rule == null) {
+            throw new IllegalArgumentException("Rule must not be null");
+        }
+        // reference equality: two distinct instances of one rule class are two rules, but the same
+        // instance re-registered by a second picocli parse or a copyFrom is not
+        for (final SanitizationRule existing : rules) {
+            if (existing == rule) {
+                return this;
+            }
+        }
+        rules.add(rule);
+        return this;
+    }
+
     // ---------- resolution ----------
 
     /**
@@ -141,6 +176,18 @@ public class SanitizeOptions {
         return builder.build();
     }
 
+    /**
+     * The registered rules as one immutable chain.
+     *
+     * <p>Resolved separately from {@link #resolve()} and not held by {@link SanitizationPolicy},
+     * because the chain is stateful -- it records which rules have matched, for the end-of-run warning
+     * -- while the policy is a value that gets rebuilt on every call. One chain per run is what makes
+     * the memoized verdict on {@link Field} and the zero-match warning both correct.</p>
+     */
+    public SanitizationRules resolveRules() {
+        return rules.isEmpty() ? SanitizationRules.empty() : new SanitizationRules(rules);
+    }
+
     public void copyFrom(final SanitizeOptions other) {
         if (other == this) {
             // clear() below would empty the very list being copied from, silently discarding
@@ -149,6 +196,8 @@ public class SanitizeOptions {
         }
         directives.clear();
         directives.addAll(other.directives);
+        rules.clear();
+        rules.addAll(other.rules);
     }
 
     /**
