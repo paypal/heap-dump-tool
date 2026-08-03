@@ -4,11 +4,8 @@ import com.paypal.heapdumptool.fixture.AliasedStringFixture;
 import com.paypal.heapdumptool.fixture.AllPrimitivesFixture;
 import com.paypal.heapdumptool.fixture.Hprof;
 import com.paypal.heapdumptool.fixture.StringFixture;
+import com.paypal.heapdumptool.fixture.SubRecordOrderFixture;
 import com.paypal.heapdumptool.utils.DataSize;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import picocli.CommandLine;
-
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -16,6 +13,11 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import picocli.CommandLine;
 
 import static com.paypal.heapdumptool.fixture.AllPrimitivesFixture.ALL_PRIMITIVES;
 import static com.paypal.heapdumptool.fixture.AllPrimitivesFixture.ARRAY_LENGTH;
@@ -46,15 +48,14 @@ class HeapDumpSanitizerSyntheticTest {
     @DisplayName("testByteReplacementOfMinusOne. 0xFF is a legal replacement byte, not an end-of-stream marker")
     void testByteReplacementOfMinusOne() throws Exception {
         final Hprof body = new Hprof();
-        final int dataOffset = body.primitiveArrayDump(0x1000, BasicType.BYTE, new byte[]{1, 2, 3, 4});
+        final int dataOffset = body.primitiveArrayDump(0x1000, BasicType.BYTE, new byte[] {1, 2, 3, 4});
 
         final Hprof input = new Hprof().header();
         final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
 
         final byte[] output = sanitize(input.toByteArray(), "--replacement=byte=-1");
 
-        assertThat(region(output, base + dataOffset, 4))
-                .containsExactly(0xFF, 0xFF, 0xFF, 0xFF);
+        assertThat(region(output, base + dataOffset, 4)).containsExactly(0xFF, 0xFF, 0xFF, 0xFF);
     }
 
     @Test
@@ -70,12 +71,12 @@ class HeapDumpSanitizerSyntheticTest {
 
         final int[] expected = new int[3 * Long.BYTES];
         Arrays.fill(expected, 0xFF);
-        assertThat(region(output, base + dataOffset, expected.length))
-                .containsExactly(expected);
+        assertThat(region(output, base + dataOffset, expected.length)).containsExactly(expected);
     }
 
     @Test
-    @DisplayName("testTilingStaysAlignedAcrossManyBufferWrites. A region far larger than one internal buffer stays tile-aligned")
+    @DisplayName(
+            "testTilingStaysAlignedAcrossManyBufferWrites. A region far larger than one internal buffer stays tile-aligned")
     void testTilingStaysAlignedAcrossManyBufferWrites() throws Exception {
         final int numElements = 5000;
         final Hprof body = new Hprof();
@@ -92,8 +93,7 @@ class HeapDumpSanitizerSyntheticTest {
             expected[i * Short.BYTES] = 0xFF;
             expected[i * Short.BYTES + 1] = 0xFE;
         }
-        assertThat(region(output, base + dataOffset, expected.length))
-                .containsExactly(expected);
+        assertThat(region(output, base + dataOffset, expected.length)).containsExactly(expected);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -134,12 +134,12 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testCoderPipedThroughWhenByteArraysArePreserved. -f=true must not force coder 0 over a surviving UTF16 array")
+    @DisplayName(
+            "testCoderPipedThroughWhenByteArraysArePreserved. -f=true must not force coder 0 over a surviving UTF16 array")
     void testCoderPipedThroughWhenByteArraysArePreserved() throws Exception {
         final StringFixture fixture = new StringFixture(1);
 
-        final byte[] output = sanitize(fixture.input,
-                "--force-string-coder-match=true", "--target=all,-byte-arrays");
+        final byte[] output = sanitize(fixture.input, "--force-string-coder-match=true", "--target=all,-byte-arrays");
 
         assertThat(output[fixture.coderOffset])
                 .as("the original UTF16 payload survives, so forcing LATIN1 would produce mojibake")
@@ -151,8 +151,7 @@ class HeapDumpSanitizerSyntheticTest {
     void testCoderPipedThroughUnderSanitizeAllFalse() throws Exception {
         final StringFixture fixture = new StringFixture(1);
 
-        final byte[] output = sanitize(fixture.input,
-                "--force-string-coder-match=true", "--target=none");
+        final byte[] output = sanitize(fixture.input, "--force-string-coder-match=true", "--target=none");
 
         assertThat(output[fixture.coderOffset]).isEqualTo((byte) 1);
     }
@@ -178,9 +177,10 @@ class HeapDumpSanitizerSyntheticTest {
         input.loadClass(2, stringClassId, 41);
 
         final Hprof body = new Hprof();
-        body.classDump(holderClassId, 0, new int[]{42}, new BasicType[]{BasicType.OBJECT});
-        body.classDump(stringClassId, 0, new int[]{43, 44, 45},
-                new BasicType[]{BasicType.OBJECT, BasicType.INT, BasicType.BYTE});
+        body.classDump(holderClassId, 0, new int[] {42}, new BasicType[] {BasicType.OBJECT});
+        body.classDump(stringClassId, 0, new int[] {43, 44, 45}, new BasicType[] {
+            BasicType.OBJECT, BasicType.INT, BasicType.BYTE
+        });
 
         // the holder's excluded field points at the String, which marks its backing array as preserved
         final Hprof holder = new Hprof();
@@ -198,7 +198,8 @@ class HeapDumpSanitizerSyntheticTest {
         final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
 
         // -f defaults to true and byte arrays are sanitized by default, but -e preserves THIS array
-        final byte[] output = sanitize(input.toByteArray(),
+        final byte[] output = sanitize(
+                input.toByteArray(),
                 "--force-string-coder-match=true",
                 "--exclude-string-fields=" + AliasedStringFixture.EXCLUDE_TARGET);
 
@@ -227,7 +228,8 @@ class HeapDumpSanitizerSyntheticTest {
     void testExcludedStringSurvivesWhenForceMatchDisabled() throws Exception {
         final AliasedStringFixture fixture = new AliasedStringFixture();
 
-        final byte[] output = sanitize(fixture.input,
+        final byte[] output = sanitize(
+                fixture.input,
                 "--force-string-coder-match=false",
                 "--exclude-string-fields=" + AliasedStringFixture.EXCLUDE_TARGET);
 
@@ -253,7 +255,8 @@ class HeapDumpSanitizerSyntheticTest {
     void testAliasedBackingArrayKeepsItsCoder() throws Exception {
         final AliasedStringFixture fixture = new AliasedStringFixture();
 
-        final byte[] output = sanitize(fixture.input,
+        final byte[] output = sanitize(
+                fixture.input,
                 "--force-string-coder-match=true",
                 "--exclude-string-fields=" + AliasedStringFixture.EXCLUDE_TARGET);
 
@@ -290,8 +293,7 @@ class HeapDumpSanitizerSyntheticTest {
         final Hprof body = new Hprof();
         // marker is a 1-byte field, payload an 8-byte one: an id-width read of marker eats 7 bytes
         // of payload, so a drifted cursor shows up in both regions
-        body.classDump(classId, 0, new int[]{71, 72},
-                new BasicType[]{BasicType.BYTE, BasicType.LONG});
+        body.classDump(classId, 0, new int[] {71, 72}, new BasicType[] {BasicType.BYTE, BasicType.LONG});
 
         final Hprof instance = new Hprof();
         final int relativeMarkerOffset = instance.offset();
@@ -307,9 +309,8 @@ class HeapDumpSanitizerSyntheticTest {
         // byte FIELDS in scope, byte ARRAYS out of scope, so each region below has a distinct
         // expected value and a drifted cursor cannot coincidentally satisfy them
         final byte[][] output = new byte[1][];
-        assertThatCode(() -> output[0] = sanitize(input.toByteArray(),
-                "--target=byte-fields",
-                "--exclude-string-fields=com.example.Prim#marker"))
+        assertThatCode(() -> output[0] = sanitize(
+                        input.toByteArray(), "--target=byte-fields", "--exclude-string-fields=com.example.Prim#marker"))
                 .as("a non-reference -e target must not desynchronize the stream")
                 .doesNotThrowAnyException();
 
@@ -324,12 +325,94 @@ class HeapDumpSanitizerSyntheticTest {
                 .containsExactly(unsanitized(trailing.length));
     }
 
+    /**
+     * {@code -e} attribution is a two-hop chain, {@code holder -> String -> array}, and nothing in
+     * the format constrains the order those three sub-records are emitted in: HotSpot writes them in
+     * heap walk order. So no permutation may defeat the exclusion, and the payload the user singled
+     * out for protection must survive all six.
+     *
+     * <p>Both hops used to be recorded inline, each gated on the previous one having already run in
+     * the same pass, so a pass advanced the chain by at most one hop. Five of the six orders were
+     * rescued only by the second pass happening to complete the second hop; {@code array < String <
+     * holder} reads the array before either hop is available in BOTH passes, so the payload was
+     * overwritten before the fact that would have prevented it was known -- silently, exit code
+     * 0.</p>
+     *
+     * <p>Drives both passes over one sanitizer, as {@link SanitizeCommandProcessor} does whenever
+     * {@code -e} is non-empty, because the resolution step runs between them.</p>
+     */
+    @ParameterizedTest(name = "sub-record order {0}")
+    @ValueSource(strings = {"hsa", "has", "ahs", "sha", "sah", "ash"})
+    @DisplayName("testExcludedArraySurvivesEverySubRecordOrder. -e must not depend on heap walk order")
+    void testExcludedArraySurvivesEverySubRecordOrder(final String order) throws IOException {
+        final SubRecordOrderFixture fixture = new SubRecordOrderFixture(order);
+
+        final byte[] output =
+                sanitizeInTwoPasses(fixture.input, "--exclude-string-fields=" + SubRecordOrderFixture.EXCLUDE_TARGET);
+
+        assertThat(region(output, fixture.arrayOffset, SubRecordOrderFixture.UTF16.length))
+                .as("the -e excluded backing array must be preserved in sub-record order " + order)
+                .containsExactly(0, 'h', 0, 'i');
+        assertThat(output[fixture.coderOffset])
+                .as("the preserved payload is UTF16, so forcing LATIN1 would be mojibake")
+                .isEqualTo((byte) 1);
+    }
+
+    /**
+     * The whole point of the two-hop resolution is that it is decided from the {@code -e} set, so an
+     * unrelated String -- one no excluded field names -- must still have its backing array
+     * sanitized. Otherwise recording every String's value edge would preserve the entire heap.
+     */
+    @Test
+    @DisplayName(
+            "testUnrelatedStringsBackingArrayIsStillSanitized. recording value edges must not preserve every String")
+    void testUnrelatedStringsBackingArrayIsStillSanitized() throws IOException {
+        final long stringClassId = 1300;
+        final long stringObjectId = 0xD100;
+        final long valueArrayId = 0xD200;
+
+        final Hprof input = new Hprof().header();
+        input.stringInUtf8(90, "com.example.Holder");
+        input.stringInUtf8(91, String.class.getName());
+        input.stringInUtf8(92, "secret");
+        input.stringInUtf8(93, "value");
+        input.stringInUtf8(94, "coder");
+        input.loadClass(1, stringClassId, 91);
+
+        final Hprof body = new Hprof();
+        body.classDump(stringClassId, 0, new int[] {93, 94}, new BasicType[] {BasicType.OBJECT, BasicType.BYTE});
+
+        // the array comes first, i.e. the order that used to fail, but no holder names this String
+        final int dataOffset = body.primitiveArrayDump(valueArrayId, BasicType.BYTE, new byte[] {0, 'h', 0, 'i'});
+
+        final Hprof string = new Hprof();
+        string.id(valueArrayId);
+        final int relativeCoderOffset = string.offset();
+        string.u1(1);
+        final int instanceOffset = body.instanceDump(stringObjectId, stringClassId, string.toByteArray());
+        final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
+
+        // -e names a class that never appears, so the exclude set stays empty
+        final byte[] output = sanitizeInTwoPasses(
+                input.toByteArray(),
+                "--force-string-coder-match=true",
+                "--exclude-string-fields=com.example.Holder#secret");
+
+        assertThat(region(output, base + dataOffset, 4))
+                .as("no -e field names this String, so its backing array is sanitized as usual")
+                .containsExactly(0x2A, 0x2A, 0x2A, 0x2A);
+        assertThat(output[base + instanceOffset + relativeCoderOffset])
+                .as("the payload was replaced with single-byte values, so LATIN1 is the truthful coder")
+                .isEqualTo((byte) 0);
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Finding 4: field-layout lookup
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    @DisplayName("testUnknownClassLayoutIsPipedThrough. A LOAD_CLASS with no CLASS DUMP must not crash or guess a layout")
+    @DisplayName(
+            "testUnknownClassLayoutIsPipedThrough. A LOAD_CLASS with no CLASS DUMP must not crash or guess a layout")
     void testUnknownClassLayoutIsPipedThrough() throws Exception {
         assertUnknownLayoutIsPipedThrough("com.example.NoClassDump");
     }
@@ -341,7 +424,8 @@ class HeapDumpSanitizerSyntheticTest {
      * layout directly, so without the guard this throws.
      */
     @Test
-    @DisplayName("testUnknownLayoutForStringIsPipedThrough. java.lang.String with no CLASS DUMP must not crash under -f=true")
+    @DisplayName(
+            "testUnknownLayoutForStringIsPipedThrough. java.lang.String with no CLASS DUMP must not crash under -f=true")
     void testUnknownLayoutForStringIsPipedThrough() throws Exception {
         assertUnknownLayoutIsPipedThrough(String.class.getName());
     }
@@ -372,7 +456,8 @@ class HeapDumpSanitizerSyntheticTest {
     // ---------------------------------------------------------------------------------------------
 
     @Test
-    @DisplayName("testSubclassFieldsPrecedeSuperclassFieldsInTheInstanceBody. Hierarchy walk order must be subclass first")
+    @DisplayName(
+            "testSubclassFieldsPrecedeSuperclassFieldsInTheInstanceBody. Hierarchy walk order must be subclass first")
     void testSubclassFieldsPrecedeSuperclassFieldsInTheInstanceBody() throws Exception {
         final long superClassId = 800;
         final long subClassId = 801;
@@ -386,8 +471,8 @@ class HeapDumpSanitizerSyntheticTest {
         input.loadClass(2, subClassId, 51);
 
         final Hprof body = new Hprof();
-        body.classDump(superClassId, 0, new int[]{52}, new BasicType[]{BasicType.LONG});
-        body.classDump(subClassId, superClassId, new int[]{53}, new BasicType[]{BasicType.OBJECT});
+        body.classDump(superClassId, 0, new int[] {52}, new BasicType[] {BasicType.LONG});
+        body.classDump(subClassId, superClassId, new int[] {53}, new BasicType[] {BasicType.OBJECT});
 
         /*
          * HPROF lays out subclass fields first: slot 0 is OrderDerived.declaredRef (an OBJECT id,
@@ -420,7 +505,8 @@ class HeapDumpSanitizerSyntheticTest {
      * fields unsanitized and desynchronize the reader.
      */
     @Test
-    @DisplayName("testSuperClassDumpSeenAfterAnInstanceStillAppliesToLaterInstances. A late CLASS DUMP must not be masked by an earlier walk")
+    @DisplayName(
+            "testSuperClassDumpSeenAfterAnInstanceStillAppliesToLaterInstances. A late CLASS DUMP must not be masked by an earlier walk")
     void testSuperClassDumpSeenAfterAnInstanceStillAppliesToLaterInstances() throws Exception {
         final long superClassId = 900;
         final long subClassId = 901;
@@ -435,14 +521,14 @@ class HeapDumpSanitizerSyntheticTest {
 
         final Hprof body = new Hprof();
         // only the subclass layout is known at this point
-        body.classDump(subClassId, superClassId, new int[]{63}, new BasicType[]{BasicType.LONG});
+        body.classDump(subClassId, superClassId, new int[] {63}, new BasicType[] {BasicType.LONG});
 
         final Hprof early = new Hprof();
         early.id(0x1111111111111111L); // declaredLong, wiped
         final int earlyOffset = body.instanceDump(0x9000, subClassId, early.toByteArray());
 
         // the superclass layout arrives only now, between the two instances
-        body.classDump(superClassId, 0, new int[]{62}, new BasicType[]{BasicType.LONG});
+        body.classDump(superClassId, 0, new int[] {62}, new BasicType[] {BasicType.LONG});
 
         final Hprof late = new Hprof();
         late.id(0x2222222222222222L); // declaredLong
@@ -465,7 +551,8 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testDuplicateClassNamesDoNotShareALayout. Two classes with the same name must keep their own field layouts")
+    @DisplayName(
+            "testDuplicateClassNamesDoNotShareALayout. Two classes with the same name must keep their own field layouts")
     void testDuplicateClassNamesDoNotShareALayout() throws Exception {
         final Hprof input = new Hprof().header();
         input.stringInUtf8(10, "com.example.Dup");
@@ -475,8 +562,8 @@ class HeapDumpSanitizerSyntheticTest {
         input.loadClass(2, 200, 10);
 
         final Hprof body = new Hprof();
-        body.classDump(100, 0, new int[]{11}, new BasicType[]{BasicType.LONG});
-        body.classDump(200, 0, new int[]{12}, new BasicType[]{BasicType.OBJECT});
+        body.classDump(100, 0, new int[] {11}, new BasicType[] {BasicType.LONG});
+        body.classDump(200, 0, new int[] {12}, new BasicType[] {BasicType.OBJECT});
 
         // an object reference: mis-slotting it as the LONG field of the other class would zero it
         final byte[] payload = {0, 0, 0, 0, (byte) 0xCA, (byte) 0xFE, (byte) 0xBA, (byte) 0xBE};
@@ -491,7 +578,8 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     @Test
-    @DisplayName("testExcludeStringFieldIsInheritedThroughTheClassHierarchy. A superclass exclusion still applies to a subclass instance")
+    @DisplayName(
+            "testExcludeStringFieldIsInheritedThroughTheClassHierarchy. A superclass exclusion still applies to a subclass instance")
     void testExcludeStringFieldIsInheritedThroughTheClassHierarchy() throws Exception {
         final long superClassId = 600;
         final long subClassId = 601;
@@ -513,10 +601,9 @@ class HeapDumpSanitizerSyntheticTest {
 
         final Hprof body = new Hprof();
         // Base declares the excluded String field; Derived declares nothing and inherits it
-        body.classDump(superClassId, 0, new int[]{33}, new BasicType[]{BasicType.OBJECT});
-        body.classDump(subClassId, superClassId, new int[]{}, new BasicType[]{});
-        body.classDump(stringClassId, 0, new int[]{34, 35},
-                new BasicType[]{BasicType.OBJECT, BasicType.BYTE});
+        body.classDump(superClassId, 0, new int[] {33}, new BasicType[] {BasicType.OBJECT});
+        body.classDump(subClassId, superClassId, new int[] {}, new BasicType[] {});
+        body.classDump(stringClassId, 0, new int[] {34, 35}, new BasicType[] {BasicType.OBJECT, BasicType.BYTE});
 
         // a Derived instance whose inherited secret field points at the String
         final Hprof derived = new Hprof();
@@ -532,8 +619,7 @@ class HeapDumpSanitizerSyntheticTest {
         final int dataOffset = body.primitiveArrayDump(secretArrayId, BasicType.BYTE, secret);
         final int base = input.record(HeapRecord.HEAP_DUMP_SEGMENT.getTag(), body);
 
-        final byte[] output = sanitize(input.toByteArray(),
-                "--exclude-string-fields=com.example.Base#secret");
+        final byte[] output = sanitize(input.toByteArray(), "--exclude-string-fields=com.example.Base#secret");
 
         assertThat(Arrays.copyOfRange(output, base + dataOffset, base + dataOffset + secret.length))
                 .as("an exclusion declared on the superclass must reach the subclass instance")
@@ -576,8 +662,7 @@ class HeapDumpSanitizerSyntheticTest {
         for (final BasicType selected : ALL_PRIMITIVES) {
             final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
-            final byte[] output = sanitize(fixture.input,
-                    arrayTarget(selected));
+            final byte[] output = sanitize(fixture.input, arrayTarget(selected));
 
             for (final BasicType type : ALL_PRIMITIVES) {
                 if (type == selected) {
@@ -597,8 +682,7 @@ class HeapDumpSanitizerSyntheticTest {
         for (final BasicType selected : ALL_PRIMITIVES) {
             final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
-            final byte[] output = sanitize(fixture.input,
-                    fieldTarget(selected));
+            final byte[] output = sanitize(fixture.input, fieldTarget(selected));
 
             for (final BasicType type : ALL_PRIMITIVES) {
                 if (type == selected) {
@@ -640,8 +724,7 @@ class HeapDumpSanitizerSyntheticTest {
     void testOrderMattersAllAfterSpecific() throws Exception {
         final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
-        final byte[] output = sanitize(fixture.input,
-                "--target=int-arrays,all");
+        final byte[] output = sanitize(fixture.input, "--target=int-arrays,all");
 
         assertArraySanitized(output, fixture, BasicType.INT);
     }
@@ -651,8 +734,7 @@ class HeapDumpSanitizerSyntheticTest {
     void testOrderMattersSpecificAfterAll() throws Exception {
         final AllPrimitivesFixture fixture = new AllPrimitivesFixture();
 
-        final byte[] output = sanitize(fixture.input,
-                "--target=all,-int-arrays");
+        final byte[] output = sanitize(fixture.input, "--target=all,-int-arrays");
 
         assertArrayPreserved(output, fixture, BasicType.INT);
         // every other array type is still in scope
@@ -709,9 +791,7 @@ class HeapDumpSanitizerSyntheticTest {
         // so this pins WHICH type's replacement was tiled. A value like 0x2A2A2A2A cannot: it is
         // byte-identical to four copies of the byte default, so fetching replacement(BYTE) instead of
         // replacement(INT) would go undetected.
-        final byte[] output = sanitize(fixture.input,
-                "--target=int-arrays",
-                "--replacement=int=" + 0x11223344);
+        final byte[] output = sanitize(fixture.input, "--target=int-arrays", "--replacement=int=" + 0x11223344);
 
         final int[] expected = new int[ARRAY_LENGTH * Integer.BYTES];
         for (int i = 0; i < expected.length; i += Integer.BYTES) {
@@ -736,14 +816,11 @@ class HeapDumpSanitizerSyntheticTest {
         final byte[] output = sanitize(fixture.input);
 
         // byte=42 (0x2A), char='*' (0x002A), everything else zero-valued
-        assertThat(region(output, fixture.arrayOffset(BasicType.BYTE), 4))
-                .containsExactly(0x2A, 0x2A, 0x2A, 0x2A);
+        assertThat(region(output, fixture.arrayOffset(BasicType.BYTE), 4)).containsExactly(0x2A, 0x2A, 0x2A, 0x2A);
         assertThat(region(output, fixture.arrayOffset(BasicType.CHAR), 8))
                 .containsExactly(0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A, 0x00, 0x2A);
-        assertThat(region(output, fixture.arrayOffset(BasicType.SHORT), 8))
-                .containsExactly(0, 0, 0, 0, 0, 0, 0, 0);
-        assertThat(region(output, fixture.arrayOffset(BasicType.BOOLEAN), 4))
-                .containsExactly(0, 0, 0, 0);
+        assertThat(region(output, fixture.arrayOffset(BasicType.SHORT), 8)).containsExactly(0, 0, 0, 0, 0, 0, 0, 0);
+        assertThat(region(output, fixture.arrayOffset(BasicType.BOOLEAN), 4)).containsExactly(0, 0, 0, 0);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -765,19 +842,19 @@ class HeapDumpSanitizerSyntheticTest {
     private static int[] defaultReplacementTile(final BasicType type) {
         switch (type) {
             case BYTE:
-                return new int[]{42};
+                return new int[] {42};
             case BOOLEAN:
-                return new int[]{0};
+                return new int[] {0};
             case CHAR:
-                return new int[]{0x00, 0x2A};
+                return new int[] {0x00, 0x2A};
             case SHORT:
-                return new int[]{0, 0};
+                return new int[] {0, 0};
             case INT:
             case FLOAT:
-                return new int[]{0, 0, 0, 0};
+                return new int[] {0, 0, 0, 0};
             case LONG:
             case DOUBLE:
-                return new int[]{0, 0, 0, 0, 0, 0, 0, 0};
+                return new int[] {0, 0, 0, 0, 0, 0, 0, 0};
             default:
                 throw new IllegalArgumentException("" + type);
         }
@@ -798,36 +875,28 @@ class HeapDumpSanitizerSyntheticTest {
         return expected;
     }
 
-    private void assertFieldSanitized(final byte[] output,
-                                      final AllPrimitivesFixture fixture,
-                                      final BasicType type) {
+    private void assertFieldSanitized(final byte[] output, final AllPrimitivesFixture fixture, final BasicType type) {
         final int width = type.getValueSize(ID_SIZE);
         assertThat(region(output, fixture.fieldOffset(type), width))
                 .as("field of type " + type + " must be sanitized")
                 .containsExactly(tile(type, 1));
     }
 
-    private void assertFieldPreserved(final byte[] output,
-                                      final AllPrimitivesFixture fixture,
-                                      final BasicType type) {
+    private void assertFieldPreserved(final byte[] output, final AllPrimitivesFixture fixture, final BasicType type) {
         final int width = type.getValueSize(ID_SIZE);
         assertThat(region(output, fixture.fieldOffset(type), width))
                 .as("field of type " + type + " must be preserved")
                 .containsExactly(unsanitized(width));
     }
 
-    private void assertArraySanitized(final byte[] output,
-                                      final AllPrimitivesFixture fixture,
-                                      final BasicType type) {
+    private void assertArraySanitized(final byte[] output, final AllPrimitivesFixture fixture, final BasicType type) {
         final int[] expected = tile(type, ARRAY_LENGTH);
         assertThat(region(output, fixture.arrayOffset(type), expected.length))
                 .as("array of type " + type + " must be sanitized")
                 .containsExactly(expected);
     }
 
-    private void assertArrayPreserved(final byte[] output,
-                                      final AllPrimitivesFixture fixture,
-                                      final BasicType type) {
+    private void assertArrayPreserved(final byte[] output, final AllPrimitivesFixture fixture, final BasicType type) {
         final int numBytes = ARRAY_LENGTH * type.getValueSize(ID_SIZE);
         assertThat(region(output, fixture.arrayOffset(type), numBytes))
                 .as("array of type " + type + " must be preserved")
@@ -889,10 +958,9 @@ class HeapDumpSanitizerSyntheticTest {
         input.loadClass(1, stringClassId, 20);
 
         final Hprof body = new Hprof();
-        body.classDump(stringClassId, 0, new int[]{21, 22},
-                new BasicType[]{BasicType.OBJECT, BasicType.BYTE});
+        body.classDump(stringClassId, 0, new int[] {21, 22}, new BasicType[] {BasicType.OBJECT, BasicType.BYTE});
         // "hi" as UTF16-BE, i.e. a genuine coder==1 payload
-        body.primitiveArrayDump(valueArrayId, BasicType.BYTE, new byte[]{0, 'h', 0, 'i'});
+        body.primitiveArrayDump(valueArrayId, BasicType.BYTE, new byte[] {0, 'h', 0, 'i'});
 
         final Hprof instance = new Hprof();
         instance.id(valueArrayId);
@@ -953,13 +1021,7 @@ class HeapDumpSanitizerSyntheticTest {
     }
 
     private byte[] sanitize(final byte[] input, final String... options) throws IOException {
-        final SanitizeCommand command = new SanitizeCommand();
-        final List<String> argv = new ArrayList<>(asList(options));
-        argv.add("in.hprof");
-        argv.add("out.hprof");
-        new CommandLine(command)
-                .registerConverter(DataSize.class, DataSize::parse)
-                .parseArgs(argv.toArray(EMPTY_STRING_ARRAY));
+        final SanitizeCommand command = parse(options);
 
         final ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
         final HeapDumpSanitizer sanitizer = new HeapDumpSanitizer();
@@ -971,6 +1033,50 @@ class HeapDumpSanitizerSyntheticTest {
         sanitizer.setSanitizeCommand(command);
         sanitizer.sanitize();
 
+        return checkedOutput(outputBytes, input);
+    }
+
+    /**
+     * Runs the metadata pass and then the writing pass over one sanitizer, which is what
+     * {@link SanitizeCommandProcessor} does whenever {@code -e} is non-empty or {@code -f} is true.
+     * Tests of anything decided between the passes have to go through here: the single-pass
+     * {@link #sanitize} helper cannot see cross-pass state at all.
+     */
+    private byte[] sanitizeInTwoPasses(final byte[] input, final String... options) throws IOException {
+        final SanitizeCommand command = parse(options);
+
+        final HeapDumpSanitizer sanitizer = new HeapDumpSanitizer();
+        sanitizer.setProgressMonitor(numBytesProcessed -> {
+            // no op
+        });
+        sanitizer.setSanitizeCommand(command);
+
+        sanitizer.setPreprocessingOnly(true);
+        sanitizer.setInputStream(new ByteArrayInputStream(input));
+        sanitizer.setOutputStream(null);
+        sanitizer.sanitize();
+        sanitizer.setPreprocessingOnly(false);
+
+        final ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
+        sanitizer.setInputStream(new ByteArrayInputStream(input));
+        sanitizer.setOutputStream(outputBytes);
+        sanitizer.sanitize();
+
+        return checkedOutput(outputBytes, input);
+    }
+
+    private static SanitizeCommand parse(final String... options) {
+        final SanitizeCommand command = new SanitizeCommand();
+        final List<String> argv = new ArrayList<>(asList(options));
+        argv.add("in.hprof");
+        argv.add("out.hprof");
+        new CommandLine(command)
+                .registerConverter(DataSize.class, DataSize::parse)
+                .parseArgs(argv.toArray(EMPTY_STRING_ARRAY));
+        return command;
+    }
+
+    private static byte[] checkedOutput(final ByteArrayOutputStream outputBytes, final byte[] input) {
         final byte[] output = outputBytes.toByteArray();
         assertThat(output.length)
                 .as("sanitization must preserve the length of the dump")
@@ -985,5 +1091,4 @@ class HeapDumpSanitizerSyntheticTest {
         }
         return unsigned;
     }
-
 }

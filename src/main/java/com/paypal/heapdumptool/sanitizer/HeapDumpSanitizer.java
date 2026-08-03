@@ -1,8 +1,8 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.utils.InternalLogger;
+import com.paypal.heapdumptool.utils.Long2LongHashMap;
 import com.paypal.heapdumptool.utils.ProgressMonitor;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -47,6 +47,13 @@ public class HeapDumpSanitizer {
 
     private static final String STRING_CODER_FIELD = "coder";
     private static final String STRING_VALUE_FIELD = "value";
+
+    /*
+     * The "no such entry" marker for stringObjectIdToValueArrayIdMap. Object ids
+     * are addresses, so the sign bit is never set on any id a dump can contain.
+     * pipeId() rejects anything above 2^63 outright.
+     */
+    private static final long NO_VALUE_ARRAY_ID = Long.MIN_VALUE;
 
     private static final InternalLogger LOGGER = InternalLogger.getLogger(HeapDumpSanitizer.class);
 
@@ -114,6 +121,32 @@ public class HeapDumpSanitizer {
     private final Set<Long> excludeStringObjectIds = new HashSet<>();
     private final Set<Long> excludeStringValueArrayObjectIds = new HashSet<>();
 
+    /*
+     * Every String instance's own id -> the id of the byte[] its value field points at, recorded by
+     * the metadata pass and resolved against excludeStringObjectIds when that pass ends.
+     *
+     * -e attribution is a two-hop chain, holder -> String -> array, and the two hops are found in
+     * separate sub-records whose order the format does not constrain: HotSpot emits them in heap walk
+     * order. Recording each hop only when the previous one was already known made a pass advance the
+     * chain by at most one hop, so correctness rested on the emission order AND on the pass count
+     * happening to equal the chain length. It did not hold: with the array emitted before both the
+     * String and the holder, the array was read before either hop was available in EITHER pass, so
+     * the payload -e was asked to keep was overwritten -- silently, exit code 0. Recording the second
+     * hop unconditionally and resolving it after the pass has seen every record makes the writing
+     * pass start from a complete set instead of building one as it goes, so no order can defeat it.
+     *
+     * The cost is one entry per String instance, since the -e set is not complete until the pass
+     * ends. Measured on the 1.2 GB dump the comments above use as a benchmark that is 3.66 mil
+     * entries, where a HashMap<Long, Long> retains 316 MB against this map's 128 MB -- the boxed
+     * keys, boxed values and per-entry nodes are most of it. Hence a primitive map, and hence one
+     * with an interleaved key/value array rather than parallel arrays plus an occupancy array, which
+     * measured 8 MB worse at the same speed.
+     *
+     * Populated only when -e names something, so an -f-only run pays nothing, and dropped as soon as
+     * it is resolved, so the writing pass never carries it.
+     */
+    private Long2LongHashMap stringObjectIdToValueArrayIdMap;
+
     public void setInputStream(final InputStream inputStream) {
         this.inputStream = inputStream;
     }
@@ -140,7 +173,10 @@ public class HeapDumpSanitizer {
              */
             queriedStringIds = new HashSet<>();
             neededStringIds = null;
+            stringObjectIdToValueArrayIdMap = new Long2LongHashMap(NO_VALUE_ARRAY_ID);
         } else if (queriedStringIds != null) {
+            resolveExcludeStringValueArrayIds();
+
             /*
              * Leaving it: the recorded ids are the only ones the writing pass can read back, because
              * both passes see the same records in the same order and ask the same questions of them.
@@ -156,8 +192,38 @@ public class HeapDumpSanitizer {
              */
             final int storedBefore = stringIdToStringMap.size();
             stringIdToStringMap.keySet().retainAll(neededStringIds);
-            LOGGER.debug("Retained {} of {} strings for the sanitization pass", stringIdToStringMap.size(), storedBefore);
+            LOGGER.debug(
+                    "Retained {} of {} strings for the sanitization pass", stringIdToStringMap.size(), storedBefore);
         }
+    }
+
+    /**
+     * Walks the second hop of {@code -e} attribution for every excluded String the metadata pass
+     * found, now that it has seen every record and both hops are complete. See
+     * {@link #stringObjectIdToValueArrayIdMap} for why this cannot be done inline.
+     *
+     * <p>An excluded id with no recorded edge is normal and silently skipped: {@code -e} can name a
+     * field holding null, or one whose target is not a {@code java.lang.String} at all.</p>
+     */
+    private void resolveExcludeStringValueArrayIds() {
+        if (stringObjectIdToValueArrayIdMap == null) {
+            return;
+        }
+
+        for (final Long excludedStringObjectId : excludeStringObjectIds) {
+            final long valueArrayId = stringObjectIdToValueArrayIdMap.get(excludedStringObjectId);
+            if (valueArrayId != NO_VALUE_ARRAY_ID) {
+                excludeStringValueArrayObjectIds.add(valueArrayId);
+            }
+        }
+        LOGGER.debug(
+                "Resolved {} of {} excluded strings to a backing array, from {} recorded value edges",
+                excludeStringValueArrayObjectIds.size(),
+                excludeStringObjectIds.size(),
+                stringObjectIdToValueArrayIdMap.size());
+
+        // resolved, so the per-String-instance memory goes back before the writing pass starts
+        stringObjectIdToValueArrayIdMap = null;
     }
 
     public void sanitize() throws IOException {
@@ -165,8 +231,8 @@ public class HeapDumpSanitizer {
         hasExcludeStringFields = !sanitizeCommand.getExcludeStringFields().isEmpty();
 
         final Pipe pipe = preprocessingOnly
-                          ? Pipe.readOnlyPipe(inputStream, progressMonitor)
-                          : new Pipe(inputStream, outputStream, progressMonitor);
+                ? Pipe.readOnlyPipe(inputStream, progressMonitor)
+                : new Pipe(inputStream, outputStream, progressMonitor);
 
         /*
          * The basic fields in the binary output are u1 (1 byte), u2 (2 byte), u4 (4 byte), and u8 (8 byte).
@@ -222,9 +288,9 @@ public class HeapDumpSanitizer {
 
     private void copyLoadClassRecord(final Pipe pipe) throws IOException {
         pipe.pipeU4(); // class serial number
-        final long classObjectId = pipe.pipeId();// class object ID
+        final long classObjectId = pipe.pipeId(); // class object ID
         pipe.pipeU4(); // stack trace serial number
-        final long id = pipe.pipeId();// class name string ID
+        final long id = pipe.pipeId(); // class name string ID
         if (shouldTrackClassMetadata() || isStringClass(classObjectId)) {
             classObjectIdToStringIdMap.put(classObjectId, id);
         }
@@ -402,8 +468,7 @@ public class HeapDumpSanitizer {
     }
 
     private boolean shouldTrackClassMetadata() {
-        return !sanitizeCommand.getExcludeStringFields().isEmpty()
-                || sanitizationPolicy.isAnyFieldSanitized();
+        return !sanitizeCommand.getExcludeStringFields().isEmpty() || sanitizationPolicy.isAnyFieldSanitized();
     }
 
     private boolean isAssignableClassWithExcludeStringField(final long classObjectId) {
@@ -467,8 +532,7 @@ public class HeapDumpSanitizer {
              */
             copyStringsInstanceFields(pipe, classObjectId, objectId, numBytes);
 
-        } else if (isAssignableClassWithExcludeStringField(classObjectId)
-                || sanitizationPolicy.isAnyFieldSanitized()) {
+        } else if (isAssignableClassWithExcludeStringField(classObjectId) || sanitizationPolicy.isAnyFieldSanitized()) {
             copyInstanceAndSanitizeSomeFields(pipe, classObjectId, numBytes);
 
         } else {
@@ -486,10 +550,8 @@ public class HeapDumpSanitizer {
      *
      * On JDK 8 String has no coder field at all, and the loop simply never matches it.
      */
-    private void copyStringsInstanceFields(final Pipe pipe,
-                                           final long classObjectId,
-                                           final long objectId,
-                                           long numBytes) throws IOException {
+    private void copyStringsInstanceFields(
+            final Pipe pipe, final long classObjectId, final long objectId, long numBytes) throws IOException {
         // never null: copyHeapDumpInstanceDump checks the layout before choosing this branch
         final ClassObject classObject = classObjectIdToClassObjectMap.get(classObjectId);
 
@@ -513,15 +575,24 @@ public class HeapDumpSanitizer {
                  * error (at worst a replaced payload renders as escapes rather than '*'), whereas
                  * forcing 0 over a surviving UTF-16 array corrupts a value -e was asked to keep.
                  */
-                final boolean backingArrayPreserved = !sawValueField
-                        || excludeStringValueArrayObjectIds.contains(valueArrayObjectId);
+                final boolean backingArrayPreserved =
+                        !sawValueField || excludeStringValueArrayObjectIds.contains(valueArrayObjectId);
                 pipeStringCoder(pipe, backingArrayPreserved);
 
             } else if (field.type == BasicType.OBJECT && STRING_VALUE_FIELD.equals(field.name)) {
                 final long id = pipe.pipeId();
                 valueArrayObjectId = id;
                 sawValueField = true;
+                recordStringValueEdge(objectId, id);
                 if (excludeStringObjectIds.contains(objectId)) {
+                    /*
+                     * Kept alongside the edge recording above, which is what actually makes -e order
+                     * independent. This inline hop is all a SINGLE pass has: there is no end-of-pass
+                     * resolution point, so a one-pass run still resolves the chain exactly as far as
+                     * it used to -- which is to say, when the records happen to arrive in a
+                     * favourable order. SanitizeCommandProcessor always runs two passes when -e is
+                     * set, so nothing in production depends on that.
+                     */
                     excludeStringValueArrayObjectIds.add(id);
                 }
 
@@ -536,6 +607,25 @@ public class HeapDumpSanitizer {
         }
 
         pipe.pipe(numBytes);
+    }
+
+    /**
+     * Notes which {@code byte[]} this String instance reads, i.e. the second hop of {@code -e}
+     * attribution. Recorded for every String rather than only excluded ones, because the {@code -e}
+     * set is not complete until the metadata pass ends -- see
+     * {@link #stringObjectIdToValueArrayIdMap}.
+     *
+     * <p>Only the metadata pass records. In a single-pass run the map is null, and the writing pass
+     * already has the resolved set, so neither one grows a structure nothing consults.</p>
+     *
+     * <p>An excluded String whose value field appears in more than one instance dump for the same
+     * object id cannot happen: an object id is dumped once. Overwriting on a repeat would be no worse
+     * than the previous inline behavior in any case, since both keep the last edge seen.</p>
+     */
+    private void recordStringValueEdge(final long stringObjectId, final long valueArrayObjectId) {
+        if (stringObjectIdToValueArrayIdMap != null && hasExcludeStringFields) {
+            stringObjectIdToValueArrayIdMap.put(stringObjectId, valueArrayObjectId);
+        }
     }
 
     /*
@@ -613,9 +703,8 @@ public class HeapDumpSanitizer {
         return fields == null ? Collections.<String>emptyList() : fields;
     }
 
-    private void copyInstanceAndSanitizeSomeFields(final Pipe pipe,
-                                                   final long classObjectId,
-                                                   final long numBytes) throws IOException {
+    private void copyInstanceAndSanitizeSomeFields(final Pipe pipe, final long classObjectId, final long numBytes)
+            throws IOException {
         final Collection<String> excludeStringFields = getExcludeStringFieldsInClassHierarchy(classObjectId);
         // reached for java.lang.String only when -f=false AND -e names nothing, i.e. when there is
         // no coder to force and no exclusion to bridge; copyStringsInstanceFields handles the rest
