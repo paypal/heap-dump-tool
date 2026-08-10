@@ -63,7 +63,7 @@ public class Field implements FieldContext {
     /**
      * This declaration's verdict, asking the rule chain only the first time.
      */
-    Decision resolvedDecision(final SanitizationRules rules) {
+    Decision resolvedDecision(final SanitizationRuleRegistry rules) {
         if (resolved == null) {
             resolved = rules.decideField(this);
         }

@@ -50,7 +50,7 @@ Simplest way to capture sanitized heap dump of an app is to run:
 $ jcmd {pid} GC.heap_dump /path/to/plain-heap-dump.hprof
 
 # then sanitize the heap dump
-$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.4.0/heap-dump-tool-1.4.0-all.jar
+$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/2.0.0/heap-dump-tool-2.0.0-all.jar
 $ java -jar heap-dump-tool.jar sanitize /path/to/plain-dump.hprof /path/to/sanitized-dump.hprof
 ```
 
@@ -69,7 +69,7 @@ CONTAINER ID        IMAGE                                [...]   NAMES
 06e633da3494        registry.example.com/my-app:latest   [...]   my-app
 
 # capture and sanitize
-$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.4.0/heap-dump-tool-1.4.0-all.jar
+$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/2.0.0/heap-dump-tool-2.0.0-all.jar
 $ java -jar heap-dump-tool.jar capture my-app
 ```
 
@@ -116,7 +116,7 @@ To sanitize environment variables in hs_err* files, you can run:
 
 ```
 # with java -jar
-$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/1.4.0/heap-dump-tool-1.4.0-all.jar
+$ wget -O heap-dump-tool.jar https://repo1.maven.org/maven2/com/paypal/heap-dump-tool/2.0.0/heap-dump-tool-2.0.0-all.jar
 $ java -jar heap-dump-tool.jar sanitize-hserr input-hs_err.log outout-hs_err.log
 
 # Or, with docker
@@ -233,7 +233,7 @@ Sanitize a heap dump by replacing primitive field and array contents
   --target=all                          # the default
   --target=none                         # copy the dump through, sanitizing nothing
   --target=all,-ints,-longs             # everything except int and long
-  --target=byte-arrays,char-arrays      # the target prior to version 1.4.0
+  --target=byte-arrays,char-arrays      # the target prior to version 2.0.0
   --target=arrays                       # primitive array contents only, skip primitive fields
   --target=all,-char,char-array         # all, but only char's array contents
   ```
@@ -270,7 +270,7 @@ Sanitize a heap dump by replacing primitive field and array contents
 ### CLI FAQ
 
 **Q: How can I sanitize only char array or byte array fields?**
-Set `--target=byte-arrays,char-arrays`. The behavior mimics that of versions prior to 1.4.0. Add
+Set `--target=byte-arrays,char-arrays`. The behavior mimics that of versions prior to 2.0.0. Add
 `--replacement=all=0` to reproduce the old `\0` fill as well.
 
 **Q: Why are collection sizes, hash codes and timestamps gone from my dump?**
@@ -299,88 +299,79 @@ To use the tool as a library and embed it within another app, you can declare it
 <dependency>
   <groupId>com.paypal</groupId>
   <artifactId>heap-dump-tool</artifactId>
-  <version>1.4.0</version>
+  <version>2.0.0</version>
 </dependency>
 ```
 
-Then, use `HeapDumpSanitizer` class to sanitize heap dumps programmatically. Example:
+Then, use `HeapDumpSanitizer.create(...)` to sanitize heap dumps programmatically. Example:
 
 ```java
 public class Demo {
   public static void main(String[] args) throws Exception {
-    SanitizeCommand command = new SanitizeCommand();
-    command.setInputFile(Path.of("/path/to/input.hprof"));
-    command.setOutputFile(Path.of("/path/to/output.hprof"));
-
-    SanitizeStreamFactory streamFactory = new SanitizeStreamFactory(command);
-
-    try (InputStream inputStream = streamFactory.newInputStream();
-         OutputStream outputStream = streamFactory.newOutputStream()) {
-      HeapDumpSanitizer sanitizer = new HeapDumpSanitizer();
-      sanitizer.setSanitizeCommand(command);
-      sanitizer.setInputStream(inputStream);
-      sanitizer.setOutputStream(outputStream);
-      sanitizer.setProgressMonitor(bytes -> {});
-      sanitizer.sanitize();
-    }
+    // read input.hprof, write output.hprof; the output format follows the output file name,
+    // so a .zip or .gz output is wrapped exactly as on the command line
+    HeapDumpSanitizer.create(Paths.get("/path/to/input.hprof"), Paths.get("/path/to/output.hprof"))
+        .target("all")          // optional
+        .replacement("char=*")  // optional
+        .sanitize();
   }
 }
 ```
 
+`.target(...)` and `.replacement(...)` take the same values as the command line flags, in the same order. For anything
+the flags cannot express, chain an `addRule(...)` as below.
+
 ### SanitizationRule: deciding what to sanitize in code
 
 `--target` and `--replacement` cover whole types, but not "this one field" or "this kind of array". For that, register a
-`SanitizationRule` on the command (continuing the example above):
+`SanitizationRule` built from a single lambda with `SanitizationRules` (continuing the example above):
 
 ```java
 // preserve one sensitive-but-needed field the flags would overwrite
-command.getSanitizeOptions().addRule(new SanitizationRule() {
-    @Override
-    public Decision decideField(final FieldContext field) {
-        if ("com.acme.Payment#token".equals(field.declaringClassName() + "#" + field.fieldName())) {
-            return Decision.preserve();
-        }
-        return Decision.undecided();
-    }
-});
-
-SanitizeStreamFactory streamFactory = new SanitizeStreamFactory(command);
+HeapDumpSanitizer.create(Paths.get("in.hprof"), Paths.get("out.hprof"))
+    .addRule(SanitizationRules.preserveFieldRule(field ->
+            "com.acme.Payment".equals(field.declaringClassName()) && "amount".equals(field.fieldName())))
+    .sanitize();
 ```
 
-* Both methods default to `Decision.undecided()`, so an abstaining rule never changes what the flags already do.
-* Rules are consulted in registration order; the first non-`UNDECIDED` verdict wins. Where every rule abstains, the
+`preserveFieldRule(...)` preserves the fields the predicate accepts and abstains on everything else. For a rule that
+returns any of the other verdicts — `Decision.sanitize()`, `Decision.transformWith(...)`, or a mix — use
+`SanitizationRules.fieldRule(...)` instead.
+
+Rules are consulted in registration order; the first non-`UNDECIDED` verdict wins. Where every rule abstains, the
   `--target` / `--replacement` flags decide exactly as they do with no rule registered.
 
 ### ValueTransformer: computing a replacement from the original value
 
 `--replacement` writes a constant over a region. For a replacement that depends on what was there — masking a card 
-number to `************1234`, replacing a name with a placeholder, or replacing a private key's bytes while keeping its 
-ASN.1 header — a rule can route the region to a `ValueTransformer` instead (continuing the example above):
+number to `************1234`, or replacing a name with a placeholder — a rule can route the region to a `ValueTransformer` 
+instead (continuing the example above):
 
 ```java
-// redact a PKCS#8 private key: keep the ASN.1 header so the field still parses as a key,
-// and wipe the key material behind it
-command.getSanitizeOptions().addRule(new SanitizationRule() {
-    @Override
-    public Decision decideField(final FieldContext field) {
-        if ("com.acme.Keystore#privateKey".equals(field.declaringClassName() + "#" + field.fieldName())) {
-            return Decision.transformWith(new ValueTransformer() {
-                @Override
-                public void transformByteArray(final byte[] value, final int length, final ArrayContext context) {
-                    final int headerEnd = Math.min(8, length);
-                    for (int i = headerEnd; i < length; i++) {
-                        value[i] = 0;
-                    }
-                }
-            });
+// mask a card number to ************1234: keep the last four digits, wipe the rest
+HeapDumpSanitizer.create(Paths.get("in.hprof"), Paths.get("out.hprof"))
+    .addRule(SanitizationRules.fieldRule(field -> {
+        if ("com.acme.Card#pan".equals(field.declaringClassName() + "#" + field.fieldName())) {
+            return Decision.transformWith(ValueTransformers.charArrayTransformer(
+                    DataSize.ofBytes(8192),
+                    (value, length, context) -> {
+                        final int keep = Math.min(4, length);
+                        for (int i = 0; i < length - keep; i++) {
+                            value[i] = '*';
+                        }
+                    }));
         }
         return Decision.undecided();
-    }
-});
+    }))
+    .sanitize();
 ```
 
-* Scalar methods (`transformByte`, `transformInt`, `transformDouble`, …) return the transformed value. Array methods
-  mutate the live region `[0, length)` in place.
+* Scalar methods (`transformByte`, `transformInt`, `transformDouble`, …) return the transformed value; the scalar
+  factories are `ValueTransformers.intTransformer(...)`, `ValueTransformers.doubleTransformer(...)`, and so on.
+* Array methods mutate the live region `[0, length)` in place. A whole-array transformer — one that needs to see the
+  content as one piece, like the card-number masker above — is built with `ValueTransformers.charArrayTransformer(...)`,
+  `.byteArrayTransformer(...)`, `.shortArrayTransformer(...)`, `.intArrayTransformer(...)` etc., which hand the region
+  to an `ArrayConsumer` as a single materialized array whenever it is within the declared `maxMaterializedArraySize`.
 
 ### Library FAQ
 

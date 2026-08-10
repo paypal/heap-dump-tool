@@ -35,7 +35,7 @@ class SanitizationRuleTest {
     private static final long ARRAY_OBJECT_ID = 0xA100;
 
     /** The chain the most recent run used, for tests that assert on which rules matched. */
-    private SanitizationRules lastRunRules;
+    private SanitizationRuleRegistry lastRunRules;
 
     /** A three-int-field class, so a rule can single out one field and leave its neighbours. */
     private static final class AccountFixture {

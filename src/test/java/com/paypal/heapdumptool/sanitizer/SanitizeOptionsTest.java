@@ -21,18 +21,27 @@ class SanitizeOptionsTest {
         @Mixin
         private final SanitizeOptions options = new SanitizeOptions();
 
-        @Option(names = {"-s", "--sanitize-byte-char-arrays-only"}, arity = "1",
-                paramLabel = "<true|false>", description = "Deprecated")
+        @Option(
+                names = {"-s", "--sanitize-byte-char-arrays-only"},
+                arity = "1",
+                paramLabel = "<true|false>",
+                description = "Deprecated")
         void legacyByteCharArraysOnly(final boolean value) {
             options.recordLegacyByteCharArraysOnly(value);
         }
 
-        @Option(names = {"-t", "--text"}, paramLabel = "<text>", description = "Deprecated")
+        @Option(
+                names = {"-t", "--text"},
+                paramLabel = "<text>",
+                description = "Deprecated")
         void legacyText(final String value) {
             options.recordLegacyText(value);
         }
 
-        @Option(names = {"-T", "--text-charset"}, paramLabel = "<charset>", description = "Deprecated")
+        @Option(
+                names = {"-T", "--text-charset"},
+                paramLabel = "<charset>",
+                description = "Deprecated")
         void legacyTextCharset(final String value) {
             options.recordLegacyTextCharset(value);
         }
@@ -84,7 +93,7 @@ class SanitizeOptionsTest {
 
     /**
      * One --target value must produce exactly the policy the equivalent old flag sequence did.
-     * This is the migration contract for the pre-1.4.0 scope.
+     * This is the migration contract for the pre-2.0.0 scope.
      */
     @Test
     void testTargetReplacesTheOldTwoFlagSequences() {
@@ -141,11 +150,9 @@ class SanitizeOptionsTest {
                 .isInstanceOf(CommandLine.ParameterException.class)
                 .hasMessageContaining("out of range");
 
-        assertThatThrownBy(() -> parse("--replacement=bogus=1"))
-                .isInstanceOf(CommandLine.ParameterException.class);
+        assertThatThrownBy(() -> parse("--replacement=bogus=1")).isInstanceOf(CommandLine.ParameterException.class);
 
-        assertThatThrownBy(() -> parse("--replacement=int=*"))
-                .isInstanceOf(CommandLine.ParameterException.class);
+        assertThatThrownBy(() -> parse("--replacement=int=*")).isInstanceOf(CommandLine.ParameterException.class);
     }
 
     @Test
@@ -184,8 +191,7 @@ class SanitizeOptionsTest {
     void testLegacyByteCharArraysOnlyFalse() {
         // --target=none first, so the assertions below cannot be satisfied by the default
         // all-on baseline: the legacy flag must actively turn everything back on.
-        final SanitizationPolicy policy = parse("--target=none",
-                                                "--sanitize-byte-char-arrays-only=false");
+        final SanitizationPolicy policy = parse("--target=none", "--sanitize-byte-char-arrays-only=false");
         assertThat(policy.isAnyFieldSanitized()).isTrue();
         for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
             assertThat(policy.sanitizeField(type)).as("field " + type).isTrue();
@@ -235,14 +241,12 @@ class SanitizeOptionsTest {
     @Test
     void testLegacyAndNewFlagsInterleaveByPosition() {
         // legacy narrows to byte/char arrays, then the new flag re-adds int arrays
-        final SanitizationPolicy policy = parse("--sanitize-byte-char-arrays-only=true",
-                                                "--target=int-arrays");
+        final SanitizationPolicy policy = parse("--sanitize-byte-char-arrays-only=true", "--target=int-arrays");
         assertThat(policy.sanitizeArray(BasicType.BYTE)).isFalse();
         assertThat(policy.sanitizeArray(BasicType.INT)).isTrue();
 
         // reverse order: legacy comes last and wipes the int-array opt-in
-        final SanitizationPolicy reversed = parse("--target=int-arrays",
-                                                  "--sanitize-byte-char-arrays-only=true");
+        final SanitizationPolicy reversed = parse("--target=int-arrays", "--sanitize-byte-char-arrays-only=true");
         assertThat(reversed.sanitizeArray(BasicType.INT)).isFalse();
         assertThat(reversed.sanitizeArray(BasicType.BYTE)).isTrue();
     }
@@ -261,7 +265,6 @@ class SanitizeOptionsTest {
         final SanitizationPolicy policyZ = parse("--text=z");
         assertThat(policyZ.replacement(BasicType.BYTE)).containsExactly(122);
     }
-
 
     @Test
     void testCopyFromPreservesDirectiveOrder() {
@@ -284,9 +287,7 @@ class SanitizeOptionsTest {
     @Test
     void testCopyFromSelfIsANoOp() {
         final TestCommand command = new TestCommand();
-        new CommandLine(command).parseArgs("--target=long-arrays",
-                                          "--replacement=int=7",
-                                          "--text-charset=UTF-8");
+        new CommandLine(command).parseArgs("--target=long-arrays", "--replacement=int=7", "--text-charset=UTF-8");
 
         final SanitizationPolicy before = command.options.resolve();
 

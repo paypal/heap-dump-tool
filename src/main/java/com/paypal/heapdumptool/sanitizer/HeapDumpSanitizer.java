@@ -6,6 +6,7 @@ import com.paypal.heapdumptool.utils.ProgressMonitor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -48,6 +49,14 @@ public class HeapDumpSanitizer {
     private static final String STRING_CODER_FIELD = "coder";
     private static final String STRING_VALUE_FIELD = "value";
 
+    /**
+     * Fluent entry point for running a sanitization without constructing a {@link SanitizeCommand}
+     * by hand. See {@link HeapDumpSanitizerBuilder}.
+     */
+    public static HeapDumpSanitizerBuilder create(final Path inputFile, final Path outputFile) {
+        return HeapDumpSanitizerBuilder.create(inputFile, outputFile);
+    }
+
     /*
      * The "no such entry" marker for stringObjectIdToValueArrayIdMap. Object ids
      * are addresses, so the sign bit is never set on any id a dump can contain.
@@ -88,7 +97,7 @@ public class HeapDumpSanitizer {
      * rules that did fire. Empty is the common case and short-circuits before any of this costs
      * anything -- see hasRules.
      */
-    private SanitizationRules sanitizationRules = SanitizationRules.empty();
+    private SanitizationRuleRegistry sanitizationRules = SanitizationRuleRegistry.empty();
 
     /*
      * Hoisted out of the field and array decisions for the same reason sanitizationPolicy is: these are
@@ -191,7 +200,7 @@ public class HeapDumpSanitizer {
      * The rule chain this instance used, for the end-of-run zero-match warning. Empty until
      * {@link #sanitize()} has resolved it.
      */
-    public SanitizationRules getSanitizationRules() {
+    public SanitizationRuleRegistry getSanitizationRules() {
         return sanitizationRules;
     }
 
@@ -273,8 +282,8 @@ public class HeapDumpSanitizer {
              * answers null here, and letting that replace the empty chain turns every later
              * isEmpty() into an NPE -- on the no-rules path, which is the default one.
              */
-            final SanitizationRules resolved = sanitizeCommand.getSanitizationRules();
-            sanitizationRules = resolved == null ? SanitizationRules.empty() : resolved;
+            final SanitizationRuleRegistry resolved = sanitizeCommand.getSanitizationRules();
+            sanitizationRules = resolved == null ? SanitizationRuleRegistry.empty() : resolved;
             hasRules = !sanitizationRules.isEmpty();
         }
 
@@ -1034,7 +1043,7 @@ public class HeapDumpSanitizer {
     /*
      * As above, with an optional replacement from a rule's decision in place of the type's configured
      * one. A rule-supplied replacement is validated to be exactly the type's width when the decision is
-     * made (SanitizationRules.validateWidth), so the tiling argument above holds for it unchanged:
+     * made (SanitizationRuleRegistry.validateWidth), so the tiling argument above holds for it unchanged:
      * numBytes is still a whole multiple of the replacement length.
      */
     private void applySanitization(
