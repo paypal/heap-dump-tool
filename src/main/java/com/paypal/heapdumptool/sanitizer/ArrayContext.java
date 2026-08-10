@@ -9,6 +9,14 @@ package com.paypal.heapdumptool.sanitizer;
  */
 public interface ArrayContext {
 
+    /**
+     * The array object's id in the heap dump.
+     *
+     * <p>In chunked mode, the same {@code ArrayContext} and the same {@code objectId()} is
+     * passed to ValueTransformer when processing every chunk of one array, in order.
+     */
+    long objectId();
+
     BasicType elementType();
 
     long numElements();

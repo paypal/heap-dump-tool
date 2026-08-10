@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Instant;
+import java.util.List;
 import org.apache.commons.lang3.Validate;
 
 import static com.paypal.heapdumptool.utils.DateTimeTool.getFriendlyDuration;
@@ -62,6 +63,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
 
             sanitize(sanitizer, inputStream, outputStream);
         }
+        logRoutedTransformers(sanitizer.getSanitizationRules());
         warnAboutUnmatchedRules(sanitizer.getSanitizationRules());
         LOGGER.info("Finished heap dump sanitization in {}", getFriendlyDuration(now));
     }
@@ -96,6 +98,28 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         }
         LOGGER.info(
                 "Programmatic rules, applied in order before --target: {}", String.join(", ", rules.describeRules()));
+    }
+
+    /**
+     * Names the {@link ValueTransformer}s this run computed replacements with, if any.
+     *
+     * <p>After the run, not before it, unlike the rule list: a transformer is not registered anywhere.
+     * It arrives on a {@link Decision}, so which ones a run uses is not knowable until its rules have
+     * been asked. A run whose rules only sanitize logs nothing here.</p>
+     *
+     * <p>Worth logging at all because a transformed field is the one case where the output is neither
+     * the original value nor a constant from {@code --replacement}. Nothing else in the log would say
+     * that user code decided what those bytes are.</p>
+     */
+    private static void logRoutedTransformers(final SanitizationRules rules) {
+        if (rules == null) {
+            return;
+        }
+        final List<String> transformers = rules.describeRoutedTransformers();
+        if (transformers.isEmpty()) {
+            return;
+        }
+        LOGGER.info("Values computed by transformers, not by --replacement: {}", String.join(", ", transformers));
     }
 
     /**

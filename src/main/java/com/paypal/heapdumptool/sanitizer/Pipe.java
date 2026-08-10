@@ -1,17 +1,16 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.utils.ProgressMonitor;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.io.input.BoundedInputStream;
-import org.apache.commons.lang3.Validate;
-import org.apache.commons.lang3.mutable.MutableLong;
-
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.BoundedInputStream;
+import org.apache.commons.lang3.Validate;
+import org.apache.commons.lang3.mutable.MutableLong;
 
 /**
  * For piping or copying data from input to output streams.
@@ -68,16 +67,22 @@ public class Pipe {
      * way {@link #copyBuffer} is, so one record's child contributes to a single running total.</p>
      */
     public static Pipe readOnlyPipe(final InputStream input, final ProgressMonitor numBytesConsumedMonitor) {
-        return new Pipe(new DataInputStream(input), null, null, new byte[COPY_BUFFER_SIZE],
-                        numBytesConsumedMonitor, new MutableLong());
+        return new Pipe(
+                new DataInputStream(input),
+                null,
+                null,
+                new byte[COPY_BUFFER_SIZE],
+                numBytesConsumedMonitor,
+                new MutableLong());
     }
 
-    private Pipe(final DataInputStream input,
-                 final DataOutputStream output,
-                 final Integer idSize,
-                 final byte[] copyBuffer,
-                 final ProgressMonitor monitor,
-                 final MutableLong bytesConsumed) {
+    private Pipe(
+            final DataInputStream input,
+            final DataOutputStream output,
+            final Integer idSize,
+            final byte[] copyBuffer,
+            final ProgressMonitor monitor,
+            final MutableLong bytesConsumed) {
         this.input = input;
         this.output = output;
         this.idSize = idSize;
@@ -112,11 +117,66 @@ public class Pipe {
         return input.read();
     }
 
+    /*
+     * Read-without-write accessors, and their write-without-read counterparts.
+     *
+     * Every pipeXxx above reads AND writes, which is right for a copy but not for a value that gets
+     * recomputed on the way through: a transformed value has to be read, handed to user code, and only
+     * then written. Splitting them is what lets the transformed path stay length-preserving by
+     * construction -- each read of n bytes is paired with a write of exactly n -- rather than by a
+     * separate bookkeeping check.
+     *
+     * The writers honor isReadOnly() like every other writer here, so the metadata pass still emits
+     * nothing.
+     */
+
+    public int readU2() throws IOException {
+        return input.readShort();
+    }
+
+    public int readU4() throws IOException {
+        return input.readInt();
+    }
+
+    public long readU8() throws IOException {
+        return input.readLong();
+    }
+
+    /**
+     * Fills {@code length} bytes of {@code bytes}, or throws {@link java.io.EOFException}. A region
+     * whose declared length overruns the file is a corrupt dump, not a short read.
+     */
+    public void readFully(final byte[] bytes, final int offset, final int length) throws IOException {
+        input.readFully(bytes, offset, length);
+        recordBytesConsumed(length);
+    }
+
     public void writeU1(final int u1) throws IOException {
         if (isReadOnly()) {
             return;
         }
         output.write(u1);
+    }
+
+    public void writeU2(final int u2) throws IOException {
+        if (isReadOnly()) {
+            return;
+        }
+        output.writeShort(u2);
+    }
+
+    public void writeU4(final int u4) throws IOException {
+        if (isReadOnly()) {
+            return;
+        }
+        output.writeInt(u4);
+    }
+
+    public void writeU8(final long u8) throws IOException {
+        if (isReadOnly()) {
+            return;
+        }
+        output.writeLong(u8);
     }
 
     public void write(final byte[] bytes) throws IOException {
@@ -286,7 +346,8 @@ public class Pipe {
      * character-level one: every byte of a multi-byte UTF-8 sequence has its high bit set, so a byte
      * below 0x80 can only be that character standing alone, never part of something larger.</p>
      */
-    public String pipeStringReplacing(final long numBytes, final char match, final char replacement) throws IOException {
+    public String pipeStringReplacing(final long numBytes, final char match, final char replacement)
+            throws IOException {
         Validate.isTrue(match < 0x80 && replacement < 0x80, "ASCII expected: %s, %s", match, replacement);
         return pipeExactly(numBytes, true, (byte) match, (byte) replacement);
     }
@@ -303,10 +364,8 @@ public class Pipe {
      * sequential, so nothing else is mid-copy, and the buffer never escapes -- callers get a String or
      * nothing.
      */
-    private String pipeExactly(final long numBytes,
-                               final boolean wantString,
-                               final byte match,
-                               final byte replacement) throws IOException {
+    private String pipeExactly(final long numBytes, final boolean wantString, final byte match, final byte replacement)
+            throws IOException {
         final int length = Math.toIntExact(numBytes);
         final byte[] bytes = length <= copyBuffer.length ? copyBuffer : new byte[length];
 

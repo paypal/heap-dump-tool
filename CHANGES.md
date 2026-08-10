@@ -24,6 +24,9 @@
   `-z, --zip-output` options are now deprecated.
 - Add a programmatic `SanitizationRule` API: lets a run decide in code, per field declaration and per array, whether a 
   region is overwritten, preserved, or left to the `--target`/`--replacement` flags.
+- Add a programmatic `ValueTransformer` API: a rule can route a primitive field or a primitive array region to a 
+  callback that computes the replacement based on the original value (masking a credit card number to `************1234` 
+  or replacing a private key's bytes while keeping its ASN.1 header) instead of always writing a constant.
 - Fix `-e, --exclude-string-fields` being silently ignored when `-f, --force-string-coder-match=false`.
 - Fix sanitizing string that shares its backing `byte[]` with an excluded string.
 - Fix `-e, --exclude-string-fields` truncating the output when it names a primitive field.
