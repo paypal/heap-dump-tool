@@ -1,0 +1,113 @@
+package com.paypal.heapdumptool.sanitizer;
+
+import java.util.Arrays;
+
+/**
+ * A {@link SanitizationRule}'s verdict on one field or array: overwrite it, keep it, or abstain.
+ *
+ * <p>Three-valued rather than boolean so that rules compose. {@link #undecided()} is the default, so
+ * adding a rule never silently changes anything it did not mean to match, and {@code --target} /
+ * {@code --replacement} stay the baseline rather than something every rule has to restate.</p>
+ *
+ * <p>A decision chooses <em>whether</em> to sanitize and optionally <em>which constant</em> to write.
+ * It never chooses how many bytes: {@link #sanitizeWith(byte[])} is validated against the type's
+ * width when the rule is resolved, which is what keeps the tool's length-preservation invariant
+ * intact by construction. See {@link Replacement}.</p>
+ */
+public final class Decision {
+
+    private static final Decision SANITIZE = new Decision(Kind.SANITIZE, null);
+    private static final Decision PRESERVE = new Decision(Kind.PRESERVE, null);
+    private static final Decision UNDECIDED = new Decision(Kind.UNDECIDED, null);
+
+    enum Kind {
+        SANITIZE,
+        PRESERVE,
+        UNDECIDED
+    }
+
+    private final Kind kind;
+    private final byte[] replacement;
+
+    /*
+     * The custom replacement, pre-tiled for the write path. Built on first use rather than in the
+     * factory method, and cached here rather than per region: a rule may return a decision per array
+     * record, and tiling an 8 KB buffer for each of those would allocate more than the constant-fill
+     * path it is replacing. A field's decision is memoized on Field, so that case tiles once per
+     * declaration regardless.
+     */
+    private Replacement tiled;
+
+    private Decision(final Kind kind, final byte[] replacement) {
+        this.kind = kind;
+        this.replacement = replacement;
+    }
+
+    /** Overwrite this region with the replacement {@code --replacement} resolved for its type. */
+    public static Decision sanitize() {
+        return SANITIZE;
+    }
+
+    /**
+     * Overwrite this region with these bytes, big-endian, instead of the type's configured
+     * replacement. Must be exactly the type's width; checked when the rule chain is resolved.
+     */
+    public static Decision sanitizeWith(final byte[] replacement) {
+        if (replacement == null || replacement.length == 0) {
+            throw new IllegalArgumentException("Replacement bytes must be non-empty");
+        }
+        return new Decision(Kind.SANITIZE, replacement.clone());
+    }
+
+    /** Copy this region through untouched, whatever {@code --target} says. */
+    public static Decision preserve() {
+        return PRESERVE;
+    }
+
+    /** Defer to the next rule, and then to {@code --target}. */
+    public static Decision undecided() {
+        return UNDECIDED;
+    }
+
+    Kind getKind() {
+        return kind;
+    }
+
+    boolean isUndecided() {
+        return kind == Kind.UNDECIDED;
+    }
+
+    boolean isSanitize() {
+        return kind == Kind.SANITIZE;
+    }
+
+    /** The custom replacement bytes, or null to use the type's configured replacement. */
+    byte[] getReplacement() {
+        return replacement;
+    }
+
+    /**
+     * This decision's custom replacement, tiled, or null if it has none and the type's configured
+     * replacement should be used instead.
+     *
+     * <p>Not synchronized. Both passes of a run are sequential and a race would at worst build two
+     * identical buffers, so the lock would cost more on the streaming path than it could save.</p>
+     */
+    Replacement tiledReplacement() {
+        if (replacement == null) {
+            return null;
+        }
+        if (tiled == null) {
+            tiled = new Replacement(replacement);
+        }
+        return tiled;
+    }
+
+    @Override
+    public String toString() {
+        if (replacement == null) {
+            return kind.name();
+        }
+        return kind + "(" + Arrays.toString(replacement) + ")";
+    }
+}

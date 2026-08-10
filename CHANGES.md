@@ -20,6 +20,10 @@
   still accepts a character literal and applies it as its code point across every type.
 - `-f, --force-string-coder-match` has been improved: it rewrites a `String`'s `coder` field only when that string's
   backing `byte[]` is actually being sanitized.
+- Support .zip, .tar, .tar.gz, .tgz, or .gz files as input or output files transparently. `-a, --tar-input` and
+  `-z, --zip-output` options are now deprecated.
+- Add a programmatic `SanitizationRule` API: lets a run decide in code, per field declaration and per array, whether a 
+  region is overwritten, preserved, or left to the `--target`/`--replacement` flags.
 - Fix `-e, --exclude-string-fields` being silently ignored when `-f, --force-string-coder-match=false`.
 - Fix sanitizing string that shares its backing `byte[]` with an excluded string.
 - Fix `-e, --exclude-string-fields` truncating the output when it names a primitive field.
@@ -30,8 +34,6 @@
 - Speed up the pre-processing pass that runs. On a 1.2 GB dump the pass drops from 20-22s to 12-14s (~40% faster) and
   the whole run from 43-46s to 35-37s (roughly 20%).
 - Progress is now reported roughly every 5 seconds like `Processed 484.32 MB / 1.11 GB (ETA 12s)`
-- Support .zip, .tar, .tar.gz, .tgz, or .gz files as input or output files transparently. `-a, --tar-input` and 
-  `-z, --zip-output` options are now deprecated.
 
 ## 1.3.4
 - When `--sanitize-byte-char-arrays-only=false` is set, retain refs to objects.

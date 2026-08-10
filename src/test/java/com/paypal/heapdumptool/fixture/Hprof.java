@@ -2,7 +2,6 @@ package com.paypal.heapdumptool.fixture;
 
 import com.paypal.heapdumptool.sanitizer.BasicType;
 import com.paypal.heapdumptool.sanitizer.HeapRecord;
-
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
@@ -102,10 +101,30 @@ public final class Hprof {
         record(HeapRecord.LOAD_CLASS.getTag(), body);
     }
 
-    public void classDump(final long classObjectId,
-                          final long superClassObjectId,
-                          final int[] fieldNameStringIds,
-                          final BasicType[] fieldTypes) throws IOException {
+    public void classDump(
+            final long classObjectId,
+            final long superClassObjectId,
+            final int[] fieldNameStringIds,
+            final BasicType[] fieldTypes)
+            throws IOException {
+        classDumpWithStatics(classObjectId, superClassObjectId, null, fieldNameStringIds, fieldTypes);
+    }
+
+    /**
+     * As {@link #classDump}, with a static field section before the instance field section. Each static
+     * entry is a name id, a u1 type and the value itself, so {@code statics} carries the values that
+     * follow each declaration; pass null for a class with no static fields.
+     *
+     * <p>Returns the offset of the first static value, relative to the start of this builder, or -1
+     * when there are no statics.</p>
+     */
+    public int classDumpWithStatics(
+            final long classObjectId,
+            final long superClassObjectId,
+            final StaticField[] statics,
+            final int[] fieldNameStringIds,
+            final BasicType[] fieldTypes)
+            throws IOException {
         u1(CLASS_DUMP);
         id(classObjectId);
         u4(0); // stack trace serial
@@ -117,11 +136,39 @@ public final class Hprof {
         id(0); // reserved
         u4(0); // instance size
         u2(0); // constant pool records
-        u2(0); // static fields
+
+        u2(statics == null ? 0 : statics.length);
+        int firstStaticValueOffset = -1;
+        if (statics != null) {
+            for (final StaticField field : statics) {
+                id(field.nameStringId);
+                u1(field.type.getU1Code());
+                if (firstStaticValueOffset < 0) {
+                    firstStaticValueOffset = offset();
+                }
+                out.write(field.value);
+            }
+        }
+
         u2(fieldNameStringIds.length);
         for (int i = 0; i < fieldNameStringIds.length; i++) {
             id(fieldNameStringIds[i]);
             u1(fieldTypes[i].getU1Code());
+        }
+        return firstStaticValueOffset;
+    }
+
+    /** One static field declaration of a class dump: name id, type, and the value that follows them. */
+    public static final class StaticField {
+
+        public final long nameStringId;
+        public final BasicType type;
+        public final byte[] value;
+
+        public StaticField(final long nameStringId, final BasicType type, final byte[] value) {
+            this.nameStringId = nameStringId;
+            this.type = type;
+            this.value = value;
         }
     }
 
@@ -144,7 +191,8 @@ public final class Hprof {
      * Writes a primitive array dump sub-record and returns the offset of the first element
      * byte, relative to the start of this builder.
      */
-    public int primitiveArrayDump(final long objectId, final BasicType elementType, final byte[] data) throws IOException {
+    public int primitiveArrayDump(final long objectId, final BasicType elementType, final byte[] data)
+            throws IOException {
         u1(PRIMITIVE_ARRAY_DUMP);
         id(objectId);
         u4(0); // stack trace serial

@@ -328,6 +328,30 @@ public class Demo {
 }
 ```
 
+### SanitizationRule: Deciding what to sanitize in code
+
+`--target` and `--replacement` cover whole types, but not "this one field" or "this kind of array". For that, register a
+`SanitizationRule` on the command (continuing the example above):
+
+```java
+// preserve one sensitive-but-needed field the flags would overwrite
+command.getSanitizeOptions().addRule(new SanitizationRule() {
+    @Override
+    public Decision decideField(final FieldContext field) {
+        if ("com.acme.Payment#token".equals(field.declaringClassName() + "#" + field.fieldName())) {
+            return Decision.preserve();
+        }
+        return Decision.undecided();
+    }
+});
+
+SanitizeStreamFactory streamFactory = new SanitizeStreamFactory(command);
+```
+
+* Both methods default to `Decision.undecided()`, so an abstaining rule never changes what the flags already do.
+* Rules are consulted in registration order; the first non-`UNDECIDED` verdict wins. Where every rule abstains, the
+  `--target` / `--replacement` flags decide exactly as they do with no rule registered.
+
 ### Library FAQ
 
 **Q: I see `java.lang.NoClassDefFoundError: org/apache/commons/lang3/Strings`** error
