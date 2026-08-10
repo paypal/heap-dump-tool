@@ -98,6 +98,14 @@ public class HeapDumpSanitizer {
     private boolean hasRules;
 
     /*
+     * The transformed-array engine, null until a TRANSFORM verdict on an array actually needs it -- not
+     * merely until rules are registered, since a rule chain that only sanitizes never decodes an element.
+     * One per sanitizer rather than per record: it holds the decode scratch buffers, and reallocating
+     * those per array is precisely what it exists to avoid.
+     */
+    private ArrayTransformation arrayTransformation;
+
+    /*
      * Also resolved once per run, for the same reason: getExcludeStringFields() is memoized but the
      * emptiness question is asked once per instance dump and once per class dump.
      */
@@ -883,6 +891,8 @@ public class HeapDumpSanitizer {
             if (!decision.isUndecided()) {
                 if (decision.isSanitize()) {
                     applySanitization(pipe, field.type, fieldSize, decision.tiledReplacement());
+                } else if (decision.isTransform()) {
+                    applyTransformation(pipe, field, decision.getTransformer());
                 } else {
                     pipe.pipe(fieldSize);
                 }
@@ -953,11 +963,16 @@ public class HeapDumpSanitizer {
         if (hasRules && sanitizationEnabled && !excludeStringValueArrayObjectIds.contains(objectId)) {
             final BasicType basicType = BasicType.byU1Code(elementType);
             if (basicType != null) {
-                final Decision decision =
-                        sanitizationRules.decideArray(new PrimitiveArrayContext(basicType, numElements, numBytes));
+                // the same context object the rule saw is handed to the transformer, so a transformer can
+                // read the array's type and length without the rule having to close over them
+                final ArrayContext context = new PrimitiveArrayContext(objectId, basicType, numElements, numBytes);
+                final Decision decision = sanitizationRules.decideArray(context);
                 if (!decision.isUndecided()) {
                     if (decision.isSanitize()) {
                         applySanitization(pipe, basicType, numBytes, decision.tiledReplacement());
+                    } else if (decision.isTransform()) {
+                        arrayTransformation()
+                                .apply(pipe, basicType, numElements, numBytes, context, decision.getTransformer());
                     } else {
                         pipe.pipe(numBytes);
                     }
@@ -975,35 +990,14 @@ public class HeapDumpSanitizer {
     }
 
     /*
-     * Allocated per array record, not per element, and only when a rule chain is registered. A default
-     * run never constructs one.
+     * Not synchronized, and not lazily allocated for thread safety's sake: a run is single-threaded, and
+     * both passes are sequential. Lazy only so a run that never transforms an array holds no buffers.
      */
-    private static final class PrimitiveArrayContext implements ArrayContext {
-
-        private final BasicType elementType;
-        private final long numElements;
-        private final long numBytes;
-
-        PrimitiveArrayContext(final BasicType elementType, final long numElements, final long numBytes) {
-            this.elementType = elementType;
-            this.numElements = numElements;
-            this.numBytes = numBytes;
+    private ArrayTransformation arrayTransformation() {
+        if (arrayTransformation == null) {
+            arrayTransformation = new ArrayTransformation();
         }
-
-        @Override
-        public BasicType elementType() {
-            return elementType;
-        }
-
-        @Override
-        public long numElements() {
-            return numElements;
-        }
-
-        @Override
-        public long numBytes() {
-            return numBytes;
-        }
+        return arrayTransformation;
     }
 
     private boolean shouldApplyArraySanitization(final long objectId, final int elementType) {
@@ -1054,6 +1048,95 @@ public class HeapDumpSanitizer {
             final int count = (int) Math.min(tiledBuffer.length, numBytesRemaining);
             pipe.write(tiledBuffer, 0, count);
             numBytesRemaining -= count;
+        }
+    }
+
+    /*
+     * The second write path: read one value, hand it to user code, write what comes back.
+     *
+     * The structural opposite of applySanitization, which never decodes anything. Length preservation
+     * comes from the type system rather than from arithmetic -- each read of n bytes is paired with a
+     * write of exactly n, and a transformer returns the same type it was given, so there is no width for
+     * it to get wrong.
+     *
+     * Only reached with sanitizationEnabled, i.e. never during the metadata pass. That matters beyond
+     * the wasted work: a transformer may keep state (a counter, a pseudonym table), and invoking it once
+     * per value per pass would double every count.
+     *
+     * BOOLEAN is a u1 in the format, where the JVM writes 0 or 1. A transformer sees the decoded
+     * boolean, and what is written back is 0 or 1 -- so a dump whose boolean byte was some other value
+     * is normalized by transforming it. Nothing reads booleans as anything but zero/non-zero, and the
+     * alternative is handing user code a byte it cannot interpret as the type it asked for.
+     */
+    private void applyTransformation(final Pipe pipe, final Field field, final ValueTransformer transformer)
+            throws IOException {
+        try {
+            switch (field.type) {
+                case BOOLEAN:
+                    pipe.writeU1(transformer.transformBoolean(pipe.readU1() != 0) ? 1 : 0);
+                    break;
+
+                case BYTE:
+                    pipe.writeU1(transformer.transformByte((byte) pipe.readU1()));
+                    break;
+
+                case CHAR:
+                    pipe.writeU2(transformer.transformChar((char) pipe.readU2()));
+                    break;
+
+                case SHORT:
+                    pipe.writeU2(transformer.transformShort((short) pipe.readU2()));
+                    break;
+
+                case INT:
+                    pipe.writeU4(transformer.transformInt(pipe.readU4()));
+                    break;
+
+                case LONG:
+                    pipe.writeU8(transformer.transformLong(pipe.readU8()));
+                    break;
+
+                    /*
+                     * Raw bits both ways. floatToIntBits collapses every NaN to one canonical NaN, so a
+                     * transformer that returns its argument unchanged would still rewrite the bytes of a
+                     * signalling NaN -- a value the tool was told to preserve, silently altered. Raw makes
+                     * "return value" a genuine no-op for every input.
+                     */
+                case FLOAT:
+                    pipe.writeU4(
+                            Float.floatToRawIntBits(transformer.transformFloat(Float.intBitsToFloat(pipe.readU4()))));
+                    break;
+
+                case DOUBLE:
+                    pipe.writeU8(Double.doubleToRawLongBits(
+                            transformer.transformDouble(Double.longBitsToDouble(pipe.readU8()))));
+                    break;
+
+                default:
+                    // OBJECT is rejected when the decision is made; nothing else exists
+                    throw new SanitizationRuleException("Cannot transform " + field.type + " field "
+                            + field.declaringClassName() + "#" + field.name);
+            }
+        } catch (final SanitizationRuleException e) {
+            throw e;
+        } catch (final RuntimeException e) {
+            throw new SanitizationRuleException(
+                    "Transformer " + describe(transformer) + " failed on field " + field.declaringClassName() + "#"
+                            + field.name,
+                    e);
+        }
+    }
+
+    /*
+     * describe() is user code, so a broken implementation must not be what aborts the run -- least of all
+     * while building the message for an unrelated failure.
+     */
+    private static String describe(final ValueTransformer transformer) {
+        try {
+            final String description = transformer.describe();
+            return description == null ? transformer.getClass().getName() : description;
+        } catch (final RuntimeException e) {
+            return transformer.getClass().getName();
         }
     }
 }

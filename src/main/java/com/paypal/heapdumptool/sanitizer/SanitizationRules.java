@@ -2,7 +2,9 @@ package com.paypal.heapdumptool.sanitizer;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 /**
  * The resolved chain of {@link SanitizationRule}s, and the only place they are invoked from.
@@ -28,6 +30,26 @@ public final class SanitizationRules {
      * success while having done nothing the user asked for.
      */
     private final boolean[] matched;
+
+    /*
+     * The distinct transformers this chain has actually routed to, for the end-of-run log. Recorded here
+     * rather than logged at startup because a transformer is not registered: it arrives on a Decision, so
+     * which ones a run uses is not knowable until the run has made its decisions.
+     *
+     * Identity semantics by default, which is what is wanted: two equal-looking transformers from
+     * different rules are two things the log should name. Descriptions are built at the end, not here --
+     * decideArray runs once per array record, and describe() is user code that may allocate.
+     *
+     * Capped because a rule is free to return a fresh instance per record -- Decision.transformWith(v ->
+     * ...) inside decideArray is the obvious way to write one -- and an uncapped set of those would grow
+     * with the dump. Past the cap the log says so rather than pretending the list is complete.
+     */
+    private static final int MAX_TRACKED_TRANSFORMERS = 32;
+
+    private final Set<ValueTransformer> routedTransformers =
+            Collections.newSetFromMap(new IdentityHashMap<ValueTransformer, Boolean>());
+
+    private boolean moreTransformersThanTracked;
 
     static SanitizationRules empty() {
         return EMPTY;
@@ -57,6 +79,7 @@ public final class SanitizationRules {
             if (decision != null && !decision.isUndecided()) {
                 validateWidth(rule, decision, context.type(), describeField(context));
                 matched[i] = true;
+                recordTransformer(decision);
                 return decision;
             }
         }
@@ -74,6 +97,7 @@ public final class SanitizationRules {
             if (decision != null && !decision.isUndecided()) {
                 validateWidth(rule, decision, context.elementType(), context.elementType() + "[]");
                 matched[i] = true;
+                recordTransformer(decision);
                 return decision;
             }
         }
@@ -92,6 +116,47 @@ public final class SanitizationRules {
             }
         }
         return unmatched;
+    }
+
+    /*
+     * A field's verdict is memoized on Field, so a transformer routed at a field is seen once per
+     * declaration; an array's cannot be, so this runs per array record. Hence the containment check
+     * before the add: IdentityHashMap.add on a present key is already cheap, and the cap keeps the set
+     * from growing when a rule mints a transformer per record.
+     */
+    private void recordTransformer(final Decision decision) {
+        final ValueTransformer transformer = decision.getTransformer();
+        if (transformer == null || routedTransformers.contains(transformer)) {
+            return;
+        }
+        if (routedTransformers.size() >= MAX_TRACKED_TRANSFORMERS) {
+            moreTransformersThanTracked = true;
+            return;
+        }
+        routedTransformers.add(transformer);
+    }
+
+    /**
+     * Names the transformers this run actually routed values to, for a line at the end of the run.
+     * Meaningful only once the dump has been read, since a transformer arrives on a {@link Decision}
+     * rather than being registered up front. Empty on a run that transformed nothing.
+     *
+     * <p>The last entry reads {@code ...} if more distinct transformers ran than were tracked.</p>
+     */
+    public List<String> describeRoutedTransformers() {
+        final List<String> names = new ArrayList<>(routedTransformers.size());
+        for (final ValueTransformer transformer : routedTransformers) {
+            names.add(describe(transformer));
+        }
+        /*
+         * Sorted so the line is stable across runs: the set is identity-hashed, so its iteration order
+         * varies with the addresses the JVM happened to hand out.
+         */
+        Collections.sort(names);
+        if (moreTransformersThanTracked) {
+            names.add("... (more than " + MAX_TRACKED_TRANSFORMERS + " distinct transformers ran)");
+        }
+        return names;
     }
 
     /**
@@ -139,6 +204,18 @@ public final class SanitizationRules {
      */
     private void validateWidth(
             final SanitizationRule rule, final Decision decision, final BasicType type, final String what) {
+        /*
+         * A transformer is rejected on OBJECT for the same reason a constant is, and for a stronger one:
+         * ValueTransformer has no transformObject method at all, so there is nothing to call. Caught here
+         * rather than ignored so a rule that routes a transformer at a reference field is told, instead
+         * of appearing to work while the ids pipe through untouched.
+         */
+        if (decision.isTransform() && type == BasicType.OBJECT) {
+            throw new SanitizationRuleException("Rule " + describe(rule) + " routed transformer "
+                    + decision.describeTransformer() + " at " + what
+                    + ", which holds object ids: transforming one corrupts the heap dump");
+        }
+
         final byte[] replacement = decision.getReplacement();
         if (replacement == null) {
             return;
@@ -170,6 +247,15 @@ public final class SanitizationRules {
             return description == null ? rule.getClass().getName() : description;
         } catch (final RuntimeException e) {
             return rule.getClass().getName();
+        }
+    }
+
+    private static String describe(final ValueTransformer transformer) {
+        try {
+            final String description = transformer.describe();
+            return description == null ? transformer.getClass().getName() : description;
+        } catch (final RuntimeException e) {
+            return transformer.getClass().getName();
         }
     }
 

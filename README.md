@@ -328,7 +328,7 @@ public class Demo {
 }
 ```
 
-### SanitizationRule: Deciding what to sanitize in code
+### SanitizationRule: deciding what to sanitize in code
 
 `--target` and `--replacement` cover whole types, but not "this one field" or "this kind of array". For that, register a
 `SanitizationRule` on the command (continuing the example above):
@@ -351,6 +351,37 @@ SanitizeStreamFactory streamFactory = new SanitizeStreamFactory(command);
 * Both methods default to `Decision.undecided()`, so an abstaining rule never changes what the flags already do.
 * Rules are consulted in registration order; the first non-`UNDECIDED` verdict wins. Where every rule abstains, the
   `--target` / `--replacement` flags decide exactly as they do with no rule registered.
+
+### ValueTransformer: computing a replacement from the original value
+
+`--replacement` writes a constant over a region. For a replacement that depends on what was there — masking a card 
+number to `************1234`, replacing a name with a placeholder, or replacing a private key's bytes while keeping its 
+ASN.1 header — a rule can route the region to a `ValueTransformer` instead (continuing the example above):
+
+```java
+// redact a PKCS#8 private key: keep the ASN.1 header so the field still parses as a key,
+// and wipe the key material behind it
+command.getSanitizeOptions().addRule(new SanitizationRule() {
+    @Override
+    public Decision decideField(final FieldContext field) {
+        if ("com.acme.Keystore#privateKey".equals(field.declaringClassName() + "#" + field.fieldName())) {
+            return Decision.transformWith(new ValueTransformer() {
+                @Override
+                public void transformByteArray(final byte[] value, final int length, final ArrayContext context) {
+                    final int headerEnd = Math.min(8, length);
+                    for (int i = headerEnd; i < length; i++) {
+                        value[i] = 0;
+                    }
+                }
+            });
+        }
+        return Decision.undecided();
+    }
+});
+```
+
+* Scalar methods (`transformByte`, `transformInt`, `transformDouble`, …) return the transformed value. Array methods
+  mutate the live region `[0, length)` in place.
 
 ### Library FAQ
 
