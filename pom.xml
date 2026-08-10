@@ -4,7 +4,7 @@
 
     <groupId>com.paypal</groupId>
     <artifactId>heap-dump-tool</artifactId>
-    <version>2.0.0-SNAPSHOT</version>
+    <version>2.0.0</version>
 
     <name>Heap Dump Tool</name>
     <description>
@@ -41,7 +41,7 @@
 
         <!-- JUnit tags to exclude from the test run. Empty runs everything; -DexcludedTestGroups=slow
              skips the real-heap-dump tests (see @Tag("slow") on HeapDumpSanitizerTest). -->
-        <excludedTestGroups></excludedTestGroups>
+        <excludedTestGroups />
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>${project.build.sourceEncoding}</project.reporting.outputEncoding>
 
@@ -76,7 +76,7 @@
         <connection>scm:git:git://github.com/paypal/heap-dump-tool.git</connection>
         <developerConnection>scm:git:https://github.com/paypal/heap-dump-tool.git</developerConnection>
         <url>http://github.com/paypal/heap-dump-tool/tree/main</url>
-        <tag>HEAD</tag>
+        <tag>heap-dump-tool-2.0.0</tag>
     </scm>
 
     <developers>
@@ -328,8 +328,8 @@
                         <importOrder>
                             <order>,\#</order>
                         </importOrder>
-                        <trimTrailingWhitespace/>
-                        <endWithNewline/>
+                        <trimTrailingWhitespace />
+                        <endWithNewline />
                     </java>
                 </configuration>
                 <executions>
