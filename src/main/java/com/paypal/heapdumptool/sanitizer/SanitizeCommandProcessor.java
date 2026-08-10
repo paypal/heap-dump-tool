@@ -55,7 +55,6 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
         logSanitizationRules(command.getSanitizationRules());
 
         final Instant now = Instant.now();
-
         final HeapDumpSanitizer sanitizer = applyPreprocessing();
         LOGGER.info("Starting heap dump sanitization ...");
 

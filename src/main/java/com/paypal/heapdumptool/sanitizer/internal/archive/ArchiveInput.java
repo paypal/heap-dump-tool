@@ -5,6 +5,8 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Enumeration;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
@@ -35,6 +37,8 @@ import static com.paypal.heapdumptool.utils.ProgressMonitor.UNKNOWN_TOTAL;
 public final class ArchiveInput {
 
     private static final InternalLogger LOGGER = InternalLogger.getLogger(ArchiveInput.class);
+
+    private static final String PHD_MAGIC = "portable heap dump";
 
     private final ArchiveFormat format;
 
@@ -78,6 +82,8 @@ public final class ArchiveInput {
         final int length = IOUtils.read(stream, signature);
         stream.unread(signature, 0, length);
 
+        refuseJ9Format(signature, length);
+
         /*
          * One read serves both, gzip's magic being the first 2 bytes of the same 512. An uncompressed
          * stream is then already sniffed and needs nothing further; a compressed one has to be looked at
@@ -112,6 +118,7 @@ public final class ArchiveInput {
 
         final ArchiveFormat format = ArchiveFormat.ofInputFile(inputFile);
         if (format == ArchiveFormat.NONE) {
+            refuseJ9Format(inputFile);
             return new ArchiveInput(format, compression, stream, UNKNOWN_TOTAL, null);
         }
         if (format == ArchiveFormat.TAR) {
@@ -125,6 +132,79 @@ public final class ArchiveInput {
          */
         stream.close();
         return openZipFileEntry(inputFile);
+    }
+
+    /*
+     * The J9 formats this tool will not sanitize, told apart from their leading bytes and refused
+     * outright. Both are object-graph dumps: they record addresses, sizes and reference slots, but
+     * not the field and array contents that HPROF sanitization scrubs, so there is nothing to redact
+     * -- and a run that took one for an HPROF dump would garble it into unreadable output. Better
+     * refused than silently written out wrong.
+     */
+    private static void refuseJ9Format(final byte[] signature, final int length) throws IOException {
+        if (isPhd(signature, length) || isClassic(signature, length)) {
+            throw new RefusedJ9DumpException();
+        }
+    }
+
+    /*
+     * A message that is its own reason, worth carrying in full rather than abbreviated. The stack is
+     * deliberately empty: this exception is not a bug report, nothing useful to be learned from the
+     * call chain that decided to refuse, and the dump that produced it is a hundred times its size.
+     */
+    private static final class RefusedJ9DumpException extends IOException {
+
+        RefusedJ9DumpException() {
+            super("Refusing to sanitize J9 heap dumps because such dumps are object-graph dumps, not content"
+                    + " dumps.\nThe heap dumps do not contain primitive field values or primitive array"
+                    + " field elements.\nTherefore there is nothing sensitive to sanitize.");
+        }
+
+        @Override
+        public synchronized Throwable fillInStackTrace() {
+            return this;
+        }
+    }
+
+    /*
+     * As refuseJ9Format(byte[], int) for a file, which is opened again rather than sniffed -- a file
+     * can be read twice, and this run will anyway.
+     */
+    private static void refuseJ9Format(final Path inputFile) throws IOException {
+        final byte[] signature = new byte[ArchiveFormat.SIGNATURE_LENGTH];
+        try (final InputStream stream = Files.newInputStream(inputFile)) {
+            refuseJ9Format(signature, IOUtils.read(stream, signature));
+        }
+    }
+
+    /*
+     * Whether the leading bytes are a PHD: an unsigned-short length, then that many bytes of the magic.
+     */
+    private static boolean isPhd(final byte[] signature, final int length) {
+        if (length < 2) {
+            return false;
+        }
+        final int magicLength = ((signature[0] & 0xFF) << 8) | (signature[1] & 0xFF);
+        if (magicLength <= 0 || magicLength > 200 || magicLength + 2 > length) {
+            return false;
+        }
+        return PHD_MAGIC.equals(new String(signature, 2, magicLength, StandardCharsets.UTF_8));
+    }
+
+    /*
+     * Whether the leading bytes are a classic dump: the first line starts with "// Version:" or is an
+     * OBJ record, either of which a classic dump opens with.
+     */
+    private static boolean isClassic(final byte[] signature, final int length) {
+        if (length <= 0) {
+            return false;
+        }
+        final String probe = new String(signature, 0, length, StandardCharsets.UTF_8);
+        final String firstLine = probe.split("\n", 2)[0].trim();
+        if (firstLine.startsWith("// Version:")) {
+            return true;
+        }
+        return firstLine.contains("OBJ") && firstLine.contains("[") && firstLine.contains("]");
     }
 
     /*
@@ -142,6 +222,8 @@ public final class ArchiveInput {
         // far, which for a signature spanning several packets can be a few bytes
         final int length = IOUtils.read(stream, signature);
         stream.unread(signature, 0, length);
+
+        refuseJ9Format(signature, length);
 
         return of(ArchiveFormat.detect(signature, length), compression, stream);
     }
@@ -252,6 +334,7 @@ public final class ArchiveInput {
         throw noDumpEntry();
     }
 
+    @SuppressWarnings("all")
     private static boolean isDumpEntry(final ZipArchiveEntry entry) {
         if (entry.isDirectory() || !Strings.CI.endsWith(entry.getName(), ArchiveFormat.HPROF_SUFFIX)) {
             LOGGER.debug("Skipping zip entry: {}", entry.getName());
