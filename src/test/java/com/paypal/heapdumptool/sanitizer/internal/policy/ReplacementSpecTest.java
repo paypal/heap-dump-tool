@@ -1,5 +1,7 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.SanitizationPolicy;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -104,10 +106,8 @@ class ReplacementSpecTest {
      */
     @Test
     void testNumericTypesRejectACharacterLiteral() {
-        assertThatThrownBy(() -> parse("int=*"))
-                .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> parse("byte=*"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> parse("int=*")).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> parse("byte=*")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -176,8 +176,7 @@ class ReplacementSpecTest {
      */
     @Test
     void testExtraEqualsIsRejected() {
-        assertThatThrownBy(() -> parse("int=7=8"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> parse("int=7=8")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -192,7 +191,6 @@ class ReplacementSpecTest {
     @Test
     void testValidateAcceptsAndRejectsWithoutABuilder() {
         ReplacementSpec.validate("all=0,int=7");
-        assertThatThrownBy(() -> ReplacementSpec.validate("int=*"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> ReplacementSpec.validate("int=*")).isInstanceOf(IllegalArgumentException.class);
     }
 }

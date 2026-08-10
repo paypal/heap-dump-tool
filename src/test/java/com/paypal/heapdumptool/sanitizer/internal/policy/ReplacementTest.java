@@ -1,17 +1,16 @@
-package com.paypal.heapdumptool.sanitizer;
-
-import org.junit.jupiter.api.Test;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
 import java.util.Arrays;
+import org.junit.jupiter.api.Test;
 
-import static com.paypal.heapdumptool.sanitizer.Replacement.TILED_BUFFER_SIZE;
+import static com.paypal.heapdumptool.sanitizer.internal.policy.Replacement.TILED_BUFFER_SIZE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ReplacementTest {
 
     @Test
     void testSingleByteBufferIsFilled() {
-        final byte[] buffer = new Replacement(new byte[]{42}).getTiledBuffer();
+        final byte[] buffer = new Replacement(new byte[] {42}).getTiledBuffer();
 
         assertThat(buffer).hasSize(TILED_BUFFER_SIZE);
         for (final byte b : buffer) {
@@ -45,7 +44,7 @@ class ReplacementTest {
     @Test
     void testBufferHoldsAWholeNumberOfTiles() {
         // 3 divides neither 8192 nor any power of two, so a naive size would leave a partial tile
-        for (final int width : new int[]{1, 2, 3, 4, 5, 7, 8, 8192, 8193, 20000}) {
+        for (final int width : new int[] {1, 2, 3, 4, 5, 7, 8, 8192, 8193, 20000}) {
             final byte[] buffer = new Replacement(new byte[width]).getTiledBuffer();
             assertThat(buffer.length % width).as("width " + width).isZero();
             assertThat(buffer.length).as("width " + width).isPositive();
@@ -66,7 +65,7 @@ class ReplacementTest {
 
     @Test
     void testBufferNeverExceedsTheCapUnlessOneTileDoes() {
-        for (final int width : new int[]{1, 2, 3, 4, 5, 7, 8, 1000}) {
+        for (final int width : new int[] {1, 2, 3, 4, 5, 7, 8, 1000}) {
             final byte[] buffer = new Replacement(new byte[width]).getTiledBuffer();
             assertThat(buffer.length).as("width " + width).isLessThanOrEqualTo(TILED_BUFFER_SIZE);
         }
@@ -74,7 +73,7 @@ class ReplacementTest {
 
     @Test
     void testBytesAndLength() {
-        final Replacement replacement = new Replacement(new byte[]{0x00, 0x2A});
+        final Replacement replacement = new Replacement(new byte[] {0x00, 0x2A});
 
         assertThat(replacement.getBytes()).containsExactly(0x00, 0x2A);
         assertThat(replacement.getLength()).isEqualTo(2);
@@ -98,7 +97,7 @@ class ReplacementTest {
      */
     @Test
     void testGetBytesIsDefensivelyCopied() {
-        final Replacement replacement = new Replacement(new byte[]{7});
+        final Replacement replacement = new Replacement(new byte[] {7});
 
         replacement.getBytes()[0] = 99;
 

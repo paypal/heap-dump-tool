@@ -1,17 +1,20 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.hprof;
+
+import com.paypal.heapdumptool.sanitizer.ArrayContext;
+import com.paypal.heapdumptool.sanitizer.BasicType;
 
 /*
  * Allocated per array record, not per element, and only when a rule chain is registered. A default
  * run never constructs one.
  */
-final class PrimitiveArrayContext implements ArrayContext {
+public final class PrimitiveArrayContext implements ArrayContext {
 
     private final long objectId;
     private final BasicType elementType;
     private final long numElements;
     private final long numBytes;
 
-    PrimitiveArrayContext(
+    public PrimitiveArrayContext(
             final long objectId, final BasicType elementType, final long numElements, final long numBytes) {
         this.objectId = objectId;
         this.elementType = elementType;

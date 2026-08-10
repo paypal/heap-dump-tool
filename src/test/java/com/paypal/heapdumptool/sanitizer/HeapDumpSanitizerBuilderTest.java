@@ -1,6 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.fixture.Hprof;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

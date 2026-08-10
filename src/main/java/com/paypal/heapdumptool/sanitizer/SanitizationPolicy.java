@@ -1,5 +1,8 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.sanitizer.internal.policy.PrimitiveReplacement;
+import com.paypal.heapdumptool.sanitizer.internal.policy.Replacement;
+import com.paypal.heapdumptool.sanitizer.internal.policy.SelectorNames;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -21,7 +24,7 @@ import static org.apache.commons.lang3.builder.ToStringStyle.MULTI_LINE_STYLE;
  */
 public class SanitizationPolicy {
 
-    static final Set<BasicType> PRIMITIVES = EnumSet.of(
+    public static final Set<BasicType> PRIMITIVES = Collections.unmodifiableSet(EnumSet.of(
             BasicType.BOOLEAN,
             BasicType.BYTE,
             BasicType.CHAR,
@@ -29,7 +32,7 @@ public class SanitizationPolicy {
             BasicType.INT,
             BasicType.LONG,
             BasicType.FLOAT,
-            BasicType.DOUBLE);
+            BasicType.DOUBLE));
 
     /**
      * The defaults written the short way, as {@code --replacement}'s own help text states them: every

@@ -1,6 +1,9 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.fixture.Hprof;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.Field;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.PrimitiveArrayContext;
 import com.paypal.heapdumptool.testutil.ConstructorTester;
 import com.paypal.heapdumptool.utils.DataSize;
 import java.io.ByteArrayInputStream;
@@ -138,6 +141,7 @@ class SanitizationRulesTest {
 
     @Test
     @DisplayName("testProxyBehavesLikeAnObject. equals, hashCode and toString are sane on a proxy")
+    @SuppressWarnings("all")
     void testProxyBehavesLikeAnObject() {
         final SanitizationRule rule = SanitizationRules.fieldRule(field -> Decision.undecided());
         final SanitizationRule twin = SanitizationRules.fieldRule(field -> Decision.undecided());

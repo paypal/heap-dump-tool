@@ -5,6 +5,7 @@ import com.paypal.heapdumptool.fixture.AllPrimitivesFixture;
 import com.paypal.heapdumptool.fixture.Hprof;
 import com.paypal.heapdumptool.fixture.StringFixture;
 import com.paypal.heapdumptool.fixture.SubRecordOrderFixture;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
 import com.paypal.heapdumptool.utils.DataSize;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;

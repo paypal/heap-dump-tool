@@ -1,5 +1,10 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.hprof;
 
+import com.paypal.heapdumptool.sanitizer.ArrayContext;
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.SanitizationRuleException;
+import com.paypal.heapdumptool.sanitizer.ValueTransformer;
+import com.paypal.heapdumptool.sanitizer.internal.policy.Replacement;
 import com.paypal.heapdumptool.utils.DataSize;
 import com.paypal.heapdumptool.utils.InternalLogger;
 import java.io.IOException;
@@ -27,9 +32,9 @@ import java.io.IOException;
  * resize a Java array, and one that writes outside the region is writing into scratch that is never
  * emitted.</p>
  */
-final class ArrayTransformation {
+public final class ArrayTransformation {
 
-    static final DataSize ZERO_BYTES = DataSize.ofBytes(0);
+    public static final DataSize ZERO_BYTES = DataSize.ofBytes(0);
 
     private static final InternalLogger LOGGER = InternalLogger.getLogger(ArrayTransformation.class);
 
@@ -69,7 +74,7 @@ final class ArrayTransformation {
      * Transforms {@code numBytes} of element data, reading from and writing to {@code pipe}, and advances
      * it by exactly that many bytes.
      */
-    void apply(
+    public void apply(
             final Pipe pipe,
             final BasicType elementType,
             final long numElements,

@@ -1,11 +1,12 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
-import org.apache.commons.lang3.StringUtils;
-
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.SanitizationPolicy;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Parses a {@code --replacement} spec into an ordered list of replacement-value mutations.
@@ -19,7 +20,7 @@ import java.util.Map;
  * per-type entry deliberately does not, which keeps a character literal a {@code char}-only form --
  * {@code int=*} is a usage error, not code point 42.</p>
  */
-final class ReplacementSpec {
+public final class ReplacementSpec {
 
     private static final String ALL = "all";
 
@@ -34,7 +35,7 @@ final class ReplacementSpec {
      *                                  Parsing and encoding complete before the first mutation is
      *                                  applied, so a rejected spec leaves the builder untouched.
      */
-    static void applyTo(final String value, final SanitizationPolicy.Builder builder) {
+    public static void applyTo(final String value, final SanitizationPolicy.Builder builder) {
         for (final Entry entry : parse(value)) {
             entry.applyTo(builder);
         }
@@ -45,7 +46,7 @@ final class ReplacementSpec {
      *
      * @throws IllegalArgumentException if the spec is malformed
      */
-    static void validate(final String value) {
+    public static void validate(final String value) {
         parse(value);
     }
 
@@ -69,19 +70,16 @@ final class ReplacementSpec {
 
         final int equals = trimmed.indexOf('=');
         if (equals < 0) {
-            throw new IllegalArgumentException("--replacement entry '" + trimmed
-                    + "' has no '='. " + EXPECTED);
+            throw new IllegalArgumentException("--replacement entry '" + trimmed + "' has no '='. " + EXPECTED);
         }
 
         final String typeText = StringUtils.trimToEmpty(trimmed.substring(0, equals));
         final String valueText = StringUtils.trimToEmpty(trimmed.substring(equals + 1));
         if (typeText.isEmpty()) {
-            throw new IllegalArgumentException("--replacement entry '" + trimmed
-                    + "' has an empty type. " + EXPECTED);
+            throw new IllegalArgumentException("--replacement entry '" + trimmed + "' has an empty type. " + EXPECTED);
         }
         if (valueText.isEmpty()) {
-            throw new IllegalArgumentException("--replacement entry '" + trimmed
-                    + "' has an empty value. " + EXPECTED);
+            throw new IllegalArgumentException("--replacement entry '" + trimmed + "' has an empty value. " + EXPECTED);
         }
 
         final String typeToken = SelectorNames.normalize(typeText);
@@ -104,9 +102,7 @@ final class ReplacementSpec {
         return new Entry(encoded);
     }
 
-    private static Entry newTypeEntry(final String typeText,
-                                      final String typeToken,
-                                      final String valueText) {
+    private static Entry newTypeEntry(final String typeText, final String typeToken, final String valueText) {
         if (SelectorNames.isObject(typeToken)) {
             throw new IllegalArgumentException("--replacement cannot set 'object': overwriting"
                     + " object ids would corrupt the heap dump. Valid types are "
@@ -114,8 +110,7 @@ final class ReplacementSpec {
         }
         final BasicType type = SelectorNames.findType(typeToken);
         if (type == null) {
-            throw new IllegalArgumentException("Unknown --replacement type: " + typeText + ". "
-                    + EXPECTED);
+            throw new IllegalArgumentException("Unknown --replacement type: " + typeText + ". " + EXPECTED);
         }
 
         final Map<BasicType, byte[]> encoded = new EnumMap<>(BasicType.class);

@@ -1,5 +1,7 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.SanitizationPolicy;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

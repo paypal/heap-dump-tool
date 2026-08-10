@@ -1,6 +1,12 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.archive;
 
 import com.paypal.heapdumptool.utils.InternalLogger;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PushbackInputStream;
+import java.nio.file.Path;
+import java.util.Enumeration;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
@@ -8,13 +14,6 @@ import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.Strings;
-
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PushbackInputStream;
-import java.nio.file.Path;
-import java.util.Enumeration;
 
 import static com.paypal.heapdumptool.utils.ProgressMonitor.UNKNOWN_TOTAL;
 
@@ -33,7 +32,7 @@ import static com.paypal.heapdumptool.utils.ProgressMonitor.UNKNOWN_TOTAL;
  * logged here. A run opens its input once per pass, so logging from this class would say the same thing
  * twice; the caller knows which pass it is on and logs accordingly.</p>
  */
-final class ArchiveInput {
+public final class ArchiveInput {
 
     private static final InternalLogger LOGGER = InternalLogger.getLogger(ArchiveInput.class);
 
@@ -47,11 +46,12 @@ final class ArchiveInput {
 
     private final String entryName;
 
-    private ArchiveInput(final ArchiveFormat format,
-                         final CompressionFormat compression,
-                         final InputStream stream,
-                         final long dumpSizeBytes,
-                         final String entryName) {
+    private ArchiveInput(
+            final ArchiveFormat format,
+            final CompressionFormat compression,
+            final InputStream stream,
+            final long dumpSizeBytes,
+            final String entryName) {
         this.format = format;
         this.compression = compression;
         this.stream = stream;
@@ -69,7 +69,7 @@ final class ArchiveInput {
      *
      * @throws IOException if an archive holds no heap dump this tool can read
      */
-    static ArchiveInput sniffing(final InputStream inputStream) throws IOException {
+    public static ArchiveInput sniffing(final InputStream inputStream) throws IOException {
         final PushbackInputStream stream = new PushbackInputStream(inputStream, ArchiveFormat.SIGNATURE_LENGTH);
 
         final byte[] signature = new byte[ArchiveFormat.SIGNATURE_LENGTH];
@@ -104,7 +104,7 @@ final class ArchiveInput {
      *
      * @param stream an open stream over {@code inputFile}, used unless a zip is read by path instead
      */
-    static ArchiveInput ofFile(final Path inputFile, final InputStream stream) throws IOException {
+    public static ArchiveInput ofFile(final Path inputFile, final InputStream stream) throws IOException {
         final CompressionFormat compression = CompressionFormat.ofInputFile(inputFile);
         if (compression != CompressionFormat.NONE) {
             return sniffingArchive(compression, stream);
@@ -132,8 +132,8 @@ final class ArchiveInput {
      * like neither a tar nor a zip until the gzip comes off. Sniffed forwards and pushed back, since a
      * decompressed stream can no more be reopened for a second look than a pipe can.
      */
-    private static ArchiveInput sniffingArchive(final CompressionFormat compression,
-                                                final InputStream inputStream) throws IOException {
+    private static ArchiveInput sniffingArchive(final CompressionFormat compression, final InputStream inputStream)
+            throws IOException {
         final InputStream decompressed = compression.decompress(inputStream);
         final PushbackInputStream stream = new PushbackInputStream(decompressed, ArchiveFormat.SIGNATURE_LENGTH);
 
@@ -149,9 +149,9 @@ final class ArchiveInput {
     /**
      * As {@link #ofFile} for a stream that can only be read forwards, whose formats are already known.
      */
-    private static ArchiveInput of(final ArchiveFormat format,
-                                   final CompressionFormat compression,
-                                   final InputStream stream) throws IOException {
+    private static ArchiveInput of(
+            final ArchiveFormat format, final CompressionFormat compression, final InputStream stream)
+            throws IOException {
         if (format == ArchiveFormat.NONE) {
             return new ArchiveInput(format, compression, stream, UNKNOWN_TOTAL, null);
         }
@@ -166,15 +166,15 @@ final class ArchiveInput {
      * whatever path it had in the container, so there is no name to select on -- unlike a zip, which
      * this tool itself writes with a thread dump beside the heap dump.
      */
-    private static ArchiveInput openTarEntry(final CompressionFormat compression,
-                                             final InputStream stream) throws IOException {
+    private static ArchiveInput openTarEntry(final CompressionFormat compression, final InputStream stream)
+            throws IOException {
         final TarArchiveInputStream tarStream = new TarArchiveInputStream(stream);
         final TarArchiveEntry entry = tarStream.getNextEntry();
         if (entry == null) {
             throw new IOException("No entries in the tar input");
         }
-        return new ArchiveInput(ArchiveFormat.TAR, compression, tarStream,
-                                sizeOrUnknown(entry.getSize()), entry.getName());
+        return new ArchiveInput(
+                ArchiveFormat.TAR, compression, tarStream, sizeOrUnknown(entry.getSize()), entry.getName());
     }
 
     /**
@@ -197,8 +197,12 @@ final class ArchiveInput {
              * caller closes the stream it is given and knows nothing of what is behind it.
              */
             final InputStream entryStream = closingBoth(zipFile.getInputStream(entry), zipFile);
-            return new ArchiveInput(ArchiveFormat.ZIP, CompressionFormat.NONE, entryStream,
-                                    sizeOrUnknown(entry.getSize()), entry.getName());
+            return new ArchiveInput(
+                    ArchiveFormat.ZIP,
+                    CompressionFormat.NONE,
+                    entryStream,
+                    sizeOrUnknown(entry.getSize()),
+                    entry.getName());
         } catch (final IOException | RuntimeException e) {
             zipFile.close();
             throw e;
@@ -230,8 +234,8 @@ final class ArchiveInput {
      * here to start reading. Such a zip's declared length is whatever its local headers carry, which
      * for a streamed zip is nothing.
      */
-    private static ArchiveInput openZipStreamEntry(final CompressionFormat compression,
-                                                   final InputStream stream) throws IOException {
+    private static ArchiveInput openZipStreamEntry(final CompressionFormat compression, final InputStream stream)
+            throws IOException {
         final ZipArchiveInputStream zipStream = new ZipArchiveInputStream(stream);
 
         ZipArchiveEntry entry;
@@ -242,8 +246,8 @@ final class ArchiveInput {
             if (!zipStream.canReadEntryData(entry)) {
                 throw unreadableEntry(entry);
             }
-            return new ArchiveInput(ArchiveFormat.ZIP, compression, zipStream,
-                                    sizeOrUnknown(entry.getSize()), entry.getName());
+            return new ArchiveInput(
+                    ArchiveFormat.ZIP, compression, zipStream, sizeOrUnknown(entry.getSize()), entry.getName());
         }
         throw noDumpEntry();
     }
@@ -258,7 +262,7 @@ final class ArchiveInput {
 
     private static IOException unreadableEntry(final ZipArchiveEntry entry) {
         return new IOException("Cannot read zip entry, which may use an unsupported compression"
-                                       + " method or be encrypted: " + entry.getName());
+                + " method or be encrypted: " + entry.getName());
     }
 
     private static IOException noDumpEntry() {
@@ -290,7 +294,7 @@ final class ArchiveInput {
         return entrySize >= 0 ? entrySize : UNKNOWN_TOTAL;
     }
 
-    ArchiveFormat getFormat() {
+    public ArchiveFormat getFormat() {
         return format;
     }
 
@@ -298,7 +302,7 @@ final class ArchiveInput {
      * The compression the dump was read through, or {@link CompressionFormat#NONE} if the input was
      * not compressed.
      */
-    CompressionFormat getCompression() {
+    public CompressionFormat getCompression() {
         return compression;
     }
 
@@ -306,14 +310,14 @@ final class ArchiveInput {
      * The name of the archive entry the dump is being read from, or {@code null} if there is no
      * archive.
      */
-    String getEntryName() {
+    public String getEntryName() {
         return entryName;
     }
 
     /**
      * The stream, positioned at the first byte of the dump.
      */
-    InputStream getStream() {
+    public InputStream getStream() {
         return stream;
     }
 
@@ -322,7 +326,7 @@ final class ArchiveInput {
      * com.paypal.heapdumptool.utils.ProgressMonitor#UNKNOWN_TOTAL} when there is no archive to
      * declare one, or it does not.
      */
-    long getDumpSizeBytes() {
+    public long getDumpSizeBytes() {
         return dumpSizeBytes;
     }
 }

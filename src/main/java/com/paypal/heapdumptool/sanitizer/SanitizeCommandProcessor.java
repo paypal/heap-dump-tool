@@ -1,6 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.cli.CliCommandProcessor;
+import com.paypal.heapdumptool.sanitizer.internal.policy.SanitizationRuleRegistry;
 import com.paypal.heapdumptool.utils.InternalLogger;
 import java.io.IOException;
 import java.io.InputStream;

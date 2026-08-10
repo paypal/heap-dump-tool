@@ -1,6 +1,8 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.fixture.Hprof;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.PrimitiveArrayContext;
 import com.paypal.heapdumptool.testutil.ConstructorTester;
 import com.paypal.heapdumptool.utils.DataSize;
 import java.io.ByteArrayInputStream;
@@ -391,6 +393,7 @@ class ValueTransformersTest {
 
     @Test
     @DisplayName("testProxyBehavesLikeAnObject. equals, hashCode and toString are sane on a proxy")
+    @SuppressWarnings("all")
     void testProxyBehavesLikeAnObject() {
         final ValueTransformer transformer = ValueTransformers.intTransformer(value -> value);
         final ValueTransformer twin = ValueTransformers.intTransformer(value -> value);
@@ -478,7 +481,7 @@ class ValueTransformersTest {
             }
         }
 
-        int offsetOf(final String name) {
+        int offsetOf(@SuppressWarnings("all") final String name) {
             return offsets[asList(NAMES).indexOf(name)];
         }
     }
@@ -554,7 +557,8 @@ class ValueTransformersTest {
         return command;
     }
 
-    private byte[] sanitize(final byte[] input, final SanitizationRule rule, final String... options)
+    private byte[] sanitize(
+            final byte[] input, final SanitizationRule rule, @SuppressWarnings("all") final String... options)
             throws IOException {
         final SanitizeCommand command = command(options);
         command.getSanitizeOptions().addRule(rule);

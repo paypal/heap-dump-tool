@@ -1,5 +1,12 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
+import com.paypal.heapdumptool.sanitizer.ArrayContext;
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.Decision;
+import com.paypal.heapdumptool.sanitizer.FieldContext;
+import com.paypal.heapdumptool.sanitizer.SanitizationRule;
+import com.paypal.heapdumptool.sanitizer.SanitizationRuleException;
+import com.paypal.heapdumptool.sanitizer.ValueTransformer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -50,11 +57,11 @@ public final class SanitizationRuleRegistry {
 
     private boolean moreTransformersThanTracked;
 
-    static SanitizationRuleRegistry empty() {
+    public static SanitizationRuleRegistry empty() {
         return EMPTY;
     }
 
-    SanitizationRuleRegistry(final List<SanitizationRule> rules) {
+    public SanitizationRuleRegistry(final List<SanitizationRule> rules) {
         this.rules = Collections.unmodifiableList(new ArrayList<>(rules));
         this.matched = new boolean[rules.size()];
     }
@@ -63,7 +70,7 @@ public final class SanitizationRuleRegistry {
         return rules.isEmpty();
     }
 
-    int size() {
+    public int size() {
         return rules.size();
     }
 
@@ -71,7 +78,7 @@ public final class SanitizationRuleRegistry {
      * The first non-{@code UNDECIDED} verdict for this field, or {@link Decision#undecided()} if every
      * rule abstains.
      */
-    Decision decideField(final FieldContext context) {
+    public Decision decideField(final FieldContext context) {
         for (int i = 0; i < rules.size(); i++) {
             final SanitizationRule rule = rules.get(i);
             final Decision decision = invokeField(rule, context);
@@ -89,7 +96,7 @@ public final class SanitizationRuleRegistry {
      * The first non-{@code UNDECIDED} verdict for this array, or {@link Decision#undecided()} if every
      * rule abstains.
      */
-    Decision decideArray(final ArrayContext context) {
+    public Decision decideArray(final ArrayContext context) {
         for (int i = 0; i < rules.size(); i++) {
             final SanitizationRule rule = rules.get(i);
             final Decision decision = invokeArray(rule, context);
@@ -107,7 +114,7 @@ public final class SanitizationRuleRegistry {
      * Names the rules that never returned a verdict, for a warning at the end of the run. Meaningful
      * only once the whole dump has been read.
      */
-    List<String> describeUnmatchedRules() {
+    public List<String> describeUnmatchedRules() {
         final List<String> unmatched = new ArrayList<>();
         for (int i = 0; i < rules.size(); i++) {
             if (!matched[i]) {

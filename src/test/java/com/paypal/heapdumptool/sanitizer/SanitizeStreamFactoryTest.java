@@ -1,22 +1,6 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.testutil.ResourceTool;
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.StringUtils;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.api.io.TempDir;
-import org.springframework.boot.test.system.CapturedOutput;
-import org.springframework.boot.test.system.OutputCaptureExtension;
-
-import org.apache.commons.io.input.BufferedFileChannelInputStream;
-
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -29,6 +13,20 @@ import java.nio.file.Paths;
 import java.util.concurrent.Callable;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.BufferedFileChannelInputStream;
+import org.apache.commons.lang3.StringUtils;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.io.TempDir;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import static com.paypal.heapdumptool.utils.DataSize.ofBytes;
 import static com.paypal.heapdumptool.utils.ProgressMonitor.UNKNOWN_TOTAL;
@@ -37,6 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@SuppressWarnings("resource")
 @ExtendWith(OutputCaptureExtension.class)
 public class SanitizeStreamFactoryTest {
 
@@ -106,8 +105,7 @@ public class SanitizeStreamFactoryTest {
         cmd.setInputFile(inputFile);
 
         streamFactory = new SanitizeStreamFactory(cmd);
-        assertThat(streamFactory.newInputStream())
-                .isInstanceOf(BufferedFileChannelInputStream.class);
+        assertThat(streamFactory.newInputStream()).isInstanceOf(BufferedFileChannelInputStream.class);
     }
 
     @Test
@@ -116,8 +114,7 @@ public class SanitizeStreamFactoryTest {
         cmd.setOutputFile(tempDir.resolve("testBufferedOutputStream"));
 
         streamFactory = new SanitizeStreamFactory(cmd);
-        assertThat(streamFactory.newOutputStream())
-                .isInstanceOf(BufferedOutputStream.class);
+        assertThat(streamFactory.newOutputStream()).isInstanceOf(BufferedOutputStream.class);
     }
 
     @Test
@@ -128,8 +125,7 @@ public class SanitizeStreamFactoryTest {
         cmd.setBufferSize(ofBytes(0));
 
         streamFactory = new SanitizeStreamFactory(cmd);
-        assertThat(streamFactory.newInputStream())
-                .isNotInstanceOf(BufferedFileChannelInputStream.class);
+        assertThat(streamFactory.newInputStream()).isNotInstanceOf(BufferedFileChannelInputStream.class);
     }
 
     @Test
@@ -141,8 +137,7 @@ public class SanitizeStreamFactoryTest {
         cmd.setBufferSize(ofBytes(0));
 
         streamFactory = new SanitizeStreamFactory(cmd);
-        assertThat(streamFactory.newOutputStream())
-                .isNotInstanceOf(BufferedOutputStream.class);
+        assertThat(streamFactory.newOutputStream()).isNotInstanceOf(BufferedOutputStream.class);
     }
 
     /**
@@ -159,8 +154,7 @@ public class SanitizeStreamFactoryTest {
         cmd.setBufferSize(ofBytes(0));
 
         streamFactory = new SanitizeStreamFactory(cmd);
-        assertThat(streamFactory.newInputStream())
-                .isInstanceOf(TarArchiveInputStream.class);
+        assertThat(streamFactory.newInputStream()).isInstanceOf(TarArchiveInputStream.class);
     }
 
     /**
@@ -290,8 +284,10 @@ public class SanitizeStreamFactoryTest {
         streamFactory.newInputStream().close();
         streamFactory.newInputStream().close();
 
-        assertThat(StringUtils.countMatches(output.toString(), "Reading zip input")).isEqualTo(1);
-        assertThat(StringUtils.countMatches(output.toString(), "Entry: dump.hprof")).isEqualTo(1);
+        assertThat(StringUtils.countMatches(output.toString(), "Reading zip input"))
+                .isEqualTo(1);
+        assertThat(StringUtils.countMatches(output.toString(), "Entry: dump.hprof"))
+                .isEqualTo(1);
     }
 
     /**
@@ -337,8 +333,7 @@ public class SanitizeStreamFactoryTest {
         cmd.setBufferSize(ofBytes(0));
 
         streamFactory = new SanitizeStreamFactory(cmd);
-        assertThat(streamFactory.newOutputStream())
-                .isInstanceOf(ZipOutputStream.class);
+        assertThat(streamFactory.newOutputStream()).isInstanceOf(ZipOutputStream.class);
     }
 
     /**
@@ -355,8 +350,7 @@ public class SanitizeStreamFactoryTest {
         cmd.setZipOutput(true);
 
         streamFactory = new SanitizeStreamFactory(cmd);
-        assertThat(streamFactory.newOutputStream())
-                .isInstanceOf(ZipOutputStream.class);
+        assertThat(streamFactory.newOutputStream()).isInstanceOf(ZipOutputStream.class);
     }
 
     @Test
@@ -371,8 +365,7 @@ public class SanitizeStreamFactoryTest {
 
         streamFactory = new SanitizeStreamFactory(cmd);
         streamFactory.newInputStream(); // establishes the dump's length, which a tar entry declares
-        assertThat(streamFactory.newOutputStream())
-                .isInstanceOf(TarArchiveOutputStream.class);
+        assertThat(streamFactory.newOutputStream()).isInstanceOf(TarArchiveOutputStream.class);
     }
 
     /**
@@ -579,7 +572,7 @@ public class SanitizeStreamFactoryTest {
     public void testConcatenatedGzipMembersAreAllRead() throws IOException {
         final Path inputFile = Files.createTempFile(tempDir, getClass().getSimpleName(), ".hprof");
         try (final OutputStream stream = Files.newOutputStream(inputFile)) {
-            for (final String part : new String[]{"first half. ", "second half."}) {
+            for (final String part : new String[] {"first half. ", "second half."}) {
                 final GzipCompressorOutputStream member = new GzipCompressorOutputStream(stream);
                 member.write(part.getBytes(StandardCharsets.UTF_8));
                 member.finish(); // not close(), which would close the file under the next member
@@ -616,8 +609,8 @@ public class SanitizeStreamFactoryTest {
             stream.write("test data".getBytes(StandardCharsets.UTF_8));
         }
 
-        try (final TarArchiveInputStream tarStream = new TarArchiveInputStream(
-                new GzipCompressorInputStream(Files.newInputStream(outputFile)))) {
+        try (final TarArchiveInputStream tarStream =
+                new TarArchiveInputStream(new GzipCompressorInputStream(Files.newInputStream(outputFile)))) {
             assertThat(tarStream.getNextEntry().getName()).isEqualTo("out.hprof");
             assertThat(IOUtils.toString(tarStream, StandardCharsets.UTF_8)).isEqualTo("test data");
         }
@@ -644,8 +637,8 @@ public class SanitizeStreamFactoryTest {
             stream.write("test data".getBytes(StandardCharsets.UTF_8));
         }
 
-        try (final TarArchiveInputStream tarStream = new TarArchiveInputStream(
-                new GzipCompressorInputStream(Files.newInputStream(outputFile)))) {
+        try (final TarArchiveInputStream tarStream =
+                new TarArchiveInputStream(new GzipCompressorInputStream(Files.newInputStream(outputFile)))) {
             assertThat(tarStream.getNextEntry().getName()).isEqualTo("out.hprof");
         }
     }
@@ -752,7 +745,8 @@ public class SanitizeStreamFactoryTest {
         stream.close();
         stream.close();
 
-        assertThat(StringUtils.countMatches(output.toString(), "Wrote zip output")).isEqualTo(1);
+        assertThat(StringUtils.countMatches(output.toString(), "Wrote zip output"))
+                .isEqualTo(1);
     }
 
     /**
@@ -777,8 +771,7 @@ public class SanitizeStreamFactoryTest {
         cmd.setInputFile(Paths.get("foo"));
         cmd.setOutputFile(Paths.get("foo"));
 
-        assertThatIllegalArgumentException()
-                .isThrownBy(() -> new SanitizeStreamFactory(cmd));
+        assertThatIllegalArgumentException().isThrownBy(() -> new SanitizeStreamFactory(cmd));
     }
 
     private void writeTar(final Path destPath) throws IOException {

@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.utils;
 
-import com.paypal.heapdumptool.utils.DataSize;
-import com.paypal.heapdumptool.utils.DataUnit;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -212,8 +210,8 @@ public class DataSizeTests {
 
     @Test
     void parseWithUnsupportedUnit() {
-        assertThatIllegalArgumentException().isThrownBy(() -> DataSize.parse("3WB"))
-                                            .withMessage("'3WB' is not a valid data size");
+        assertThatIllegalArgumentException()
+                .isThrownBy(() -> DataSize.parse("3WB"))
+                .withMessage("'3WB' is not a valid data size");
     }
-
 }

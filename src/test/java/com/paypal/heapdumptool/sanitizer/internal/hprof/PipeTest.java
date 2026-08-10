@@ -1,7 +1,4 @@
-package com.paypal.heapdumptool.sanitizer;
-
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
+package com.paypal.heapdumptool.sanitizer.internal.hprof;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -11,6 +8,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,19 +30,16 @@ public class PipeTest {
     @Test
     public void testIdSizeSetGet() {
         pipe.setIdSize(4);
-        assertThat(pipe.getIdSize())
-                .isEqualTo(4);
+        assertThat(pipe.getIdSize()).isEqualTo(4);
 
         pipe.setIdSize(8);
-        assertThat(pipe.getIdSize())
-                .isEqualTo(8);
+        assertThat(pipe.getIdSize()).isEqualTo(8);
     }
 
     @Test
     @DisplayName("testIdSizeNullDefault. check that NPE is thrown")
     public void testIdSizeNullDefault() {
-        assertThatThrownBy(pipe::getIdSize)
-                .isInstanceOf(NullPointerException.class);
+        assertThatThrownBy(pipe::getIdSize).isInstanceOf(NullPointerException.class);
     }
 
     @Test
@@ -55,21 +51,18 @@ public class PipeTest {
 
     @Test
     public void testReadU1() throws IOException {
-        assertThat(pipe.readU1())
-                .isEqualTo('h');
+        assertThat(pipe.readU1()).isEqualTo('h');
 
         pipe.skipInput(data.length() - 1);
         verifyEoF();
 
-        assertThat(outputBytes.toByteArray())
-                .hasSize(0);
+        assertThat(outputBytes.toByteArray()).hasSize(0);
     }
 
     @Test
     public void testWriteU1() throws IOException {
         pipe.writeU1('z');
-        assertThat(outputString())
-                .isEqualTo("z");
+        assertThat(outputString()).isEqualTo("z");
 
         verifyInputStreamUnchanged();
     }
@@ -78,8 +71,7 @@ public class PipeTest {
     public void testPipeByLength() throws IOException {
         pipe.pipe(data.length());
         verifyEoF();
-        assertThat(outputString())
-                .isEqualTo(data);
+        assertThat(outputString()).isEqualTo(data);
     }
 
     @Test
@@ -87,9 +79,7 @@ public class PipeTest {
         pipe.setIdSize(4);
         pipe.pipeId();
 
-        assertThat(outputString())
-                .isEqualTo("hell")
-                .hasSize(4);
+        assertThat(outputString()).isEqualTo("hell").hasSize(4);
     }
 
     @Test
@@ -97,9 +87,7 @@ public class PipeTest {
         pipe.setIdSize(8);
         pipe.pipeId();
 
-        assertThat(outputString())
-                .isEqualTo("hello wo")
-                .hasSize(8);
+        assertThat(outputString()).isEqualTo("hello wo").hasSize(8);
     }
 
     @Test
@@ -109,32 +97,25 @@ public class PipeTest {
 
         verifyInputStreamUnchanged();
 
-        assertThat(outputString())
-                .isEqualTo(newData);
+        assertThat(outputString()).isEqualTo(newData);
     }
 
     @Test
     public void testPipeU1() throws IOException {
         final int u1 = pipe.pipeU1();
-        assertThat(u1)
-                .isEqualTo('h');
+        assertThat(u1).isEqualTo('h');
 
-        assertThat(outputString())
-                .isEqualTo("h");
-        assertThat(inputBytes.read())
-                .isEqualTo('e');
+        assertThat(outputString()).isEqualTo("h");
+        assertThat(inputBytes.read()).isEqualTo('e');
     }
 
     @Test
     public void testPipeU1IfPossible() throws IOException {
         final int u1 = pipe.pipeU1IfPossible();
-        assertThat(u1)
-                .isEqualTo('h');
+        assertThat(u1).isEqualTo('h');
 
-        assertThat(outputString())
-                .isEqualTo("h");
-        assertThat(inputBytes.read())
-                .isEqualTo('e');
+        assertThat(outputString()).isEqualTo("h");
+        assertThat(inputBytes.read()).isEqualTo('e');
     }
 
     @Test
@@ -142,27 +123,21 @@ public class PipeTest {
     public void testPipeU1IfPossibleNot() throws IOException {
         pipe.pipe(100);
         final int u1 = pipe.pipeU1IfPossible();
-        assertThat(u1)
-                .isEqualTo(-1);
+        assertThat(u1).isEqualTo(-1);
 
-        assertThat(outputString())
-                .isEqualTo(data);
+        assertThat(outputString()).isEqualTo(data);
     }
 
     @Test
     public void testPipeU2() throws IOException {
         pipe.pipeU2();
-        assertThat(inputBytes.read())
-                .isEqualTo('l');
-        assertThat(outputString())
-                .isEqualTo("he");
+        assertThat(inputBytes.read()).isEqualTo('l');
+        assertThat(outputString()).isEqualTo("he");
     }
 
     @Test
     public void testPipeNullTerminatedString() throws IOException {
-        assertThat(pipe.pipeNullTerminatedString())
-                .isEqualTo("hello world\0")
-                .isEqualTo(outputString());
+        assertThat(pipe.pipeNullTerminatedString()).isEqualTo("hello world\0").isEqualTo(outputString());
     }
 
     @Test
@@ -170,16 +145,12 @@ public class PipeTest {
         pipe.pipeU1();
 
         final Pipe boundedPipe = pipe.newInputBoundedPipe(4);
-        assertThat(boundedPipe.pipeNullTerminatedString())
-                .isEqualTo("ello");
+        assertThat(boundedPipe.pipeNullTerminatedString()).isEqualTo("ello");
 
-        assertThat(outputString())
-                .isEqualTo("hello");
+        assertThat(outputString()).isEqualTo("hello");
 
-        assertThat(pipe.pipeNullTerminatedString())
-                .isEqualTo(" world\0");
-        assertThat(outputString())
-                .isEqualTo("hello world\0");
+        assertThat(pipe.pipeNullTerminatedString()).isEqualTo(" world\0");
+        assertThat(outputString()).isEqualTo("hello world\0");
     }
 
     /**
@@ -188,7 +159,8 @@ public class PipeTest {
      * partially-overwritten buffer content as garbled or truncated output.
      */
     @Test
-    @DisplayName("testCopiesLongerThanTheSharedBufferAreExact. interleaved multi-buffer copies must not corrupt each other")
+    @DisplayName(
+            "testCopiesLongerThanTheSharedBufferAreExact. interleaved multi-buffer copies must not corrupt each other")
     public void testCopiesLongerThanTheSharedBufferAreExact() throws IOException {
         final byte[] payload = new byte[3 * 8192 + 17];
         for (int i = 0; i < payload.length; i++) {
@@ -215,8 +187,11 @@ public class PipeTest {
         final byte[] expected = new byte[payload.length + injected.length];
         System.arraycopy(payload, 0, expected, 0, firstChunk + childChunk);
         System.arraycopy(injected, 0, expected, firstChunk + childChunk, injected.length);
-        System.arraycopy(payload, firstChunk + childChunk,
-                expected, firstChunk + childChunk + injected.length,
+        System.arraycopy(
+                payload,
+                firstChunk + childChunk,
+                expected,
+                firstChunk + childChunk + injected.length,
                 payload.length - firstChunk - childChunk);
 
         assertThat(output.toByteArray()).containsExactly(expected);
@@ -225,12 +200,10 @@ public class PipeTest {
     @Test
     public void testProgressMonitor() throws IOException {
         pipe.pipeU1();
-        assertThat(monitor)
-                .hasValue(1);
+        assertThat(monitor).hasValue(1);
 
         pipe.pipe(100);
-        assertThat(monitor)
-                .hasValue(data.length());
+        assertThat(monitor).hasValue(data.length());
     }
 
     @Test
@@ -417,12 +390,9 @@ public class PipeTest {
     @Test
     @DisplayName("testPipeStringReplacingReadsExactlyNumBytes. must not read past the length it was given")
     public void testPipeStringReplacingReadsExactlyNumBytes() throws IOException {
-        assertThat(pipe.pipeStringReplacing(5, '/', '.'))
-                .isEqualTo("hello");
+        assertThat(pipe.pipeStringReplacing(5, '/', '.')).isEqualTo("hello");
 
-        assertThat(outputString())
-                .as("the bytes are written through unchanged")
-                .isEqualTo("hello");
+        assertThat(outputString()).as("the bytes are written through unchanged").isEqualTo("hello");
 
         assertThat(inputBytes.read())
                 .as("the input is left positioned right after the string")
@@ -434,10 +404,8 @@ public class PipeTest {
     public void testPipeExactlyTransfersWithoutDecoding() throws IOException {
         pipe.pipeExactly(5);
 
-        assertThat(outputString())
-                .isEqualTo("hello");
-        assertThat(inputBytes.read())
-                .isEqualTo(' ');
+        assertThat(outputString()).isEqualTo("hello");
+        assertThat(inputBytes.read()).isEqualTo(' ');
     }
 
     /**
@@ -450,11 +418,8 @@ public class PipeTest {
         final String path = "java/lang/String";
         final Pipe slashes = new Pipe(byteStreamOf(path), outputBytes, monitor::set);
 
-        assertThat(slashes.pipeStringReplacing(path.length(), '/', '.'))
-                .isEqualTo("java.lang.String");
-        assertThat(outputString())
-                .as("the dump keeps the slashes it declared")
-                .isEqualTo(path);
+        assertThat(slashes.pipeStringReplacing(path.length(), '/', '.')).isEqualTo("java.lang.String");
+        assertThat(outputString()).as("the dump keeps the slashes it declared").isEqualTo(path);
     }
 
     /**
@@ -474,8 +439,7 @@ public class PipeTest {
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         final Pipe bufferPipe = new Pipe(byteStreamOf(first + second), output, new AtomicLong()::set);
 
-        assertThat(bufferPipe.pipeStringReplacing(first.length(), '/', '.'))
-                .isEqualTo(first.replace('/', '.'));
+        assertThat(bufferPipe.pipeStringReplacing(first.length(), '/', '.')).isEqualTo(first.replace('/', '.'));
         assertThat(bufferPipe.pipeStringReplacing(second.length(), '/', '.'))
                 .as("a short record after a long one must not pick up leftover bytes")
                 .isEqualTo("a.b");
@@ -496,29 +460,25 @@ public class PipeTest {
         final ByteArrayOutputStream output = new ByteArrayOutputStream();
         final Pipe pipe = new Pipe(new ByteArrayInputStream(bytes), output, new AtomicLong()::set);
 
-        assertThat(pipe.pipeStringReplacing(bytes.length, '/', '.'))
-                .isEqualTo("a.é中😀.b");
+        assertThat(pipe.pipeStringReplacing(bytes.length, '/', '.')).isEqualTo("a.é中😀.b");
         assertThat(output.toByteArray()).containsExactly(bytes);
     }
 
     @Test
     @DisplayName("testPipeStringReplacingRejectsNonAscii. a non-ASCII match cannot be done byte-wise")
     public void testPipeStringReplacingRejectsNonAscii() {
-        assertThatThrownBy(() -> pipe.pipeStringReplacing(3, 'é', '.'))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> pipe.pipeStringReplacing(3, 'é', '.')).isInstanceOf(IllegalArgumentException.class);
 
-        assertThatThrownBy(() -> pipe.pipeStringReplacing(3, '/', 'é'))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> pipe.pipeStringReplacing(3, '/', 'é')).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
     @DisplayName("testPipeExactlyOnTruncatedRecordThrows. a dump ending mid-string is corrupt, not a short string")
     public void testPipeExactlyOnTruncatedRecordThrows() {
-        assertThatThrownBy(() -> pipe.pipeExactly(data.length() + 10))
-                .isInstanceOf(EOFException.class);
+        assertThatThrownBy(() -> pipe.pipeExactly(data.length() + 10)).isInstanceOf(EOFException.class);
 
         assertThatThrownBy(() -> new Pipe(byteStreamOf(data), outputBytes, monitor::set)
-                .pipeStringReplacing(data.length() + 10, '/', '.'))
+                        .pipeStringReplacing(data.length() + 10, '/', '.'))
                 .isInstanceOf(EOFException.class);
     }
 
@@ -528,26 +488,21 @@ public class PipeTest {
         final AtomicLong consumed = new AtomicLong();
         final Pipe readOnly = Pipe.readOnlyPipe(byteStreamOf(data), consumed::set);
 
-        assertThat(readOnly.pipeStringReplacing(5, '/', '.'))
-                .isEqualTo("hello");
+        assertThat(readOnly.pipeStringReplacing(5, '/', '.')).isEqualTo("hello");
         assertThat(consumed)
                 .as("string bytes count toward progress, since there is no output to count")
                 .hasValue(5);
 
         readOnly.pipeExactly(6);
-        assertThat(consumed)
-                .as("the no-String path reports progress too")
-                .hasValue(11);
+        assertThat(consumed).as("the no-String path reports progress too").hasValue(11);
     }
 
     private void verifyEoF() throws IOException {
-        assertThat(pipe.readU1())
-                .isEqualTo(-1);
+        assertThat(pipe.readU1()).isEqualTo(-1);
     }
 
     private void verifyInputStreamUnchanged() {
-        assertThat(inputBytes.read())
-                .isEqualTo('h');
+        assertThat(inputBytes.read()).isEqualTo('h');
     }
 
     private String outputString() throws IOException {

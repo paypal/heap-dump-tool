@@ -1,4 +1,9 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.hprof;
+
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.Decision;
+import com.paypal.heapdumptool.sanitizer.FieldContext;
+import com.paypal.heapdumptool.sanitizer.internal.policy.SanitizationRuleRegistry;
 
 import static org.apache.commons.lang3.builder.ToStringBuilder.reflectionToString;
 import static org.apache.commons.lang3.builder.ToStringStyle.MULTI_LINE_STYLE;
@@ -63,7 +68,7 @@ public class Field implements FieldContext {
     /**
      * This declaration's verdict, asking the rule chain only the first time.
      */
-    Decision resolvedDecision(final SanitizationRuleRegistry rules) {
+    public Decision resolvedDecision(final SanitizationRuleRegistry rules) {
         if (resolved == null) {
             resolved = rules.decideField(this);
         }

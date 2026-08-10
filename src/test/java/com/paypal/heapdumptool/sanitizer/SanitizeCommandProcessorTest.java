@@ -149,6 +149,7 @@ class SanitizeCommandProcessorTest {
 
     @Test
     @DisplayName("testPreprocessingOpensNoOutputStream. the metadata pass must not open an output")
+    @SuppressWarnings("resource")
     void testPreprocessingOpensNoOutputStream() throws Exception {
         final SanitizeCommandProcessor processor = new SanitizeCommandProcessor(command, streamFactory);
 

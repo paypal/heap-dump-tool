@@ -1,25 +1,24 @@
-package com.paypal.heapdumptool.sanitizer;
-
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
-import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.Strings;
+package com.paypal.heapdumptool.sanitizer.internal.archive;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.Strings;
 
 /**
  * The archive formats a heap dump may arrive in or be written to.
  *
- * <p>Input is decided by {@linkplain #detect(InputStream) sniffing the bytes} rather than by the file
- * name, because the input can be a pipe with no name at all -- {@code kubectl cp} yields a tar on
+ * <p>Input is decided by sniffing the bytes rather than by the file name, because the
+ * input can be a pipe with no name at all -- {@code kubectl cp} yields a tar on
  * stdin -- and because a name is only a claim about the contents. Output is decided by
  * {@linkplain #ofOutputFile(Path) the file extension}, since there are no bytes to sniff yet and the
  * extension is the only statement of intent available.</p>
  */
-enum ArchiveFormat {
+public enum ArchiveFormat {
 
     /**
      * Not an archive: the dump is the stream.
@@ -92,7 +91,7 @@ enum ArchiveFormat {
      * <p>Matched case-insensitively, since the extension is a user-typed file name rather than
      * anything the format specifies.</p>
      */
-    static ArchiveFormat ofOutputFile(final Path outputFile) {
+    public static ArchiveFormat ofOutputFile(final Path outputFile) {
         final String name = withoutCompressionExtension(outputFile.getFileName().toString());
         if (Strings.CI.endsWith(name, ".tar")) {
             return TAR;
@@ -107,7 +106,7 @@ enum ArchiveFormat {
      * The name with the compression extension taken off, so the archive extension underneath can be
      * read: dump.tar.gz is a tar, and dump.tgz is the same name written short.
      */
-    static String withoutCompressionExtension(final String fileName) {
+    public static String withoutCompressionExtension(final String fileName) {
         if (Strings.CI.endsWith(fileName, ".tgz")) {
             return Strings.CI.removeEnd(fileName, ".tgz") + ".tar";
         }
@@ -123,7 +122,7 @@ enum ArchiveFormat {
      * extensionless {@code dump}, and an archive named nothing but its extension falls back to
      * {@code heapdump.hprof} rather than leaving the entry unnamed.</p>
      */
-    String entryName(final String archiveFileName) {
+    public String entryName(final String archiveFileName) {
         if (this == NONE) {
             throw new IllegalStateException("not an archive");
         }
@@ -138,7 +137,7 @@ enum ArchiveFormat {
     /**
      * How this format names itself in a log line or an error message.
      */
-    String displayName() {
+    public String displayName() {
         return name().toLowerCase();
     }
 }
