@@ -168,8 +168,8 @@ Sanitize a heap dump by replacing primitive field and array contents
                                render them correctly
                                Default: true
   -b, --buffer-size=<bufferSize>
-                             Buffer size for reading and writing
-                               Default: 100MB
+                              Deprecated. Set to a large value only when needed; the default is tuned for typical dumps
+                                Default: 8MB
   -d, --docker-registry=<dockerRegistry>
                              docker registry hostname for bootstrapping heap-dump-tool docker image
   -s, --sanitize-byte-char-arrays-only=<true|false>
@@ -198,8 +198,7 @@ Sanitize a heap dump by replacing primitive field and array contents
   * Deprecated and ignored. A tar input is now detected automatically, as described under `<inputFile>`.
 
 * `-b, --buffer-size=<bufferSize>`
-  * Higher buffer size should improve performance when reading and writing large heap dump files at the cost of higher
-    memory usage.
+  * Deprecated. A buffer larger than the default does not measurably improve throughput.
 
 * `-d, --docker-registry=<dockerRegistry>`
   * Meant for use with private docker-registry setups.
