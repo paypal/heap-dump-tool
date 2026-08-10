@@ -3,6 +3,8 @@ package com.paypal.heapdumptool.sanitizer;
 import com.paypal.heapdumptool.testutil.ResourceTool;
 import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -321,6 +323,80 @@ public class SanitizeStreamFactoryTest {
         assertThatThrownBy(() -> streamFactory.newInputStream())
                 .isInstanceOf(IOException.class)
                 .hasMessageContaining("No *.hprof entry in the zip input");
+    }
+
+    /**
+     * The J9 formats are refused outright, because their sanitizer no longer exists to fall back on.
+     * A PHD is told apart from its first two bytes, a length, and the "portable heap dump" magic
+     * those bytes count out -- and the fixture's {@code .hprof} name, which claims otherwise, is not
+     * taken at face value.
+     */
+    @Test
+    public void testPhdInputFileIsRefused() throws IOException {
+        final Path inputFile = Files.createTempFile(tempDir, getClass().getSimpleName(), ".hprof");
+        Files.write(inputFile, phdBytes());
+
+        final SanitizeCommand cmd = newCommand();
+        cmd.setInputFile(inputFile);
+        cmd.setBufferSize(ofBytes(0));
+
+        streamFactory = new SanitizeStreamFactory(cmd);
+        assertThatThrownBy(() -> streamFactory.newInputStream())
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("nothing sensitive to sanitize")
+                .satisfies(t -> assertThat(t.getStackTrace()).isEmpty());
+    }
+
+    /**
+     * A classic dump is told apart from the {@code // Version:} line (or the first OBJ record) it
+     * opens with, whichever the tool is handed.
+     */
+    @Test
+    public void testClassicInputFileIsRefused() throws IOException {
+        final Path inputFile = Files.createTempFile(tempDir, getClass().getSimpleName(), ".hprof");
+        Files.write(inputFile, classicBytes());
+
+        final SanitizeCommand cmd = newCommand();
+        cmd.setInputFile(inputFile);
+        cmd.setBufferSize(ofBytes(0));
+
+        streamFactory = new SanitizeStreamFactory(cmd);
+        assertThatThrownBy(() -> streamFactory.newInputStream())
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("nothing sensitive to sanitize")
+                .satisfies(t -> assertThat(t.getStackTrace()).isEmpty());
+    }
+
+    /**
+     * Refused on stdin too: a pipe has no name to disbelieve, so the magic is read off the pipe and
+     * the run stops there rather than after the gzip, tar, or zip it was going to look for next.
+     */
+    @Test
+    public void testPhdStdinInputIsRefused() {
+        assertThatThrownBy(() -> withStdin(phdBytes(), () -> {
+                    final SanitizeCommand cmd = newCommand();
+                    cmd.setInputFile(Paths.get("-"));
+                    cmd.setBufferSize(ofBytes(0));
+
+                    streamFactory = new SanitizeStreamFactory(cmd);
+                    return streamFactory.newInputStream();
+                }))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("nothing sensitive to sanitize");
+    }
+
+    @Test
+    public void testClassicStdinInputIsRefused() {
+        assertThatThrownBy(() -> withStdin(classicBytes(), () -> {
+                    final SanitizeCommand cmd = newCommand();
+                    cmd.setInputFile(Paths.get("-"));
+                    cmd.setBufferSize(ofBytes(0));
+
+                    streamFactory = new SanitizeStreamFactory(cmd);
+                    return streamFactory.newInputStream();
+                }))
+                .isInstanceOf(IOException.class)
+                .hasMessageContaining("nothing sensitive to sanitize");
     }
 
     @Test
@@ -777,6 +853,26 @@ public class SanitizeStreamFactoryTest {
     private void writeTar(final Path destPath) throws IOException {
         final byte[] srcBytes = ResourceTool.bytesOf(getClass(), "sample.tar");
         Files.write(destPath, srcBytes, TRUNCATE_EXISTING);
+    }
+
+    /**
+     * A PHD begins with an unsigned-short length, then that many bytes of the magic -- the only part
+     * of the format this tool needs to recognize in order to refuse it.
+     */
+    private static byte[] phdBytes() throws IOException {
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (final DataOutputStream dos = new DataOutputStream(baos)) {
+            final byte[] magic = "portable heap dump".getBytes(StandardCharsets.UTF_8);
+            dos.writeShort(magic.length);
+            dos.write(magic);
+        }
+        return baos.toByteArray();
+    }
+
+    private static byte[] classicBytes() {
+        return ("// Version: JRE 21 Linux amd64-64 (build 21.0.11+10-LTS)\n"
+                        + "0x00000000E0000AF0 [16] OBJ java/lang/String\n")
+                .getBytes(StandardCharsets.UTF_8);
     }
 
     /**

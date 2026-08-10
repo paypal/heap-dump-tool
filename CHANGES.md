@@ -31,6 +31,7 @@
   large dump. `-b, --buffer-size` is now deprecated.
 - Speed up the pre-processing pass that runs. On a 1.2 GB dump the pass drops from 20-22s to 12-14s (~40% faster) and
   the whole run from 43-46s to 35-37s (roughly 20%).
+- Recognize and refuse to sanitize J9 heap dumps which do not contain any data for sanitization.
 - Fix `-e, --exclude-string-fields` being silently ignored when `-f, --force-string-coder-match=false`.
 - Fix sanitizing string that shares its backing `byte[]` with an excluded string.
 - Fix `-e, --exclude-string-fields` truncating the output when it names a primitive field.
