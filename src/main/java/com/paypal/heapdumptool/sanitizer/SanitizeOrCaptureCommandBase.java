@@ -64,10 +64,10 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
     @Option(
             names = {"-b", "--buffer-size"},
             order = OptionOrder.BUFFER_SIZE,
-            description = "Buffer size for reading and writing",
-            defaultValue = "100MB",
+            description = "Deprecated. A larger buffer does not necessarily improve throughput.",
+            defaultValue = "8MB",
             showDefaultValue = ALWAYS)
-    private DataSize bufferSize = ofMegabytes(100);
+    private DataSize bufferSize = ofMegabytes(8);
 
     @Option(
             names = {"-s", "--sanitize-byte-char-arrays-only"},

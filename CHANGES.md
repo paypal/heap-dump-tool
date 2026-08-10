@@ -27,6 +27,10 @@
 - Add a programmatic `ValueTransformer` API: a rule can route a primitive field or a primitive array region to a 
   callback that computes the replacement based on the original value (masking a credit card number to `************1234` 
   or replacing a private key's bytes while keeping its ASN.1 header) instead of always writing a constant.
+- Reduce the default `-b, --buffer-size` from 100MB to 8MB; a larger buffer does not necessarily improve throughput on a
+  large dump. `-b, --buffer-size` is now deprecated.
+- Speed up the pre-processing pass that runs. On a 1.2 GB dump the pass drops from 20-22s to 12-14s (~40% faster) and
+  the whole run from 43-46s to 35-37s (roughly 20%).
 - Fix `-e, --exclude-string-fields` being silently ignored when `-f, --force-string-coder-match=false`.
 - Fix sanitizing string that shares its backing `byte[]` with an excluded string.
 - Fix `-e, --exclude-string-fields` truncating the output when it names a primitive field.
@@ -34,8 +38,6 @@
 - Options are now listed in a more logical order rather than alphabetically.
 - Command-line usage errors now prints the explanation plus usage help and exits 2; stack trace no more.
 - Reduce allocation by roughly 90% (about 96 GB down to under 10 GB on a 1.2 GB dump) and wall clock by about 35%.
-- Speed up the pre-processing pass that runs. On a 1.2 GB dump the pass drops from 20-22s to 12-14s (~40% faster) and
-  the whole run from 43-46s to 35-37s (roughly 20%).
 - Progress is now reported roughly every 5 seconds like `Processed 484.32 MB / 1.11 GB (ETA 12s)`
 
 ## 1.3.4
