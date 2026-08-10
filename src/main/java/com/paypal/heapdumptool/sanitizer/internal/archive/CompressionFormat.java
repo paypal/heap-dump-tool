@@ -1,16 +1,15 @@
-package com.paypal.heapdumptool.sanitizer;
-
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
-import org.apache.commons.compress.compressors.gzip.GzipParameters;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.Strings;
+package com.paypal.heapdumptool.sanitizer.internal.archive;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
+import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream;
+import org.apache.commons.compress.compressors.gzip.GzipParameters;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.Strings;
 
 /**
  * A compression wrapper around a stream, outside whatever archive is inside it.
@@ -24,7 +23,7 @@ import java.nio.file.Path;
  * be read backwards. So a gzipped input's dump length is only knowable from the archive inside it,
  * and a gzipped output is written straight through.</p>
  */
-enum CompressionFormat {
+public enum CompressionFormat {
 
     /**
      * Not compressed: the bytes are the archive, or the dump.
@@ -71,7 +70,7 @@ enum CompressionFormat {
      * <p>{@code .tgz} is the same thing as {@code .tar.gz}, so what it asks for is gzip here and a tar
      * from {@link ArchiveFormat#ofOutputFile}.</p>
      */
-    static CompressionFormat ofOutputFile(final Path outputFile) {
+    public static CompressionFormat ofOutputFile(final Path outputFile) {
         final String name = outputFile.getFileName().toString();
         if (Strings.CI.endsWith(name, ".gz") || Strings.CI.endsWith(name, ".tgz")) {
             return GZIP;
@@ -100,7 +99,7 @@ enum CompressionFormat {
      * @param fileName the name to record in the gzip header, which is what {@code gunzip} restores the
      *                 decompressed file as
      */
-    OutputStream compress(final OutputStream stream, final String fileName) throws IOException {
+    public OutputStream compress(final OutputStream stream, final String fileName) throws IOException {
         if (this == NONE) {
             return stream;
         }
@@ -112,14 +111,14 @@ enum CompressionFormat {
     /**
      * The extension this compression adds to a file name, or an empty string for {@link #NONE}.
      */
-    String extension() {
+    public String extension() {
         return this == GZIP ? ".gz" : "";
     }
 
     /**
      * How this format names itself in a log line or an error message.
      */
-    String displayName() {
+    public String displayName() {
         return name().toLowerCase();
     }
 }

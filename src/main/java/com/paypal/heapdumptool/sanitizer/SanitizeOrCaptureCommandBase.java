@@ -1,6 +1,7 @@
 package com.paypal.heapdumptool.sanitizer;
 
 import com.paypal.heapdumptool.cli.CliCommand;
+import com.paypal.heapdumptool.sanitizer.internal.policy.SanitizationRuleRegistry;
 import com.paypal.heapdumptool.utils.DataSize;
 import java.util.ArrayList;
 import java.util.Arrays;

@@ -1,5 +1,13 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.sanitizer.internal.hprof.ArrayTransformation;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.ClassObject;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.Field;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.Pipe;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.PrimitiveArrayContext;
+import com.paypal.heapdumptool.sanitizer.internal.policy.Replacement;
+import com.paypal.heapdumptool.sanitizer.internal.policy.SanitizationRuleRegistry;
 import com.paypal.heapdumptool.utils.InternalLogger;
 import com.paypal.heapdumptool.utils.Long2LongHashMap;
 import com.paypal.heapdumptool.utils.ProgressMonitor;
@@ -16,10 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.paypal.heapdumptool.sanitizer.HeapRecord.HEAP_DUMP;
-import static com.paypal.heapdumptool.sanitizer.HeapRecord.HEAP_DUMP_SEGMENT;
-import static com.paypal.heapdumptool.sanitizer.HeapRecord.LOAD_CLASS;
-import static com.paypal.heapdumptool.sanitizer.HeapRecord.STRING_IN_UTF8;
+import static com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord.HEAP_DUMP;
+import static com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord.HEAP_DUMP_SEGMENT;
+import static com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord.LOAD_CLASS;
+import static com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord.STRING_IN_UTF8;
 import static org.apache.commons.lang3.BooleanUtils.isFalse;
 
 /**

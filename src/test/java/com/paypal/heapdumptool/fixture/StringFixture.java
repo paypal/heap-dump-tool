@@ -1,8 +1,7 @@
 package com.paypal.heapdumptool.fixture;
 
 import com.paypal.heapdumptool.sanitizer.BasicType;
-import com.paypal.heapdumptool.sanitizer.HeapRecord;
-
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
 import java.io.IOException;
 
 /**
@@ -40,12 +39,12 @@ public final class StringFixture {
         hprof.loadClass(1, STRING_CLASS_ID, 20);
 
         final Hprof body = new Hprof();
-        body.classDump(STRING_CLASS_ID, 0,
-                new int[]{21, 22, 23},
-                new BasicType[]{BasicType.OBJECT, BasicType.INT, BasicType.BYTE});
+        body.classDump(STRING_CLASS_ID, 0, new int[] {21, 22, 23}, new BasicType[] {
+            BasicType.OBJECT, BasicType.INT, BasicType.BYTE
+        });
 
         // "hi" as UTF16-BE, i.e. what a coder==1 String looks like
-        body.primitiveArrayDump(VALUE_ARRAY_ID, BasicType.BYTE, new byte[]{0, 'h', 0, 'i'});
+        body.primitiveArrayDump(VALUE_ARRAY_ID, BasicType.BYTE, new byte[] {0, 'h', 0, 'i'});
 
         final Hprof instance = new Hprof();
         final int relativeValueIdOffset = instance.offset();

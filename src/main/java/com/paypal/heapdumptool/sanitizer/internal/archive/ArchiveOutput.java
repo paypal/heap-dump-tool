@@ -1,12 +1,11 @@
-package com.paypal.heapdumptool.sanitizer;
-
-import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
-import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
+package com.paypal.heapdumptool.sanitizer.internal.archive;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream;
 
 import static com.paypal.heapdumptool.utils.ProgressMonitor.UNKNOWN_TOTAL;
 
@@ -20,7 +19,7 @@ import static com.paypal.heapdumptool.utils.ProgressMonitor.UNKNOWN_TOTAL;
  * {@link ArchiveInput}. Only the caller can tell an archive that was written from one that was asked
  * for and refused.</p>
  */
-final class ArchiveOutput {
+public final class ArchiveOutput {
 
     private ArchiveOutput() {
         throw new AssertionError();
@@ -34,10 +33,9 @@ final class ArchiveOutput {
      * @param dumpSizeBytes the length the dump will have, needed by {@link ArchiveFormat#TAR}, or
      *                      {@link com.paypal.heapdumptool.utils.ProgressMonitor#UNKNOWN_TOTAL}
      */
-    static OutputStream wrap(final OutputStream output,
-                             final ArchiveFormat format,
-                             final String entryName,
-                             final long dumpSizeBytes) throws IOException {
+    public static OutputStream wrap(
+            final OutputStream output, final ArchiveFormat format, final String entryName, final long dumpSizeBytes)
+            throws IOException {
         switch (format) {
             case TAR:
                 return newTarStream(output, entryName, dumpSizeBytes);
@@ -65,15 +63,14 @@ final class ArchiveOutput {
      * input that is not itself an archive. Zip has no such constraint -- it writes the sizes in a
      * trailer after the data -- so that is what the error suggests.
      */
-    private static OutputStream newTarStream(final OutputStream output,
-                                             final String entryName,
-                                             final long dumpSizeBytes) throws IOException {
+    private static OutputStream newTarStream(
+            final OutputStream output, final String entryName, final long dumpSizeBytes) throws IOException {
         if (dumpSizeBytes == UNKNOWN_TOTAL) {
             throw new IllegalArgumentException("Cannot write tar output for an input of unknown length,"
-                                                       + " because a tar entry declares its length before"
-                                                       + " its data. Use a .zip output file, or a plain"
-                                                       + " .hprof one, optionally .gz -- neither a zip nor"
-                                                       + " gzip needs the length up front");
+                    + " because a tar entry declares its length before"
+                    + " its data. Use a .zip output file, or a plain"
+                    + " .hprof one, optionally .gz -- neither a zip nor"
+                    + " gzip needs the length up front");
         }
 
         final TarArchiveOutputStream tarStream = new EntryClosingTarOutputStream(output);

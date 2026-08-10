@@ -1,5 +1,6 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.sanitizer.internal.hprof.ArrayTransformation;
 import com.paypal.heapdumptool.utils.DataSize;
 
 /**

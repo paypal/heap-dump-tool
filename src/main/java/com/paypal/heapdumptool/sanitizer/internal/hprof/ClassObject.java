@@ -1,4 +1,4 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.hprof;
 
 import java.util.ArrayList;
 import java.util.List;

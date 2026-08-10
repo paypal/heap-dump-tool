@@ -1,4 +1,4 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.hprof;
 
 import com.paypal.heapdumptool.utils.ProgressMonitor;
 import java.io.DataInputStream;

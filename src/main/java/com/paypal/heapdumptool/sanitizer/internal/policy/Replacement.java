@@ -1,5 +1,6 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
+import com.paypal.heapdumptool.sanitizer.SanitizationPolicy;
 import java.util.Arrays;
 
 /**
@@ -28,12 +29,12 @@ public class Replacement {
      * at most this and at least one tile. 8 KB is large enough that a big primitive array is
      * written in few chunks, and small enough that holding one per primitive type costs 64 KB.
      */
-    static final int TILED_BUFFER_SIZE = 8192;
+    public static final int TILED_BUFFER_SIZE = 8192;
 
     private final byte[] bytes;
     private final byte[] tiledBuffer;
 
-    Replacement(final byte[] bytes) {
+    public Replacement(final byte[] bytes) {
         this.bytes = bytes.clone();
         this.tiledBuffer = newTiledBuffer(this.bytes);
     }
@@ -49,7 +50,7 @@ public class Replacement {
      * The replacement tiled across a reusable buffer. Read-only: callers must not modify it.
      * Its length is always a whole multiple of {@link #getLength()}.
      */
-    byte[] getTiledBuffer() {
+    public byte[] getTiledBuffer() {
         return tiledBuffer;
     }
 

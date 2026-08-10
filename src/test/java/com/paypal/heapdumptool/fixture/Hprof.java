@@ -1,7 +1,7 @@
 package com.paypal.heapdumptool.fixture;
 
 import com.paypal.heapdumptool.sanitizer.BasicType;
-import com.paypal.heapdumptool.sanitizer.HeapRecord;
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;

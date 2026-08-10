@@ -1,5 +1,6 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.sanitizer.internal.policy.Replacement;
 import java.util.Arrays;
 
 /**
@@ -102,7 +103,7 @@ public final class Decision {
         return kind;
     }
 
-    boolean isUndecided() {
+    public boolean isUndecided() {
         return kind == Kind.UNDECIDED;
     }
 
@@ -110,17 +111,17 @@ public final class Decision {
         return kind == Kind.SANITIZE;
     }
 
-    boolean isTransform() {
+    public boolean isTransform() {
         return kind == Kind.TRANSFORM;
     }
 
     /** The transformer to run over this region, or null unless this is a {@code TRANSFORM} verdict. */
-    ValueTransformer getTransformer() {
+    public ValueTransformer getTransformer() {
         return transformer;
     }
 
     /** The custom replacement bytes, or null to use the type's configured replacement. */
-    byte[] getReplacement() {
+    public byte[] getReplacement() {
         return replacement;
     }
 
@@ -156,7 +157,7 @@ public final class Decision {
      * describe() is user code, so a broken implementation must not be what aborts the run -- least of
      * all while building the message for an unrelated failure. Same reasoning as SanitizationRuleRegistry.
      */
-    String describeTransformer() {
+    public String describeTransformer() {
         if (transformer == null) {
             return "none";
         }

@@ -1,13 +1,12 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.sanitizer.internal.archive.ArchiveFormat;
+import com.paypal.heapdumptool.sanitizer.internal.archive.ArchiveInput;
+import com.paypal.heapdumptool.sanitizer.internal.archive.ArchiveOutput;
+import com.paypal.heapdumptool.sanitizer.internal.archive.CompressionFormat;
 import com.paypal.heapdumptool.utils.DataSize;
 import com.paypal.heapdumptool.utils.FileTool;
 import com.paypal.heapdumptool.utils.InternalLogger;
-import com.paypal.heapdumptool.utils.ProgressMonitor;
-import org.apache.commons.io.input.BufferedFileChannelInputStream;
-import org.apache.commons.lang3.Strings;
-import org.apache.commons.lang3.Validate;
-
 import java.io.BufferedOutputStream;
 import java.io.FilterOutputStream;
 import java.io.IOException;
@@ -15,6 +14,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import org.apache.commons.io.input.BufferedFileChannelInputStream;
+import org.apache.commons.lang3.Strings;
+import org.apache.commons.lang3.Validate;
 
 import static com.paypal.heapdumptool.utils.ProgressMonitor.UNKNOWN_TOTAL;
 import static java.lang.Math.toIntExact;
@@ -81,8 +83,11 @@ public class SanitizeStreamFactory {
             return;
         }
         archiveInputLogged = true;
-        LOGGER.info("Reading {} input: {} - {}", describeInputFormat(archiveInput), getInputFileName(),
-                    describeDumpSize(archiveInput));
+        LOGGER.info(
+                "Reading {} input: {} - {}",
+                describeInputFormat(archiveInput),
+                getInputFileName(),
+                describeDumpSize(archiveInput));
         if (archiveInput.getEntryName() != null) {
             LOGGER.info("    Entry: {}", archiveInput.getEntryName());
         }
@@ -96,7 +101,8 @@ public class SanitizeStreamFactory {
         if (archiveInput.getFormat() == ArchiveFormat.NONE) {
             return archiveInput.getCompression().displayName();
         }
-        return archiveInput.getFormat().displayName() + archiveInput.getCompression().extension();
+        return archiveInput.getFormat().displayName()
+                + archiveInput.getCompression().extension();
     }
 
     /*
@@ -131,9 +137,8 @@ public class SanitizeStreamFactory {
         // the logging wrapper is innermost, so its close() runs once everything above has flushed and
         // finished and the file's size on disk is final
         final OutputStream fileOutput = loggingWhenWritten(Files.newOutputStream(outputFile));
-        final OutputStream output = getBufferSize() == 0
-                                    ? fileOutput
-                                    : new BufferedOutputStream(fileOutput, getBufferSize());
+        final OutputStream output =
+                getBufferSize() == 0 ? fileOutput : new BufferedOutputStream(fileOutput, getBufferSize());
 
         final ArchiveFormat format = getOutputFormat();
         final CompressionFormat compression = getOutputCompression();
@@ -167,8 +172,8 @@ public class SanitizeStreamFactory {
      */
     private void logWritingOutput() {
         final String size = getOutputFormat() == ArchiveFormat.TAR && exactDumpSizeBytes != UNKNOWN_TOTAL
-                            ? FileTool.displaySize(exactDumpSizeBytes)
-                            : "size not yet known";
+                ? FileTool.displaySize(exactDumpSizeBytes)
+                : "size not yet known";
         LOGGER.info("Writing {} output: {} - {}", describeOutputFormat(), getOutputFileName(), size);
     }
 
@@ -196,8 +201,11 @@ public class SanitizeStreamFactory {
                 super.close();
                 if (!logged) { // close() is idempotent by contract, so the line must not repeat
                     logged = true;
-                    LOGGER.info("Wrote {} output: {} - {}", describeOutputFormat(), getOutputFileName(),
-                                FileTool.displaySize(outputFileSizeOrZero()));
+                    LOGGER.info(
+                            "Wrote {} output: {} - {}",
+                            describeOutputFormat(),
+                            getOutputFileName(),
+                            FileTool.displaySize(outputFileSizeOrZero()));
                 }
             }
         };
@@ -256,9 +264,9 @@ public class SanitizeStreamFactory {
             return Files.newInputStream(inputFile);
         }
         return BufferedFileChannelInputStream.builder()
-                                      .setPath(inputFile)
-                                      .setBufferSize(getBufferSize())
-                                      .get();
+                .setPath(inputFile)
+                .setBufferSize(getBufferSize())
+                .get();
     }
 
     public boolean isStdinInput() {
@@ -341,5 +349,4 @@ public class SanitizeStreamFactory {
         final DataSize bufferSize = command.getBufferSize();
         return toIntExact(bufferSize.toBytes());
     }
-
 }

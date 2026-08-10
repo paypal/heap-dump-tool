@@ -1,11 +1,12 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
+import com.paypal.heapdumptool.sanitizer.BasicType;
 import org.junit.jupiter.api.Test;
 
-import static com.paypal.heapdumptool.sanitizer.PrimitiveReplacement.decode;
-import static com.paypal.heapdumptool.sanitizer.PrimitiveReplacement.defaultFor;
-import static com.paypal.heapdumptool.sanitizer.PrimitiveReplacement.defaultValueText;
-import static com.paypal.heapdumptool.sanitizer.PrimitiveReplacement.encode;
+import static com.paypal.heapdumptool.sanitizer.internal.policy.PrimitiveReplacement.decode;
+import static com.paypal.heapdumptool.sanitizer.internal.policy.PrimitiveReplacement.defaultFor;
+import static com.paypal.heapdumptool.sanitizer.internal.policy.PrimitiveReplacement.defaultValueText;
+import static com.paypal.heapdumptool.sanitizer.internal.policy.PrimitiveReplacement.encode;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -131,11 +132,9 @@ class PrimitiveReplacementTest {
 
     @Test
     void testMultiCharacterRejected() {
-        assertThatThrownBy(() -> encode(BasicType.CHAR, "ab"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> encode(BasicType.CHAR, "ab")).isInstanceOf(IllegalArgumentException.class);
 
-        assertThatThrownBy(() -> encode(BasicType.CHAR, "abc"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> encode(BasicType.CHAR, "abc")).isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
@@ -172,8 +171,7 @@ class PrimitiveReplacementTest {
     void testEncodeFloatingPoint() {
         assertThat(encode(BasicType.FLOAT, "0.0")).containsExactly(0, 0, 0, 0);
         assertThat(encode(BasicType.FLOAT, "42.0")).containsExactly(0x42, 0x28, 0x00, 0x00);
-        assertThat(encode(BasicType.DOUBLE, "42.0"))
-                .containsExactly(0x40, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
+        assertThat(encode(BasicType.DOUBLE, "42.0")).containsExactly(0x40, 0x45, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00);
     }
 
     @Test
@@ -213,11 +211,9 @@ class PrimitiveReplacementTest {
 
     @Test
     void testMalformedRejected() {
-        assertThatThrownBy(() -> encode(BasicType.INT, "abc"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> encode(BasicType.INT, "abc")).isInstanceOf(IllegalArgumentException.class);
 
-        assertThatThrownBy(() -> encode(BasicType.INT, ""))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> encode(BasicType.INT, "")).isInstanceOf(IllegalArgumentException.class);
 
         assertThatThrownBy(() -> encode(BasicType.INT, "1.5"))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -288,7 +284,7 @@ class PrimitiveReplacementTest {
 
     @Test
     void testDecodeRejectsWrongWidth() {
-        assertThatThrownBy(() -> decode(BasicType.INT, new byte[]{0, 0}))
+        assertThatThrownBy(() -> decode(BasicType.INT, new byte[] {0, 0}))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Expected 4 bytes for int");
     }

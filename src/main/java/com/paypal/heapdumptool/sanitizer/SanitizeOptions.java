@@ -1,5 +1,9 @@
 package com.paypal.heapdumptool.sanitizer;
 
+import com.paypal.heapdumptool.sanitizer.internal.hprof.Field;
+import com.paypal.heapdumptool.sanitizer.internal.policy.ReplacementSpec;
+import com.paypal.heapdumptool.sanitizer.internal.policy.SanitizationRuleRegistry;
+import com.paypal.heapdumptool.sanitizer.internal.policy.TargetSelector;
 import java.util.ArrayList;
 import java.util.List;
 import org.apache.commons.text.StringEscapeUtils;

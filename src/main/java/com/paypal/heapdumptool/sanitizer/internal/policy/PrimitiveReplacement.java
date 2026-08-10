@@ -1,9 +1,9 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import java.nio.ByteBuffer;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.text.StringEscapeUtils;
-
-import java.nio.ByteBuffer;
 
 /**
  * Parses a user-supplied replacement value into bytes of a specific {@link BasicType}.
@@ -123,8 +123,8 @@ public final class PrimitiveReplacement {
         }
         final int width = type.getValueSize(ID_SIZE_UNUSED);
         if (bytes.length != width) {
-            throw new IllegalArgumentException("Expected " + width + " bytes for " + lowerName(type)
-                    + ", got " + bytes.length);
+            throw new IllegalArgumentException(
+                    "Expected " + width + " bytes for " + lowerName(type) + ", got " + bytes.length);
         }
 
         final ByteBuffer buffer = ByteBuffer.wrap(bytes);
@@ -178,19 +178,16 @@ public final class PrimitiveReplacement {
         try {
             return Long.parseLong(value) != 0;
         } catch (final NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid boolean replacement value: " + value
-                    + ". Expected true, false, or a number");
+            throw new IllegalArgumentException(
+                    "Invalid boolean replacement value: " + value + ". Expected true, false, or a number");
         }
     }
 
-    private static long parseIntegral(final BasicType type,
-                                      final String value,
-                                      final long min,
-                                      final long max) {
+    private static long parseIntegral(final BasicType type, final String value, final long min, final long max) {
         final long parsed = parseNumber(type, value);
         if (parsed < min || parsed > max) {
-            throw new IllegalArgumentException("Replacement value " + value + " is out of range for "
-                    + lowerName(type) + ". Expected " + min + ".." + max);
+            throw new IllegalArgumentException("Replacement value " + value + " is out of range for " + lowerName(type)
+                    + ". Expected " + min + ".." + max);
         }
         return parsed;
     }
@@ -199,8 +196,8 @@ public final class PrimitiveReplacement {
         try {
             return Long.parseLong(value);
         } catch (final NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid " + lowerName(type) + " replacement value: " + value
-                    + ". Expected a whole number");
+            throw new IllegalArgumentException(
+                    "Invalid " + lowerName(type) + " replacement value: " + value + ". Expected a whole number");
         }
     }
 
@@ -225,8 +222,8 @@ public final class PrimitiveReplacement {
         try {
             return Double.parseDouble(value);
         } catch (final NumberFormatException e) {
-            throw new IllegalArgumentException("Invalid " + lowerName(type) + " replacement value: " + value
-                    + ". Expected a number");
+            throw new IllegalArgumentException(
+                    "Invalid " + lowerName(type) + " replacement value: " + value + ". Expected a number");
         }
     }
 
@@ -265,8 +262,8 @@ public final class PrimitiveReplacement {
 
         final String unescaped = StringEscapeUtils.unescapeJava(value);
         if (unescaped == null || unescaped.length() != 1) {
-            throw new IllegalArgumentException("Invalid escape sequence: " + value
-                    + ". Expected a single character, such as \\0, \\98 or \\t");
+            throw new IllegalArgumentException(
+                    "Invalid escape sequence: " + value + ". Expected a single character, such as \\0, \\98 or \\t");
         }
         return unescaped.charAt(0);
     }
@@ -276,12 +273,12 @@ public final class PrimitiveReplacement {
         try {
             codePoint = Integer.parseInt(digits);
         } catch (final NumberFormatException e) {
-            throw new IllegalArgumentException("Character code out of range: " + value
-                    + ". Expected " + (int) Character.MIN_VALUE + ".." + (int) Character.MAX_VALUE);
+            throw new IllegalArgumentException("Character code out of range: " + value + ". Expected "
+                    + (int) Character.MIN_VALUE + ".." + (int) Character.MAX_VALUE);
         }
         if (codePoint > Character.MAX_VALUE) {
-            throw new IllegalArgumentException("Character code out of range: " + value
-                    + ". Expected " + (int) Character.MIN_VALUE + ".." + (int) Character.MAX_VALUE);
+            throw new IllegalArgumentException("Character code out of range: " + value + ". Expected "
+                    + (int) Character.MIN_VALUE + ".." + (int) Character.MAX_VALUE);
         }
         return codePoint;
     }

@@ -1,13 +1,13 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.hprof;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public enum HeapRecord {
-
     STRING_IN_UTF8(0x01),
     LOAD_CLASS(0x02),
     UNLOAD_CLASS(0x03),
@@ -26,8 +26,8 @@ public enum HeapRecord {
 
     private final int tag;
 
-    private static final Map<Integer, HeapRecord> tagToHeapRecord = Arrays.stream(HeapRecord.values())
-            .collect(Collectors.toMap(HeapRecord::getTag, Function.identity()));
+    private static final Map<Integer, HeapRecord> tagToHeapRecord = Collections.unmodifiableMap(
+            Arrays.stream(HeapRecord.values()).collect(Collectors.toMap(HeapRecord::getTag, Function.identity())));
 
     HeapRecord(final int tag) {
         this.tag = tag;

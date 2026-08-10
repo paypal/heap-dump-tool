@@ -1,5 +1,7 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.SanitizationPolicy;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -68,8 +70,7 @@ class SelectorNamesTest {
      */
     @Test
     void testTypeNamesListsEveryPrimitiveSorted() {
-        assertThat(SelectorNames.typeNames())
-                .isEqualTo("boolean, byte, char, double, float, int, long, short");
+        assertThat(SelectorNames.typeNames()).isEqualTo("boolean, byte, char, double, float, int, long, short");
 
         for (final BasicType type : SanitizationPolicy.PRIMITIVES) {
             assertThat(SelectorNames.typeNames())

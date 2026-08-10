@@ -1,11 +1,12 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
-import org.apache.commons.lang3.StringUtils;
-
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.SanitizationPolicy;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * Parses a {@code --target} selector list into an ordered list of scope mutations.
@@ -37,7 +38,7 @@ import java.util.Set;
  * minus {@code int} is still nothing -- so it is rejected with a message pointing at
  * {@code all,-int}.</p>
  */
-final class TargetSelector {
+public final class TargetSelector {
 
     private static final String ALL = "all";
     private static final String NONE = "none";
@@ -55,7 +56,7 @@ final class TargetSelector {
      *                                  mutation is applied, so a rejected list leaves the builder
      *                                  untouched.
      */
-    static void applyTo(final String value, final SanitizationPolicy.Builder builder) {
+    public static void applyTo(final String value, final SanitizationPolicy.Builder builder) {
         for (final Step step : parse(value)) {
             step.applyTo(builder);
         }
@@ -66,7 +67,7 @@ final class TargetSelector {
      *
      * @throws IllegalArgumentException if the list is malformed
      */
-    static void validate(final String value) {
+    public static void validate(final String value) {
         parse(value);
     }
 
@@ -86,15 +87,13 @@ final class TargetSelector {
     private static Step parseEntry(final String entry, final boolean first) {
         final String trimmed = StringUtils.trimToEmpty(entry);
         if (trimmed.isEmpty()) {
-            throw new IllegalArgumentException("--target has an empty selector. Expected "
-                    + VALID_SELECTORS);
+            throw new IllegalArgumentException("--target has an empty selector. Expected " + VALID_SELECTORS);
         }
 
         final boolean subtract = trimmed.charAt(0) == '-';
         final String body = subtract ? StringUtils.trimToEmpty(trimmed.substring(1)) : trimmed;
         if (body.isEmpty()) {
-            throw new IllegalArgumentException("--target has an empty selector after '-'. Expected "
-                    + VALID_SELECTORS);
+            throw new IllegalArgumentException("--target has an empty selector after '-'. Expected " + VALID_SELECTORS);
         }
         if (subtract && first) {
             throw new IllegalArgumentException("--target=" + trimmed + " cannot start the list:"
@@ -167,8 +166,7 @@ final class TargetSelector {
     }
 
     private static IllegalArgumentException unknownSelector(final String body) {
-        return new IllegalArgumentException("Unknown --target selector: " + body + ". Expected "
-                + VALID_SELECTORS);
+        return new IllegalArgumentException("Unknown --target selector: " + body + ". Expected " + VALID_SELECTORS);
     }
 
     /**

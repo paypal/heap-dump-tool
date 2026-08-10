@@ -1,8 +1,7 @@
 package com.paypal.heapdumptool.fixture;
 
 import com.paypal.heapdumptool.sanitizer.BasicType;
-import com.paypal.heapdumptool.sanitizer.HeapRecord;
-
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumMap;
@@ -23,8 +22,8 @@ public final class AllPrimitivesFixture {
      * references are never sanitizable.
      */
     public static final BasicType[] ALL_PRIMITIVES = {
-            BasicType.BYTE, BasicType.BOOLEAN, BasicType.CHAR, BasicType.SHORT,
-            BasicType.INT, BasicType.FLOAT, BasicType.LONG, BasicType.DOUBLE
+        BasicType.BYTE, BasicType.BOOLEAN, BasicType.CHAR, BasicType.SHORT,
+        BasicType.INT, BasicType.FLOAT, BasicType.LONG, BasicType.DOUBLE
     };
 
     /**

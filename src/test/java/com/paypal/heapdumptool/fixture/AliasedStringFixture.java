@@ -1,8 +1,7 @@
 package com.paypal.heapdumptool.fixture;
 
 import com.paypal.heapdumptool.sanitizer.BasicType;
-import com.paypal.heapdumptool.sanitizer.HeapRecord;
-
+import com.paypal.heapdumptool.sanitizer.internal.hprof.HeapRecord;
 import java.io.IOException;
 
 /**
@@ -49,9 +48,8 @@ public final class AliasedStringFixture {
         hprof.loadClass(2, STRING_CLASS_ID, 81);
 
         final Hprof body = new Hprof();
-        body.classDump(HOLDER_CLASS_ID, 0, new int[]{82}, new BasicType[]{BasicType.OBJECT});
-        body.classDump(STRING_CLASS_ID, 0, new int[]{83, 84},
-                new BasicType[]{BasicType.OBJECT, BasicType.BYTE});
+        body.classDump(HOLDER_CLASS_ID, 0, new int[] {82}, new BasicType[] {BasicType.OBJECT});
+        body.classDump(STRING_CLASS_ID, 0, new int[] {83, 84}, new BasicType[] {BasicType.OBJECT, BasicType.BYTE});
 
         // the holder's excluded field names the first String only
         final Hprof holder = new Hprof();

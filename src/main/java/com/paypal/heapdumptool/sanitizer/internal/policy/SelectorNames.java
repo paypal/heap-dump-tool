@@ -1,12 +1,13 @@
-package com.paypal.heapdumptool.sanitizer;
+package com.paypal.heapdumptool.sanitizer.internal.policy;
 
-import org.apache.commons.lang3.StringUtils;
-
+import com.paypal.heapdumptool.sanitizer.BasicType;
+import com.paypal.heapdumptool.sanitizer.SanitizationPolicy;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
 
 /**
  * The vocabulary shared by {@code --target} and {@code --replacement}: the primitive type names,
@@ -17,19 +18,19 @@ import java.util.Map;
  * splits {@code bytes-arrays} into its two components and normalizes each, which is what admits the
  * mixed forms ({@code bytes-array}) from one rule instead of an alias table.</p>
  */
-final class SelectorNames {
+public final class SelectorNames {
 
     private static final Map<String, BasicType> TYPES_BY_NAME = newTypesByName();
 
     private static final String TYPE_NAMES = String.join(", ", sortedTypeNames());
 
-    static final String OBJECT = "object";
+    public static final String OBJECT = "object";
 
     /**
      * Trims, lowercases and drops at most one trailing {@code s}. A bare {@code "s"} is left alone:
      * stripping it would produce the empty string, which is not a name.
      */
-    static String normalize(final String token) {
+    public static String normalize(final String token) {
         final String trimmed = StringUtils.trimToEmpty(token).toLowerCase();
         if (trimmed.length() > 1 && trimmed.endsWith("s")) {
             return trimmed.substring(0, trimmed.length() - 1);
@@ -43,25 +44,25 @@ final class SelectorNames {
      * {@link #isObject(String)} to tell the two apart, since the two flags word that error
      * differently.
      */
-    static BasicType findType(final String normalizedToken) {
+    public static BasicType findType(final String normalizedToken) {
         return TYPES_BY_NAME.get(normalizedToken);
     }
 
-    static boolean isObject(final String normalizedToken) {
+    public static boolean isObject(final String normalizedToken) {
         return OBJECT.equals(normalizedToken);
     }
 
     /**
      * The selector name of a type: the singular, lowercase form the flags accept.
      */
-    static String nameOf(final BasicType type) {
+    public static String nameOf(final BasicType type) {
         return type.name().toLowerCase();
     }
 
     /**
      * The valid type names, comma-separated and sorted, for error messages.
      */
-    static String typeNames() {
+    public static String typeNames() {
         return TYPE_NAMES;
     }
 
