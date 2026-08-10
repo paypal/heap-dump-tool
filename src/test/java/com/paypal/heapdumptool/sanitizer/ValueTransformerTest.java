@@ -40,7 +40,7 @@ class ValueTransformerTest {
     private static final long ARRAY_OBJECT_ID = 0xA100;
 
     /** The chain the most recent run used, for tests that assert on what it logged about transformers. */
-    private SanitizationRules lastRunRules;
+    private SanitizationRuleRegistry lastRunRules;
 
     /**
      * A class with one field of each transformable type, so a single fixture can prove every arm of the

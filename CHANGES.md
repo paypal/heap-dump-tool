@@ -1,6 +1,6 @@
 # Change Log
 
-## 1.4.0
+## 2.0.0
 - Add `--target` and `--replacement`, which together control what data is sanitized and what is written over it.
   `--target` takes a comma-separated selector list applied left to right — `all`, `none`, `<type>`,
   `<type>-fields`, `<type>-arrays`, `fields`, `arrays`, with `-` to subtract and an optional trailing `s`

@@ -130,7 +130,7 @@ public abstract class SanitizeOrCaptureCommandBase implements CliCommand {
      * resolved once per run and reused, since the chain records which rules matched; see
      * {@link SanitizeOptions#resolveRules()}.
      */
-    public SanitizationRules getSanitizationRules() {
+    public SanitizationRuleRegistry getSanitizationRules() {
         return sanitizeOptions.resolveRules();
     }
 

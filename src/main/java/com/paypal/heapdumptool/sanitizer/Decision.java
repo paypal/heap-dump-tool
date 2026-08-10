@@ -154,7 +154,7 @@ public final class Decision {
 
     /*
      * describe() is user code, so a broken implementation must not be what aborts the run -- least of
-     * all while building the message for an unrelated failure. Same reasoning as SanitizationRules.
+     * all while building the message for an unrelated failure. Same reasoning as SanitizationRuleRegistry.
      */
     String describeTransformer() {
         if (transformer == null) {

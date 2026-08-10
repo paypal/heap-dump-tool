@@ -91,7 +91,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
      * rule list in flag syntax would suggest the log is a complete record of the run when it is
      * not.</p>
      */
-    private static void logSanitizationRules(final SanitizationRules rules) {
+    private static void logSanitizationRules(final SanitizationRuleRegistry rules) {
         // null-tolerant for the same reason HeapDumpSanitizer.sanitize() is: a stub command answers null
         if (rules == null || rules.isEmpty()) {
             return;
@@ -111,7 +111,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
      * the original value nor a constant from {@code --replacement}. Nothing else in the log would say
      * that user code decided what those bytes are.</p>
      */
-    private static void logRoutedTransformers(final SanitizationRules rules) {
+    private static void logRoutedTransformers(final SanitizationRuleRegistry rules) {
         if (rules == null) {
             return;
         }
@@ -130,7 +130,7 @@ public class SanitizeCommandProcessor implements CliCommandProcessor {
      * <p>Logged after the run rather than raised as an error: by the time this is known the output is
      * already written, and a rule can also legitimately match nothing in one dump of many.</p>
      */
-    private static void warnAboutUnmatchedRules(final SanitizationRules rules) {
+    private static void warnAboutUnmatchedRules(final SanitizationRuleRegistry rules) {
         if (rules == null) {
             return;
         }

@@ -94,18 +94,14 @@ class TargetSelectorTest {
      */
     @Test
     void testPluralAndMixedSpellingsAreEquivalent() {
-        final String[] equivalentToIntArray = {
-                "int-array", "int-arrays", "ints-array", "ints-arrays"
-        };
+        final String[] equivalentToIntArray = {"int-array", "int-arrays", "ints-array", "ints-arrays"};
         for (final String spelling : equivalentToIntArray) {
             final SanitizationPolicy policy = parse(spelling);
             assertThat(policy.sanitizeArray(BasicType.INT)).as(spelling).isTrue();
             assertThat(policy.sanitizeField(BasicType.INT)).as(spelling).isFalse();
         }
 
-        final String[] equivalentToIntField = {
-                "int-field", "int-fields", "ints-field", "ints-fields"
-        };
+        final String[] equivalentToIntField = {"int-field", "int-fields", "ints-field", "ints-fields"};
         for (final String spelling : equivalentToIntField) {
             final SanitizationPolicy policy = parse(spelling);
             assertThat(policy.sanitizeField(BasicType.INT)).as(spelling).isTrue();
@@ -168,7 +164,7 @@ class TargetSelectorTest {
     }
 
     /**
-     * The base is none, so an additive list needs no explicit base. This is the pre-1.4.0 scope.
+     * The base is none, so an additive list needs no explicit base. This is the pre-2.0.0 scope.
      */
     @Test
     void testImplicitNoneBase() {
@@ -184,10 +180,14 @@ class TargetSelectorTest {
         final SanitizationPolicy implicit = parse("byte-arrays,char-arrays");
         final SanitizationPolicy explicit = parse("none,byte-arrays,char-arrays");
         assertThat(explicit.sanitizeArray(BasicType.BYTE))
-                .isEqualTo(implicit.sanitizeArray(BasicType.BYTE)).isTrue();
+                .isEqualTo(implicit.sanitizeArray(BasicType.BYTE))
+                .isTrue();
         assertThat(explicit.sanitizeArray(BasicType.INT))
-                .isEqualTo(implicit.sanitizeArray(BasicType.INT)).isFalse();
-        assertThat(explicit.isAnyFieldSanitized()).isEqualTo(implicit.isAnyFieldSanitized()).isFalse();
+                .isEqualTo(implicit.sanitizeArray(BasicType.INT))
+                .isFalse();
+        assertThat(explicit.isAnyFieldSanitized())
+                .isEqualTo(implicit.isAnyFieldSanitized())
+                .isFalse();
     }
 
     /**
@@ -323,7 +323,6 @@ class TargetSelectorTest {
     @Test
     void testValidateAcceptsAndRejectsWithoutABuilder() {
         TargetSelector.validate("all,-int");
-        assertThatThrownBy(() -> TargetSelector.validate("bogus"))
-                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> TargetSelector.validate("bogus")).isInstanceOf(IllegalArgumentException.class);
     }
 }

@@ -184,8 +184,8 @@ public class SanitizeOptions {
      * -- while the policy is a value that gets rebuilt on every call. One chain per run is what makes
      * the memoized verdict on {@link Field} and the zero-match warning both correct.</p>
      */
-    public SanitizationRules resolveRules() {
-        return rules.isEmpty() ? SanitizationRules.empty() : new SanitizationRules(rules);
+    public SanitizationRuleRegistry resolveRules() {
+        return rules.isEmpty() ? SanitizationRuleRegistry.empty() : new SanitizationRuleRegistry(rules);
     }
 
     public void copyFrom(final SanitizeOptions other) {
