@@ -1,6 +1,6 @@
 # Heap Dump Tool
 
-[![Maven Central](https://maven-badges.sml.io/maven-central/com.paypal/heap-dump-tool/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.paypal/heap-dump-tool)
+[![Maven Central](https://img.shields.io/maven-central/v/com.paypal/heap-dump-tool)](https://central.sonatype.com/artifact/com.paypal/heap-dump-tool)
 
 Heap Dump Tool can capture and, more importantly, sanitize sensitive data from Java heap dumps. Sanitization is accomplished
 by replacing primitive field and array values in the heap dump file with a value like `*` for chars and `0` for numbers.
