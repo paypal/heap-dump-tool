@@ -1,11 +1,18 @@
 package com.paypal.heapdumptool.capture;
 
-import com.google.common.io.Closer;
 import com.paypal.heapdumptool.Application;
 import com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation;
 import com.paypal.heapdumptool.testutil.ConstructorTester;
 import com.paypal.heapdumptool.testutil.ResourceTool;
 import com.paypal.heapdumptool.utils.DataSize;
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RuntimeEnvironment;
 import org.junit.jupiter.api.AfterEach;
@@ -22,15 +29,10 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import picocli.CommandLine;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-
-import static com.paypal.heapdumptool.capture.PrivilegeEscalator.escalatePrivilegesIfNeeded;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.NOT_REQUIRED;
-import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.REQUIRED_AND_PROMPTED;
 import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.PRIVILEGED_ALREADY;
+import static com.paypal.heapdumptool.capture.PrivilegeEscalator.Escalation.REQUIRED_AND_PROMPTED;
+import static com.paypal.heapdumptool.capture.PrivilegeEscalator.escalatePrivilegesIfNeeded;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -43,20 +45,22 @@ public class PrivilegeEscalatorTest {
     @TempDir
     Path tempDir;
 
-    private final Closer closer = Closer.create();
+    private final List<Closeable> closeables = new ArrayList<>();
 
     @BeforeEach
     @AfterEach
     public void tearDown() throws IOException {
-        closer.close();
+        Collections.reverse(closeables);
+        for (Closeable closeable : closeables) {
+            closeable.close();
+        }
     }
 
     @Test
     public void testNotInDockerContainer() throws Exception {
         expectInDockerContainer(false);
 
-        assertThat(escalate("capture", "b a r"))
-                .isEqualTo(PRIVILEGED_ALREADY);
+        assertThat(escalate("capture", "b a r")).isEqualTo(PRIVILEGED_ALREADY);
     }
 
     @Test
@@ -69,8 +73,7 @@ public class PrivilegeEscalatorTest {
         expectCgroup(mocked, cgroupPath);
         expectNsenter1(mocked, replacementPath);
 
-        assertThat(escalate("capture", "b a r"))
-                .isEqualTo(PRIVILEGED_ALREADY);
+        assertThat(escalate("capture", "b a r")).isEqualTo(PRIVILEGED_ALREADY);
     }
 
     @Test
@@ -81,8 +84,7 @@ public class PrivilegeEscalatorTest {
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
 
-        assertThat(escalate("capture", "b a r"))
-                .isEqualTo(REQUIRED_AND_PROMPTED);
+        assertThat(escalate("capture", "b a r")).isEqualTo(REQUIRED_AND_PROMPTED);
 
         assertThat(output).contains("If you see this comment while running the tool");
     }
@@ -95,10 +97,10 @@ public class PrivilegeEscalatorTest {
         final MockedStatic<Paths> mocked = createStaticMock(Paths.class);
         expectCgroup(mocked, cgroupPath);
 
-        assertThat(escalate("--docker-registry=my-custom-registry.example.com"))
-                .isEqualTo(REQUIRED_AND_PROMPTED);
+        assertThat(escalate("--docker-registry=my-custom-registry.example.com")).isEqualTo(REQUIRED_AND_PROMPTED);
         assertThat(output.getOut())
-                .contains("FQ_IMAGE=\"${FORCED_DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
+                .contains(
+                        "FQ_IMAGE=\"${FORCED_DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
     }
 
     @Test
@@ -112,7 +114,8 @@ public class PrivilegeEscalatorTest {
         assertThat(escalate("--docker-registry", "my-custom-registry.example.com", "capture", "b a r"))
                 .isEqualTo(REQUIRED_AND_PROMPTED);
         assertThat(output.getOut())
-                .contains("FQ_IMAGE=\"${FORCED_DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
+                .contains(
+                        "FQ_IMAGE=\"${FORCED_DOCKER_REGISTRY:-my-custom-registry.example.com}/heapdumptool/heapdumptool\"\n");
     }
 
     @Test
@@ -130,37 +133,35 @@ public class PrivilegeEscalatorTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {
-            "--bogus-option",           // unknown option
-            "-b nonsense",              // bad option value
-            "--replacement=byte=300", // out-of-range option value
-            "--targ=all"                // abbreviations are not accepted
-    })
+    @ValueSource(
+            strings = {
+                "--bogus-option", // unknown option
+                "-b nonsense", // bad option value
+                "--replacement=byte=300", // out-of-range option value
+                "--targ=all" // abbreviations are not accepted
+            })
     public void testUsageErrorIsNotReportedHere(final String badArg) throws Exception {
         expectInDockerContainer(true);
 
-        final String[] args = ArrayUtils.addAll(new String[]{"sanitize"},
-                                                ArrayUtils.addAll(badArg.split(" "), "in.hprof", "out.hprof"));
+        final String[] args = ArrayUtils.addAll(
+                new String[] {"sanitize"}, ArrayUtils.addAll(badArg.split(" "), "in.hprof", "out.hprof"));
 
         // no exception: CommandLine.execute reports usage errors, so it can render picocli's usage message
-        assertThat(escalate(args))
-                .isEqualTo(NOT_REQUIRED);
+        assertThat(escalate(args)).isEqualTo(NOT_REQUIRED);
     }
 
     @Test
     public void testMissingRequiredParameterIsNotReportedHere() throws Exception {
         expectInDockerContainer(true);
 
-        assertThat(escalate("sanitize", "in.hprof"))
-                .isEqualTo(NOT_REQUIRED);
+        assertThat(escalate("sanitize", "in.hprof")).isEqualTo(NOT_REQUIRED);
     }
 
     @Test
     public void testUnknownSubcommandIsNotReportedHere() throws Exception {
         expectInDockerContainer(true);
 
-        assertThat(escalate("sanitze", "in.hprof", "out.hprof"))
-                .isEqualTo(NOT_REQUIRED);
+        assertThat(escalate("sanitze", "in.hprof", "out.hprof")).isEqualTo(NOT_REQUIRED);
     }
 
     @Test
@@ -178,9 +179,7 @@ public class PrivilegeEscalatorTest {
         assertThat(commandLine.getCommandSpec().parser().collectErrors())
                 .describedAs("collectErrors of %s", commandLine.getCommandName())
                 .isFalse();
-        commandLine.getSubcommands()
-                   .values()
-                   .forEach(PrivilegeEscalatorTest::assertCollectErrorsReverted);
+        commandLine.getSubcommands().values().forEach(PrivilegeEscalatorTest::assertCollectErrorsReverted);
     }
 
     @Test
@@ -207,18 +206,16 @@ public class PrivilegeEscalatorTest {
 
     private <T> MockedStatic<T> createStaticMock(final Class<T> clazz) {
         final MockedStatic<T> mocked = mockStatic(clazz);
-        closer.register(mocked::close);
+        closeables.add(mocked::close);
         return mocked;
     }
 
     private void expectNsenter1(final MockedStatic<Paths> mocked, final Path replacement) {
-        mocked.when(() -> Paths.get("nsenter1"))
-              .thenReturn(replacement);
+        mocked.when(() -> Paths.get("nsenter1")).thenReturn(replacement);
     }
 
     private void expectCgroup(final MockedStatic<Paths> mocked, final Path replacement) {
-        mocked.when(() -> Paths.get("/proc/1/cgroup"))
-              .thenReturn(replacement);
+        mocked.when(() -> Paths.get("/proc/1/cgroup")).thenReturn(replacement);
     }
 
     private String copyCgroup(final String name) throws IOException {
